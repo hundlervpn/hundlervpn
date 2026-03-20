@@ -2,7 +2,7 @@
 
 import { useState, memo, useEffect } from 'react';
 import Image from 'next/image';
-import { Shield, CreditCard, User, Zap, Check, ChevronRight, HelpCircle, Star, Bitcoin, Wallet, Calendar, Smartphone, Settings, Gift, MonitorSmartphone, Globe } from 'lucide-react';
+import { Shield, CreditCard, User, Zap, Check, ChevronRight, HelpCircle, Star, Bitcoin, Wallet, Calendar, Smartphone, Settings, Gift, MonitorSmartphone, Globe, X, Copy, CheckCheck, Monitor, Tablet, Smartphone as SmartphoneIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 // Telegram WebApp types
@@ -46,7 +46,18 @@ const translations = {
     featTitle: 'Преимущества', f1: 'До 3 устройств', f2: 'Безлимитный трафик', f3: 'Минимальные задержки',
     user: 'Пользователь', daysLeft: 'Осталось 23 дня',
     app: 'Приложение', lang: 'Язык', support: 'Поддержка (Telegram)',
-    connected: 'ПОДКЛЮЧЕНО', disconnected: 'ОТКЛЮЧЕНО', location: 'Германия', ping: '120 мс'
+    connected: 'ПОДКЛЮЧЕНО', disconnected: 'ОТКЛЮЧЕНО', location: 'Германия', ping: '120 мс',
+    setupTitle: 'Настройка VPN',
+    setupCurrent: 'Настроить это устройство',
+    setupOther: 'Другое устройство',
+    setupLinkCopied: 'Ссылка скопирована!',
+    setupCopyLink: 'Скопировать ссылку с ключом',
+    setupDetecting: 'Определение устройства...',
+    setupDetected: 'Обнаружено устройство:',
+    setupDesktop: 'Компьютер',
+    setupMobile: 'Смартфон',
+    setupTablet: 'Планшет',
+    setupUnknown: 'Устройство'
   },
   en: {
     navVpn: 'Home', navPremium: 'Payment', navProfile: 'Profile',
@@ -65,7 +76,18 @@ const translations = {
     featTitle: 'Premium Features', f1: 'Up to 3 devices', f2: 'Unlimited bandwidth', f3: 'Minimal latency',
     user: 'User', daysLeft: '23 days left',
     app: 'App', lang: 'Language', support: 'Support (Telegram)',
-    connected: 'CONNECTED', disconnected: 'DISCONNECTED', location: 'Germany', ping: '120 ms'
+    connected: 'CONNECTED', disconnected: 'DISCONNECTED', location: 'Germany', ping: '120 ms',
+    setupTitle: 'VPN Setup',
+    setupCurrent: 'Setup this device',
+    setupOther: 'Other device',
+    setupLinkCopied: 'Link copied!',
+    setupCopyLink: 'Copy link with key',
+    setupDetecting: 'Detecting device...',
+    setupDetected: 'Detected device:',
+    setupDesktop: 'Desktop',
+    setupMobile: 'Smartphone',
+    setupTablet: 'Tablet',
+    setupUnknown: 'Device'
   }
 };
 
@@ -243,6 +265,9 @@ export default function App() {
 
 function HomeView({ t, direction }: { t: any, direction: number }) {
   const [isRoaring, setIsRoaring] = useState(false);
+  const [showSetupModal, setShowSetupModal] = useState(false);
+  const [deviceType, setDeviceType] = useState<'desktop' | 'mobile' | 'tablet' | 'unknown' | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   const handleTigerClick = () => {
     if (isRoaring) return;
@@ -250,7 +275,114 @@ function HomeView({ t, direction }: { t: any, direction: number }) {
     setTimeout(() => setIsRoaring(false), 500);
   };
 
+  const detectDevice = () => {
+    if (typeof window === 'undefined') return 'unknown';
+    const ua = navigator.userAgent.toLowerCase();
+    if (/ipad|tablet|playbook|silk/.test(ua)) return 'tablet';
+    if (/mobile|android|iphone|ipod|blackberry|opera mini|iemobile/.test(ua)) return 'mobile';
+    return 'desktop';
+  };
+
+  const handleInstallClick = () => {
+    const device = detectDevice();
+    setDeviceType(device);
+    setShowSetupModal(true);
+  };
+
+  const handleCopyLink = async () => {
+    const key = `hvpn_${Date.now().toString(36)}_${Math.random().toString(36).substr(2, 9)}`;
+    const link = `${window.location.origin}/setup?key=${key}`;
+    try {
+      await navigator.clipboard.writeText(link);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
+
+  const getDeviceLabel = () => {
+    switch (deviceType) {
+      case 'desktop': return t.setupDesktop;
+      case 'mobile': return t.setupMobile;
+      case 'tablet': return t.setupTablet;
+      default: return t.setupUnknown;
+    }
+  };
+
+  const getDeviceIcon = () => {
+    switch (deviceType) {
+      case 'desktop': return <Monitor size={20} className="text-[#00D1FF]" />;
+      case 'mobile': return <SmartphoneIcon size={20} className="text-[#00D1FF]" />;
+      case 'tablet': return <Tablet size={20} className="text-[#00D1FF]" />;
+      default: return <MonitorSmartphone size={20} className="text-[#00D1FF]" />;
+    }
+  };
+
   return (
+    <>
+      {/* Setup Modal */}
+      <AnimatePresence>
+        {showSetupModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+            onClick={() => setShowSetupModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="bg-zinc-900 border border-white/10 rounded-2xl p-4 w-full max-w-xs shadow-2xl"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold text-white">{t.setupTitle}</h3>
+                <button onClick={() => setShowSetupModal(false)} className="text-zinc-400 hover:text-white transition-colors">
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="flex items-center gap-2 p-3 bg-zinc-800/50 rounded-lg mb-4">
+                {getDeviceIcon()}
+                <div>
+                  <span className="text-zinc-400 text-xs">{t.setupDetected}</span>
+                  <p className="text-white font-medium text-sm">{getDeviceLabel()}</p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <button 
+                  onClick={() => {
+                    setShowSetupModal(false);
+                    // TODO: Start setup for current device
+                  }}
+                  className="w-full bg-gradient-to-r from-[#3B82F6] to-[#00D1FF] text-white font-medium py-3 rounded-lg flex items-center justify-center gap-2 active:scale-95"
+                >
+                  <Zap size={16} /> {t.setupCurrent}
+                </button>
+
+                <button 
+                  onClick={handleCopyLink}
+                  className="w-full bg-zinc-800 border border-white/10 text-white font-medium py-3 rounded-lg flex items-center justify-center gap-2 active:scale-95"
+                >
+                  {linkCopied ? (
+                    <>
+                      <CheckCheck size={16} className="text-green-400" /> {t.setupLinkCopied}
+                    </>
+                  ) : (
+                    <>
+                      <Copy size={16} className="text-zinc-400" /> {t.setupCopyLink}
+                    </>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     <motion.div 
       custom={direction}
       variants={pageVariants}
@@ -303,7 +435,7 @@ function HomeView({ t, direction }: { t: any, direction: number }) {
             <Zap size={14} /> <span>{t.extend}</span>
           </button>
           
-          <button className="w-full bg-zinc-800/50 border border-white/10 text-white font-medium py-2.5 rounded-lg flex items-center justify-center gap-1.5 active:scale-95 text-sm">
+          <button onClick={handleInstallClick} className="w-full bg-zinc-800/50 border border-white/10 text-white font-medium py-2.5 rounded-lg flex items-center justify-center gap-1.5 active:scale-95 text-sm">
             <Settings size={14} className="text-zinc-400" /> {t.install}
           </button>
 
@@ -318,6 +450,7 @@ function HomeView({ t, direction }: { t: any, direction: number }) {
         </div>
       </div>
     </motion.div>
+    </>
   );
 }
 
@@ -332,9 +465,9 @@ function PaymentView({ t, direction }: { t: any, direction: number }) {
   const totalPrice = pricePerMonth * months;
 
   const handleSubscribe = async () => {
-    if (payMethod === 'tg') {
-      setIsLoading(true);
-      try {
+    setIsLoading(true);
+    try {
+      if (payMethod === 'tg') {
         const response = await fetch('/api/invoice', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -353,14 +486,26 @@ function PaymentView({ t, direction }: { t: any, direction: number }) {
         } else {
           alert(data.error || 'Ошибка создания счета');
         }
-      } catch (error) {
-        console.error('Payment error:', error);
-        alert('Произошла ошибка');
-      } finally {
-        setIsLoading(false);
+      } else if (payMethod === 'crypto') {
+        const response = await fetch('/api/crypto-invoice', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ months, amount: totalPrice }),
+        });
+        const data = await response.json();
+        if (data.paymentUrl) {
+          window.open(data.paymentUrl, '_blank');
+        } else {
+          alert(data.error || 'Ошибка создания крипто-счета');
+        }
+      } else {
+        alert('Этот метод оплаты пока не реализован');
       }
-    } else {
-      alert('Этот метод оплаты пока не реализован');
+    } catch (error) {
+      console.error('Payment error:', error);
+      alert('Произошла ошибка');
+    } finally {
+      setIsLoading(false);
     }
   };
 
