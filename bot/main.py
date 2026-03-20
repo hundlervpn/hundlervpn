@@ -1,7 +1,7 @@
 import os
 import asyncio
 import logging
-from aiogram import Bot, Dispatcher, types, F
+from aiogram import Bot, Dispatcher, types
 from aiogram.filters import CommandStart
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 
@@ -37,9 +37,9 @@ async def cmd_start(message: types.Message):
     )
     
     welcome_text = (
-        "👋 **Добро пожаловать в Hundler VPN!**\n\n"
+        "👋 <b>Добро пожаловать в Hundler VPN!</b>\n\n"
         "🔒 Быстрый и безопасный VPN для ваших устройств\n\n"
-        "✨ **Преимущества:**\n"
+        "✨ <b>Преимущества:</b>\n"
         "• До 3 устройств\n"
         "• Безлимитный трафик\n"
         "• Минимальные задержки\n\n"
@@ -48,27 +48,7 @@ async def cmd_start(message: types.Message):
     
     await message.answer(
         welcome_text,
-        parse_mode="Markdown",
-        reply_markup=keyboard
-    )
-
-
-@dp.message(F.text.lower().in_(["vpn", "открыть", "open", "app"]))
-async def open_app(message: types.Message):
-    """Handle messages that request to open the app"""
-    keyboard = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text="🚀 Открыть VPN",
-                    web_app=WebAppInfo(url=APP_URL)
-                )
-            ]
-        ]
-    )
-    
-    await message.answer(
-        "Нажмите кнопку ниже, чтобы открыть приложение:",
+        parse_mode="HTML",
         reply_markup=keyboard
     )
 

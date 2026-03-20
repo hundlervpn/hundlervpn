@@ -1,9 +1,32 @@
 'use client';
 
-import { useState, memo, useCallback } from 'react';
+import { useState, memo, useEffect } from 'react';
 import Image from 'next/image';
 import { Shield, CreditCard, User, Zap, Check, ChevronRight, HelpCircle, Star, Bitcoin, Wallet, Calendar, Smartphone, Settings, Gift, MonitorSmartphone, Globe } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+
+// Telegram WebApp types
+declare global {
+  interface Window {
+    Telegram?: {
+      WebApp?: {
+        initDataUnsafe: {
+          user?: {
+            id: number;
+            first_name: string;
+            last_name?: string;
+            username?: string;
+            photo_url?: string;
+          };
+        };
+        close: () => void;
+        openInvoice: (url: string, callback: (status: string) => void) => void;
+        expand: () => void;
+        ready: () => void;
+      };
+    };
+  }
+}
 
 const translations = {
   ru: {
@@ -83,6 +106,24 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('home');
   const [direction, setDirection] = useState(0);
   const [lang, setLang] = useState<'ru' | 'en'>('ru');
+  const [tgUser, setTgUser] = useState<{name: string; photo: string} | null>(null);
+
+  // Get Telegram user data on mount
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.Telegram?.WebApp) {
+      const tg = window.Telegram.WebApp;
+      tg.ready();
+      tg.expand();
+      
+      const user = tg.initDataUnsafe?.user;
+      if (user) {
+        setTgUser({
+          name: [user.first_name, user.last_name].filter(Boolean).join(' '),
+          photo: user.photo_url || ''
+        });
+      }
+    }
+  }, []);
 
   const t = translations[lang];
 
@@ -131,57 +172,56 @@ export default function App() {
   };
 
   return (
-    <div className="flex flex-col h-[100dvh] w-full bg-[#020617] overflow-hidden relative font-sans items-center justify-center">
-      {/* Static Background with CSS animation */}
+    <div className="flex flex-col h-[100dvh] w-full bg-[#020617] overflow-hidden relative font-sans">
+      {/* Static Background */}
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
-        {/* Gradient Orbs - simplified with CSS */}
-        <div className="absolute -top-[20%] -left-[10%] w-[60vw] h-[60vw] max-w-[500px] max-h-[500px] rounded-full bg-[#3B82F6]/10 blur-[60px] animate-pulse" />
-        <div className="absolute top-[40%] -right-[10%] w-[70vw] h-[70vw] max-w-[600px] max-h-[600px] rounded-full bg-[#8B5CF6]/10 blur-[80px] animate-pulse" />
+        <div className="absolute -top-[20%] -left-[10%] w-[50vw] h-[50vw] max-w-[400px] max-h-[400px] rounded-full bg-[#3B82F6]/10 blur-[50px]" />
+        <div className="absolute top-[40%] -right-[10%] w-[60vw] h-[60vw] max-w-[500px] max-h-[500px] rounded-full bg-[#8B5CF6]/10 blur-[60px]" />
       </div>
 
-      <div className="w-full h-full md:max-w-5xl md:h-[90vh] md:rounded-[40px] md:border md:border-white/10 flex flex-col relative md:shadow-[0_0_100px_rgba(59,130,246,0.05)] bg-[#020617]/80 backdrop-blur-3xl overflow-hidden z-10">
-        {/* Header / Logo */}
-        <header className="flex items-center justify-center p-6 shrink-0 z-10 pt-12 md:pt-8">
-        <h1 className="font-syncopate font-bold text-xl tracking-[0.2em] text-white flex items-center">
-          HUNDLER
-          <span className="relative inline-block ml-3">
-            <span className="absolute inset-0 bg-gradient-to-r from-[#3B82F6] to-[#00D1FF] blur-md opacity-60 animate-pulse"></span>
-            <span className="relative text-transparent bg-clip-text bg-gradient-to-r from-[#3B82F6] via-white to-[#00D1FF] animate-pulse">
-              VPN
+      <div className="w-full h-full flex flex-col relative overflow-hidden z-10">
+        {/* Header */}
+        <header className="flex items-center justify-center p-4 pt-8 shrink-0 z-10">
+          <h1 className="font-syncopate font-bold text-lg tracking-[0.15em] text-white flex items-center">
+            HUNDLER
+            <span className="relative inline-block ml-2">
+              <span className="absolute inset-0 bg-gradient-to-r from-[#3B82F6] to-[#00D1FF] blur-md opacity-50"></span>
+              <span className="relative text-transparent bg-clip-text bg-gradient-to-r from-[#3B82F6] via-white to-[#00D1FF]">
+                VPN
+              </span>
             </span>
-          </span>
-        </h1>
-      </header>
+          </h1>
+        </header>
 
       {/* Content Area */}
       <main 
-        className="flex-1 overflow-x-hidden overflow-y-auto relative pb-28 md:pb-6 px-6 md:px-12 flex flex-col"
+        className="flex-1 overflow-x-hidden overflow-y-auto relative pb-20 px-4 flex flex-col"
         onTouchStart={onTouchStart}
         onTouchEnd={onTouchEnd}
       >
         <AnimatePresence mode="wait" custom={direction}>
           {activeTab === 'home' && <HomeView key="home" t={t} direction={direction} />}
           {activeTab === 'payment' && <PaymentView key="payment" t={t} direction={direction} />}
-          {activeTab === 'profile' && <ProfileView key="profile" t={t} lang={lang} setLang={setLang} direction={direction} />}
+          {activeTab === 'profile' && <ProfileView key="profile" t={t} lang={lang} setLang={setLang} direction={direction} tgUser={tgUser} />}
         </AnimatePresence>
       </main>
 
       {/* Bottom Navigation */}
-      <nav className="absolute bottom-0 w-full bg-zinc-950/90 backdrop-blur-xl border-t border-white/5 pb-safe pt-3 px-8 flex justify-center gap-12 items-center z-20 h-24 md:h-20 md:pb-3 md:border-t-0 md:bg-transparent md:backdrop-blur-none md:relative md:mt-auto">
+      <nav className="fixed bottom-0 left-0 right-0 bg-zinc-950/95 backdrop-blur-xl border-t border-white/5 pt-2 pb-4 px-4 flex justify-around items-center z-20">
         <NavItem 
-          icon={<Shield size={24} strokeWidth={1.5} />} 
+          icon={<Shield size={22} strokeWidth={1.5} />} 
           label={t.navVpn} 
           isActive={activeTab === 'home'} 
           onClick={() => navigate('home')} 
         />
         <NavItem 
-          icon={<CreditCard size={24} strokeWidth={1.5} />} 
+          icon={<CreditCard size={22} strokeWidth={1.5} />} 
           label={t.navPremium} 
           isActive={activeTab === 'payment'} 
           onClick={() => navigate('payment')} 
         />
         <NavItem 
-          icon={<User size={24} strokeWidth={1.5} />} 
+          icon={<User size={22} strokeWidth={1.5} />} 
           label={t.navProfile} 
           isActive={activeTab === 'profile'} 
           onClick={() => navigate('profile')} 
@@ -198,7 +238,7 @@ function HomeView({ t, direction }: { t: any, direction: number }) {
   const handleTigerClick = () => {
     if (isRoaring) return;
     setIsRoaring(true);
-    setTimeout(() => setIsRoaring(false), 800);
+    setTimeout(() => setIsRoaring(false), 600);
   };
 
   return (
@@ -208,77 +248,68 @@ function HomeView({ t, direction }: { t: any, direction: number }) {
       initial="initial"
       animate="animate"
       exit="exit"
-      className="flex flex-col md:flex-row items-center justify-center gap-8 md:gap-16 h-full pt-2 md:pt-0"
+      className="flex flex-col items-center justify-start gap-4 pt-2 h-full"
     >
       {/* Logo Area */}
-      <motion.div 
-        animate={isRoaring ? { x: [-10, 10, -10, 10, 0], y: [-5, 5, -5, 5, 0] } : {}}
-        transition={{ duration: 0.4 }}
-        className="flex flex-col items-center justify-center mt-2 mb-auto md:mb-0 w-full md:w-1/2"
-      >
-        <div
-          className="relative w-64 h-64 sm:w-80 sm:h-80 md:w-96 md:h-96 cursor-pointer"
+      <div className="flex flex-col items-center justify-center w-full">
+        <motion.div
+          animate={isRoaring ? { x: [-8, 8, -8, 8, 0], y: [-4, 4, -4, 4, 0] } : {}}
+          transition={{ duration: 0.3 }}
+          className="relative w-40 h-40 sm:w-48 sm:h-48 cursor-pointer"
           onClick={handleTigerClick}
         >
-          {/* Permanent Premium Glow */}
-          <div className={`absolute inset-0 rounded-full ${isRoaring ? 'bg-[#8B5CF6]/20 blur-xl' : 'bg-[#3B82F6]/15 blur-xl'} animate-pulse`} />
+          <div className={`absolute inset-0 rounded-full ${isRoaring ? 'bg-[#8B5CF6]/15' : 'bg-[#3B82F6]/10'} blur-lg`} />
           
           <div className="w-full h-full relative z-10">
             <Image 
               src="/logo.png" 
               alt="Hundler VPN Logo" 
               fill 
-              className="object-contain drop-shadow-[0_0_15px_rgba(0,209,255,0.2)]"
+              className="object-contain drop-shadow-[0_0_10px_rgba(0,209,255,0.15)]"
               referrerPolicy="no-referrer"
               priority
             />
           </div>
-        </div>
-      </motion.div>
+        </motion.div>
+      </div>
 
       {/* Info Card */}
       <div 
-        className="w-full md:w-1/2 max-w-md bg-gradient-to-b from-[#0f172a]/90 to-[#020617]/90 backdrop-blur-xl border border-[rgba(0,209,255,0.15)] rounded-[32px] p-6 shadow-[0_20px_50px_rgba(0,0,0,0.5)] mt-auto md:mt-0 mb-2 md:mb-0 relative shrink-0 overflow-hidden"
+        className="w-full max-w-sm bg-gradient-to-b from-[#0f172a]/90 to-[#020617]/90 border border-[rgba(0,209,255,0.12)] rounded-2xl p-4 shadow-lg relative shrink-0 overflow-hidden"
       >
-        {/* Subtle inner glow */}
-        <div className="absolute inset-0 bg-gradient-to-br from-[#3B82F6]/10 to-transparent pointer-events-none rounded-[32px]" />
+        <div className="absolute inset-0 bg-gradient-to-br from-[#3B82F6]/5 to-transparent pointer-events-none rounded-2xl" />
         
-        {/* Header of card */}
-        <div className="flex justify-between items-start mb-6 relative z-10">
-          <h3 className="text-2xl font-bold text-white tracking-wide">{t.planName}</h3>
+        <div className="flex justify-between items-start mb-4 relative z-10">
+          <h3 className="text-xl font-bold text-white tracking-wide">{t.planName}</h3>
           <div className="text-right flex flex-col items-end">
-            <span className="text-zinc-500 text-[10px] uppercase tracking-widest mb-1.5">{t.until}</span>
-            <div className="text-white/60 text-sm font-medium flex items-center gap-2 bg-white/5 px-2.5 py-1.5 rounded-lg border border-white/5">
-              {t.date} <Calendar size={14} className="text-zinc-500"/>
+            <span className="text-zinc-500 text-[9px] uppercase tracking-widest mb-1">{t.until}</span>
+            <div className="text-white/60 text-xs font-medium flex items-center gap-1.5 bg-white/5 px-2 py-1 rounded-md border border-white/5">
+              {t.date} <Calendar size={12} className="text-zinc-500"/>
             </div>
           </div>
         </div>
 
-        {/* Devices Badge */}
-        <div className="inline-flex items-center gap-2 bg-[#00D1FF]/10 border border-[#00D1FF]/20 px-3 py-1.5 rounded-xl mb-8 relative z-10">
-          <Smartphone size={14} className="text-[#00D1FF]" />
-          <span className="text-[#00D1FF] text-xs font-medium">{t.devices}</span>
+        <div className="inline-flex items-center gap-1.5 bg-[#00D1FF]/10 border border-[#00D1FF]/15 px-2.5 py-1 rounded-lg mb-5 relative z-10">
+          <Smartphone size={12} className="text-[#00D1FF]" />
+          <span className="text-[#00D1FF] text-[11px] font-medium">{t.devices}</span>
         </div>
 
-        {/* Action Buttons */}
-        <div className="space-y-3 relative z-10">
-          <button 
-            className="w-full bg-gradient-to-r from-[#3B82F6]/20 to-[#8B5CF6]/20 border border-[#00D1FF]/40 text-[#00D1FF] font-medium py-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-[#3B82F6]/30 hover:shadow-[0_0_20px_rgba(0,209,255,0.3)] transition-all shadow-[0_0_15px_rgba(0,209,255,0.1)] relative overflow-hidden group active:scale-95"
-          >
-            <Zap size={18} className="relative z-10" /> 
-            <span className="relative z-10">{t.extend}</span>
+        <div className="space-y-2.5 relative z-10">
+          <button className="w-full bg-gradient-to-r from-[#3B82F6]/20 to-[#8B5CF6]/20 border border-[#00D1FF]/30 text-[#00D1FF] font-medium py-3 rounded-xl flex items-center justify-center gap-2 hover:bg-[#3B82F6]/25 transition-all active:scale-95">
+            <Zap size={16} /> 
+            <span>{t.extend}</span>
           </button>
           
-          <button className="w-full bg-zinc-800/50 border border-white/10 text-white font-medium py-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-zinc-800 transition-colors active:scale-95">
-            <Settings size={18} className="text-zinc-400" /> {t.install}
+          <button className="w-full bg-zinc-800/50 border border-white/10 text-white font-medium py-3 rounded-xl flex items-center justify-center gap-2 hover:bg-zinc-800 transition-colors active:scale-95">
+            <Settings size={16} className="text-zinc-400" /> {t.install}
           </button>
 
-          <div className="grid grid-cols-2 gap-3 pt-2">
-            <button className="bg-zinc-900/80 border border-white/5 text-zinc-300 text-sm font-medium py-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-zinc-800 transition-colors group active:scale-95">
-              <Gift size={16} className="text-zinc-500" /> {t.promo}
+          <div className="grid grid-cols-2 gap-2 pt-1">
+            <button className="bg-zinc-900/80 border border-white/5 text-zinc-300 text-sm font-medium py-3 rounded-xl flex items-center justify-center gap-2 hover:bg-zinc-800 transition-colors active:scale-95">
+              <Gift size={14} className="text-zinc-500" /> {t.promo}
             </button>
-            <button className="bg-zinc-900/80 border border-white/5 text-zinc-300 text-sm font-medium py-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-zinc-800 transition-colors group active:scale-95">
-              <MonitorSmartphone size={16} className="text-zinc-500" /> {t.myDevices}
+            <button className="bg-zinc-900/80 border border-white/5 text-zinc-300 text-sm font-medium py-3 rounded-xl flex items-center justify-center gap-2 hover:bg-zinc-800 transition-colors active:scale-95">
+              <MonitorSmartphone size={14} className="text-zinc-500" /> {t.myDevices}
             </button>
           </div>
         </div>
@@ -303,33 +334,17 @@ function PaymentView({ t, direction }: { t: any, direction: number }) {
       try {
         const response = await fetch('/api/invoice', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            months,
-            amount: totalPrice, // Assuming 1 Star = 1 RUB for simplicity, adjust as needed
-          }),
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ months, amount: totalPrice }),
         });
-
         const data = await response.json();
-
         if (data.invoiceLink) {
-          // Open the invoice link using Telegram Web App API if available
-          if (typeof window !== 'undefined' && (window as any).Telegram?.WebApp) {
-            (window as any).Telegram.WebApp.openInvoice(data.invoiceLink, (status: string) => {
-              if (status === 'paid') {
-                alert('Оплата прошла успешно!');
-              } else if (status === 'cancelled') {
-                console.log('Оплата отменена');
-              } else if (status === 'failed') {
-                alert('Ошибка оплаты');
-              } else if (status === 'pending') {
-                console.log('Оплата в обработке');
-              }
+          if (typeof window !== 'undefined' && window.Telegram?.WebApp) {
+            window.Telegram.WebApp.openInvoice(data.invoiceLink, (status: string) => {
+              if (status === 'paid') alert('Оплата прошла успешно!');
+              else if (status === 'failed') alert('Ошибка оплаты');
             });
           } else {
-            // Fallback for regular browser
             window.open(data.invoiceLink, '_blank');
           }
         } else {
@@ -337,7 +352,7 @@ function PaymentView({ t, direction }: { t: any, direction: number }) {
         }
       } catch (error) {
         console.error('Payment error:', error);
-        alert('Произошла ошибка при попытке оплаты');
+        alert('Произошла ошибка');
       } finally {
         setIsLoading(false);
       }
@@ -353,234 +368,148 @@ function PaymentView({ t, direction }: { t: any, direction: number }) {
       initial="initial"
       animate="animate"
       exit="exit"
-      className="flex flex-col md:flex-row gap-8 pb-8 h-full pt-6 md:pt-0 items-center justify-center"
+      className="flex flex-col gap-4 pt-4 pb-8 h-full"
     >
-      <div className="w-full md:w-1/2 max-w-md flex flex-col">
-        {/* Slider Section */}
+      <div className="w-full max-w-sm mx-auto flex flex-col">
         <motion.div 
-          initial={{ y: 20, opacity: 0 }}
+          initial={{ y: 15, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.1, duration: 0.4 }}
-          className="bg-zinc-900/40 border border-white/5 rounded-3xl p-6 mb-6"
+          transition={{ delay: 0.1, duration: 0.3 }}
+          className="bg-zinc-900/40 border border-white/5 rounded-2xl p-4 mb-4"
         >
-        <div className="flex justify-between items-end mb-6">
-          <div>
-            <span className="text-4xl font-bold text-white">{months}</span>
-            <span className="text-zinc-400 ml-2">{t.months}</span>
+          <div className="flex justify-between items-end mb-4">
+            <div>
+              <span className="text-3xl font-bold text-white">{months}</span>
+              <span className="text-zinc-400 ml-1 text-sm">{t.months}</span>
+            </div>
+            <div className="text-right">
+              <div className="text-xl font-medium text-white">{pricePerMonth}₽ <span className="text-xs text-zinc-500 font-normal">{t.perMonth}</span></div>
+            </div>
           </div>
-          <div className="text-right">
-            <div className="text-2xl font-medium text-white">{pricePerMonth}₽ <span className="text-sm text-zinc-500 font-normal">{t.perMonth}</span></div>
+          
+          <input 
+            type="range" min="1" max="12" value={months} 
+            onChange={(e) => setMonths(parseInt(e.target.value))}
+            className="w-full h-2 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full"
+            style={{ background: `linear-gradient(to right, #fff ${(months - 1) / 11 * 100}%, #27272a ${(months - 1) / 11 * 100}%)` }}
+          />
+          <div className="flex justify-between text-zinc-600 text-xs mt-2 font-medium">
+            <span>1 {t.months}</span>
+            <span>12 {t.months}</span>
           </div>
-        </div>
-        
-        <input 
-          type="range" 
-          min="1" 
-          max="12" 
-          value={months} 
-          onChange={(e) => setMonths(parseInt(e.target.value))}
-          className="w-full h-2 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:shadow-[0_0_10px_rgba(255,255,255,0.5)]"
-          style={{
-            background: `linear-gradient(to right, #fff ${(months - 1) / 11 * 100}%, #27272a ${(months - 1) / 11 * 100}%)`
-          }}
-        />
-        <div className="flex justify-between text-zinc-600 text-xs mt-3 font-medium">
-          <span>1 {t.months}</span>
-          <span>12 {t.months}</span>
-        </div>
+          <div className="mt-4 pt-4 border-t border-white/5 flex justify-between items-center">
+            <span className="text-zinc-400 text-sm">{t.total}</span>
+            <span className="text-lg font-bold text-white">{totalPrice}₽</span>
+          </div>
+        </motion.div>
 
-        <div className="mt-6 pt-6 border-t border-white/5 flex justify-between items-center">
-          <span className="text-zinc-400">{t.total}</span>
-          <span className="text-xl font-bold text-white">{totalPrice}₽</span>
-        </div>
-      </motion.div>
-
-      {/* Payment Methods */}
-      <motion.div 
-        initial={{ y: 20, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ delay: 0.2, duration: 0.4 }}
-        className="grid grid-cols-3 gap-3 mb-8"
-      >
-        <PaymentMethodBtn 
-          icon={<Star size={20} className={payMethod === 'tg' ? "text-yellow-400" : "text-zinc-500"} />} 
-          label={t.payTg} 
-          isActive={payMethod === 'tg'} 
-          onClick={() => setPayMethod('tg')} 
-        />
-        <PaymentMethodBtn 
-          icon={<Bitcoin size={20} className={payMethod === 'crypto' ? "text-orange-400" : "text-zinc-500"} />} 
-          label={t.payCrypto} 
-          isActive={payMethod === 'crypto'} 
-          onClick={() => setPayMethod('crypto')} 
-        />
-        <PaymentMethodBtn 
-          icon={<Wallet size={20} className={payMethod === 'sbp' ? "text-blue-400" : "text-zinc-500"} />} 
-          label={t.paySbp} 
-          isActive={payMethod === 'sbp'} 
-          onClick={() => setPayMethod('sbp')} 
-        />
-      </motion.div>
+        <motion.div 
+          initial={{ y: 15, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.15, duration: 0.3 }}
+          className="grid grid-cols-3 gap-2 mb-4"
+        >
+          <PaymentMethodBtn icon={<Star size={18} className={payMethod === 'tg' ? "text-yellow-400" : "text-zinc-500" />} label={t.payTg} isActive={payMethod === 'tg'} onClick={() => setPayMethod('tg')} />
+          <PaymentMethodBtn icon={<Bitcoin size={18} className={payMethod === 'crypto' ? "text-orange-400" : "text-zinc-500" />} label={t.payCrypto} isActive={payMethod === 'crypto'} onClick={() => setPayMethod('crypto')} />
+          <PaymentMethodBtn icon={<Wallet size={18} className={payMethod === 'sbp' ? "text-blue-400" : "text-zinc-500" />} label={t.paySbp} isActive={payMethod === 'sbp'} onClick={() => setPayMethod('sbp')} />
+        </motion.div>
       </div>
 
-      <div className="w-full md:w-1/2 max-w-md flex flex-col h-full justify-center">
-        {/* Features */}
-        <div className="mb-8">
-          <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-widest mb-4 px-2">{t.featTitle}</h3>
-          <motion.ul variants={listVariants} initial="hidden" animate="visible" className="space-y-3">
-            <motion.li variants={itemVariants}><FeatureItem text={t.f1} /></motion.li>
-            <motion.li variants={itemVariants}><FeatureItem text={t.f2} /></motion.li>
-            <motion.li variants={itemVariants}><FeatureItem text={t.f3} /></motion.li>
-          </motion.ul>
-        </div>
+      <div className="w-full max-w-sm mx-auto flex flex-col">
+        <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-widest mb-3">{t.featTitle}</h3>
+        <motion.ul variants={listVariants} initial="hidden" animate="visible" className="space-y-2">
+          <motion.li variants={itemVariants}><FeatureItem text={t.f1} /></motion.li>
+          <motion.li variants={itemVariants}><FeatureItem text={t.f2} /></motion.li>
+          <motion.li variants={itemVariants}><FeatureItem text={t.f3} /></motion.li>
+        </motion.ul>
 
-        <motion.div 
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.4, duration: 0.4 }}
-          className="mt-auto md:mt-8"
-        >
-          <motion.button 
-            whileTap={{ scale: 0.97 }}
-            onClick={handleSubscribe}
-            disabled={isLoading}
-            className="w-full bg-white text-black font-medium text-lg py-4 rounded-2xl hover:bg-zinc-200 transition-colors shadow-[0_0_30px_rgba(255,255,255,0.2)] disabled:opacity-50 disabled:cursor-not-allowed"
-          >
+        <motion.div initial={{ y: 15, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.25, duration: 0.3 }} className="mt-4">
+          <button onClick={handleSubscribe} disabled={isLoading} className="w-full bg-white text-black font-medium py-3.5 rounded-xl hover:bg-zinc-200 transition-colors disabled:opacity-50">
             {isLoading ? 'Загрузка...' : t.subscribe}
-          </motion.button>
+          </button>
         </motion.div>
       </div>
     </motion.div>
   );
 }
 
-const PaymentMethodBtn = memo(function PaymentMethodBtn({ icon, label, isActive, onClick }: { icon: React.ReactNode, label: string, isActive: boolean, onClick: () => void }) {
+const PaymentMethodBtn = memo(function PaymentMethodBtn({ icon, label, isActive, onClick }: { icon: React.ReactNode; label: string; isActive: boolean; onClick: () => void }) {
   return (
-    <button 
-      onClick={onClick}
-      className={`flex flex-col items-center justify-center p-3 rounded-2xl border transition-all gap-2 active:scale-95
-        ${isActive 
-          ? 'bg-zinc-900 border-white/20' 
-          : 'bg-zinc-950/50 border-white/5 hover:bg-zinc-900/50'
-        }
-      `}
-    >
+    <button onClick={onClick} className={`flex flex-col items-center justify-center p-2.5 rounded-xl border transition-all gap-1.5 active:scale-95 ${isActive ? 'bg-zinc-900 border-white/20' : 'bg-zinc-950/50 border-white/5 hover:bg-zinc-900/50'}`}>
       {icon}
-      <span className={`text-[10px] font-medium uppercase tracking-wider text-center ${isActive ? 'text-white' : 'text-zinc-500'}`}>
-        {label}
-      </span>
+      <span className={`text-[9px] font-medium uppercase tracking-wider text-center ${isActive ? 'text-white' : 'text-zinc-500'}`}>{label}</span>
     </button>
   );
 });
 
 function FeatureItem({ text }: { text: string }) {
   return (
-    <div className="flex items-center gap-3">
-      <div className="w-5 h-5 rounded-full bg-[#3B82F6]/10 flex items-center justify-center shrink-0 border border-[#3B82F6]/20">
-        <Check size={12} strokeWidth={2.5} className="text-[#00D1FF]" />
+    <div className="flex items-center gap-2">
+      <div className="w-4 h-4 rounded-full bg-[#3B82F6]/10 flex items-center justify-center shrink-0 border border-[#3B82F6]/20">
+        <Check size={10} strokeWidth={2.5} className="text-[#00D1FF]" />
       </div>
       <span className="text-zinc-300 text-sm">{text}</span>
     </div>
   );
 }
 
-function ProfileView({ t, lang, setLang, direction }: { t: any, lang: string, setLang: (l: 'ru' | 'en') => void, direction: number }) {
+function ProfileView({ t, lang, setLang, direction, tgUser }: { t: any; lang: string; setLang: (l: 'ru' | 'en') => void; direction: number; tgUser: { name: string; photo: string } | null }) {
   return (
-    <motion.div 
-      custom={direction}
-      variants={pageVariants}
-      initial="initial"
-      animate="animate"
-      exit="exit"
-      className="flex flex-col pt-4 pb-8 h-full items-center justify-center"
-    >
-      <div className="w-full max-w-md">
-        {/* User Info */}
-        <motion.div 
-          initial={{ y: 20, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.1, duration: 0.4 }}
-          className="flex items-center gap-5 mb-10 bg-zinc-900/40 p-6 rounded-3xl border border-white/5"
-        >
-        <div className="w-16 h-16 rounded-full bg-zinc-800 border border-white/10 flex items-center justify-center shrink-0">
-          <User size={32} strokeWidth={1.5} className="text-zinc-400" />
-        </div>
-        <div>
-          <h2 className="text-xl font-medium text-white mb-1">User_78921</h2>
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/5 border border-white/10">
-            <div className="w-2 h-2 rounded-full bg-[#00D1FF]" />
-            <span className="text-zinc-300 text-xs font-medium uppercase tracking-wider">{t.daysLeft}</span>
+    <motion.div custom={direction} variants={pageVariants} initial="initial" animate="animate" exit="exit" className="flex flex-col pt-4 pb-8 h-full items-center justify-start">
+      <div className="w-full max-w-sm">
+        <motion.div initial={{ y: 15, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.1, duration: 0.3 }} className="flex items-center gap-4 mb-6 bg-zinc-900/40 p-4 rounded-2xl border border-white/5">
+          <div className="w-14 h-14 rounded-full bg-zinc-800 border border-white/10 flex items-center justify-center shrink-0 overflow-hidden">
+            {tgUser?.photo ? (
+              <img src={tgUser.photo} alt="Avatar" className="w-full h-full object-cover" />
+            ) : (
+              <User size={28} strokeWidth={1.5} className="text-zinc-400" />
+            )}
           </div>
-        </div>
-      </motion.div>
+          <div>
+            <h2 className="text-lg font-medium text-white mb-0.5">{tgUser?.name || 'User_78921'}</h2>
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/5 border border-white/10">
+              <div className="w-1.5 h-1.5 rounded-full bg-[#00D1FF]" />
+              <span className="text-zinc-300 text-[10px] font-medium uppercase tracking-wider">{t.daysLeft}</span>
+            </div>
+          </div>
+        </motion.div>
 
-      {/* Settings List */}
-      <motion.div 
-        initial={{ y: 20, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        transition={{ delay: 0.2, duration: 0.4 }}
-        className="space-y-8"
-      >
-        <div>
-          <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-widest mb-4 px-4">{t.app}</h3>
-          <div className="bg-zinc-900/40 border border-white/5 rounded-3xl overflow-hidden">
-            <motion.button 
-              whileTap={{ scale: 0.98, backgroundColor: 'rgba(255,255,255,0.05)' }}
-              onClick={() => setLang(lang === 'ru' ? 'en' : 'ru')}
-              className="w-full flex items-center justify-between p-5 hover:bg-white/5 transition-colors group"
-            >
-              <div className="flex items-center gap-4">
-                <div className="text-zinc-400 group-hover:text-zinc-300 transition-colors">
-                  <Globe size={22} strokeWidth={1.5} />
+        <motion.div initial={{ y: 15, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.15, duration: 0.3 }} className="space-y-4">
+          <div>
+            <h3 className="text-xs font-medium text-zinc-500 uppercase tracking-widest mb-3 px-3">{t.app}</h3>
+            <div className="bg-zinc-900/40 border border-white/5 rounded-2xl overflow-hidden">
+              <button onClick={() => setLang(lang === 'ru' ? 'en' : 'ru')} className="w-full flex items-center justify-between p-4 hover:bg-white/5 transition-colors active:scale-[0.98]">
+                <div className="flex items-center gap-3">
+                  <Globe size={20} strokeWidth={1.5} className="text-zinc-400" />
+                  <span className="text-zinc-200 font-medium">{t.lang}</span>
                 </div>
-                <span className="text-zinc-200 font-medium">{t.lang}</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="text-zinc-500 text-sm">{lang === 'ru' ? 'Русский' : 'English'}</span>
-                <ChevronRight size={18} strokeWidth={1.5} className="text-zinc-600 group-hover:text-zinc-400 transition-colors" />
-              </div>
-            </motion.button>
-            <div className="h-px bg-white/5 mx-6" />
-            <motion.a 
-              whileTap={{ scale: 0.98, backgroundColor: 'rgba(255,255,255,0.05)' }}
-              href="https://t.me/hundler_support" 
-              target="_blank" 
-              rel="noopener noreferrer" 
-              className="w-full flex items-center justify-between p-5 hover:bg-white/5 transition-colors group"
-            >
-              <div className="flex items-center gap-4">
-                <div className="text-zinc-400 group-hover:text-zinc-300 transition-colors">
-                  <HelpCircle size={22} strokeWidth={1.5} />
+                <div className="flex items-center gap-2">
+                  <span className="text-zinc-500 text-sm">{lang === 'ru' ? 'Русский' : 'English'}</span>
+                  <ChevronRight size={16} strokeWidth={1.5} className="text-zinc-600" />
                 </div>
-                <span className="text-zinc-200 font-medium">{t.support}</span>
-              </div>
-              <div className="flex items-center gap-3">
-                <ChevronRight size={18} strokeWidth={1.5} className="text-zinc-600 group-hover:text-zinc-400 transition-colors" />
-              </div>
-            </motion.a>
+              </button>
+              <div className="h-px bg-white/5 mx-4" />
+              <a href="https://t.me/hundler_support" target="_blank" rel="noopener noreferrer" className="w-full flex items-center justify-between p-4 hover:bg-white/5 transition-colors">
+                <div className="flex items-center gap-3">
+                  <HelpCircle size={20} strokeWidth={1.5} className="text-zinc-400" />
+                  <span className="text-zinc-200 font-medium">{t.support}</span>
+                </div>
+                <ChevronRight size={16} strokeWidth={1.5} className="text-zinc-600" />
+              </a>
+            </div>
           </div>
-        </div>
-      </motion.div>
+        </motion.div>
       </div>
     </motion.div>
   );
 }
 
-const NavItem = memo(function NavItem({ icon, label, isActive, onClick }: { icon: React.ReactNode, label: string, isActive: boolean, onClick: () => void }) {
+const NavItem = memo(function NavItem({ icon, label, isActive, onClick }: { icon: React.ReactNode; label: string; isActive: boolean; onClick: () => void }) {
   return (
-    <button 
-      onClick={onClick}
-      className={`flex flex-col items-center justify-center w-20 h-16 gap-1.5 transition-colors relative group active:scale-90
-        ${isActive ? 'text-[#00D1FF]' : 'text-zinc-600 hover:text-zinc-400'}
-      `}
-    >
-      <div className={`relative ${isActive ? 'drop-shadow-[0_0_6px_rgba(0,209,255,0.6)]' : ''}`}>
-        {icon}
-      </div>
-      <span className="text-[10px] font-medium tracking-wider uppercase">{label}</span>
-      {isActive && (
-        <div className="absolute -bottom-1 md:-bottom-3 left-1/2 -translate-x-1/2 w-8 h-1 bg-[#00D1FF] rounded-full shadow-[0_0_8px_rgba(0,209,255,0.8)]" />
-      )}
+    <button onClick={onClick} className={`flex flex-col items-center justify-center w-16 h-14 gap-1 transition-colors relative active:scale-90 ${isActive ? 'text-[#00D1FF]' : 'text-zinc-600 hover:text-zinc-400'}`}>
+      <div className={`relative ${isActive ? 'drop-shadow-[0_0_5px_rgba(0,209,255,0.5)]' : ''}`}>{icon}</div>
+      <span className="text-[9px] font-medium tracking-wider uppercase">{label}</span>
+      {isActive && <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-6 h-0.5 bg-[#00D1FF] rounded-full shadow-[0_0_6px_rgba(0,209,255,0.6)]" />}
     </button>
   );
 });
