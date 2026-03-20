@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, memo, useCallback } from 'react';
 import Image from 'next/image';
 import { Shield, CreditCard, User, Zap, Check, ChevronRight, HelpCircle, Star, Bitcoin, Wallet, Calendar, Smartphone, Settings, Gift, MonitorSmartphone, Globe } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -52,20 +52,17 @@ type Tab = typeof tabs[number];
 const pageVariants = {
   initial: (direction: number) => ({
     opacity: 0,
-    x: direction > 0 ? 40 : -40,
-    scale: 0.96
+    x: direction > 0 ? 20 : -20
   }),
   animate: {
     opacity: 1,
     x: 0,
-    scale: 1,
-    transition: { duration: 0.4, ease: [0.25, 1, 0.5, 1] as const }
+    transition: { duration: 0.25, ease: 'easeOut' }
   },
   exit: (direction: number) => ({
     opacity: 0,
-    x: direction < 0 ? 40 : -40,
-    scale: 0.96,
-    transition: { duration: 0.3, ease: [0.25, 1, 0.5, 1] as const }
+    x: direction < 0 ? 20 : -20,
+    transition: { duration: 0.2, ease: 'easeIn' }
   })
 };
 
@@ -135,32 +132,11 @@ export default function App() {
 
   return (
     <div className="flex flex-col h-[100dvh] w-full bg-[#020617] overflow-hidden relative font-sans items-center justify-center">
-      {/* Animated Background */}
+      {/* Static Background with CSS animation */}
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
-        {/* Noise overlay */}
-        <div 
-          className="absolute inset-0 opacity-[0.04] mix-blend-overlay z-10"
-          style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }}
-        ></div>
-        {/* Gradient Orbs */}
-        <motion.div 
-          animate={{ 
-            x: [0, 50, -50, 0], 
-            y: [0, -50, 50, 0],
-            scale: [1, 1.2, 1]
-          }}
-          transition={{ duration: 15, repeat: Infinity, ease: "linear" }}
-          className="absolute -top-[20%] -left-[10%] w-[70vw] h-[70vw] max-w-[600px] max-h-[600px] rounded-full bg-[#3B82F6]/15 blur-[80px] md:blur-[120px]"
-        />
-        <motion.div 
-          animate={{ 
-            x: [0, -50, 50, 0], 
-            y: [0, 50, -50, 0],
-            scale: [1, 1.5, 1]
-          }}
-          transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-          className="absolute top-[40%] -right-[10%] w-[80vw] h-[80vw] max-w-[700px] max-h-[700px] rounded-full bg-[#8B5CF6]/15 blur-[100px] md:blur-[150px]"
-        />
+        {/* Gradient Orbs - simplified with CSS */}
+        <div className="absolute -top-[20%] -left-[10%] w-[60vw] h-[60vw] max-w-[500px] max-h-[500px] rounded-full bg-[#3B82F6]/10 blur-[60px] animate-pulse" />
+        <div className="absolute top-[40%] -right-[10%] w-[70vw] h-[70vw] max-w-[600px] max-h-[600px] rounded-full bg-[#8B5CF6]/10 blur-[80px] animate-pulse" />
       </div>
 
       <div className="w-full h-full md:max-w-5xl md:h-[90vh] md:rounded-[40px] md:border md:border-white/10 flex flex-col relative md:shadow-[0_0_100px_rgba(59,130,246,0.05)] bg-[#020617]/80 backdrop-blur-3xl overflow-hidden z-10">
@@ -240,44 +216,28 @@ function HomeView({ t, direction }: { t: any, direction: number }) {
         transition={{ duration: 0.4 }}
         className="flex flex-col items-center justify-center mt-2 mb-auto md:mb-0 w-full md:w-1/2"
       >
-        <motion.div
-          initial={{ scale: 0.9, opacity: 0, filter: 'blur(10px)' }}
-          animate={{ scale: 1, opacity: 1, filter: 'blur(0px)' }}
-          transition={{ delay: 0.1, duration: 0.7, ease: "easeOut" }}
+        <div
           className="relative w-64 h-64 sm:w-80 sm:h-80 md:w-96 md:h-96 cursor-pointer"
           onClick={handleTigerClick}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
         >
           {/* Permanent Premium Glow */}
-          <motion.div 
-            animate={isRoaring ? { opacity: [0.8, 1, 0.8], scale: [1, 1.2, 1] } : { opacity: [0.4, 0.7, 0.4], scale: [1, 1.05, 1] }}
-            transition={{ duration: isRoaring ? 0.4 : 3, repeat: Infinity, ease: "easeInOut" }}
-            className={`absolute inset-0 rounded-full ${isRoaring ? 'bg-[#8B5CF6]/30 blur-3xl' : 'bg-[#3B82F6]/20 blur-2xl'}`}
-          />
+          <div className={`absolute inset-0 rounded-full ${isRoaring ? 'bg-[#8B5CF6]/20 blur-xl' : 'bg-[#3B82F6]/15 blur-xl'} animate-pulse`} />
           
-          <motion.div
-            animate={isRoaring ? { scale: [1, 1.15, 1], filter: ['brightness(1)', 'brightness(1.5)', 'brightness(1)'] } : {}}
-            transition={{ duration: 0.4 }}
-            className="w-full h-full relative z-10"
-          >
+          <div className="w-full h-full relative z-10">
             <Image 
               src="/logo.png" 
               alt="Hundler VPN Logo" 
               fill 
-              className="object-contain drop-shadow-[0_0_25px_rgba(0,209,255,0.3)]"
+              className="object-contain drop-shadow-[0_0_15px_rgba(0,209,255,0.2)]"
               referrerPolicy="no-referrer"
               priority
             />
-          </motion.div>
-        </motion.div>
+          </div>
+        </div>
       </motion.div>
 
       {/* Info Card */}
-      <motion.div 
-        initial={{ y: 40, opacity: 0, filter: 'blur(15px)' }}
-        animate={{ y: 0, opacity: 1, filter: 'blur(0px)' }}
-        transition={{ delay: 0.2, duration: 0.7, ease: [0.25, 1, 0.5, 1] }}
+      <div 
         className="w-full md:w-1/2 max-w-md bg-gradient-to-b from-[#0f172a]/90 to-[#020617]/90 backdrop-blur-xl border border-[rgba(0,209,255,0.15)] rounded-[32px] p-6 shadow-[0_20px_50px_rgba(0,0,0,0.5)] mt-auto md:mt-0 mb-2 md:mb-0 relative shrink-0 overflow-hidden"
       >
         {/* Subtle inner glow */}
@@ -302,35 +262,27 @@ function HomeView({ t, direction }: { t: any, direction: number }) {
 
         {/* Action Buttons */}
         <div className="space-y-3 relative z-10">
-          <motion.button 
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.95 }} 
-            className="w-full bg-gradient-to-r from-[#3B82F6]/20 to-[#8B5CF6]/20 border border-[#00D1FF]/40 text-[#00D1FF] font-medium py-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-[#3B82F6]/30 hover:shadow-[0_0_30px_rgba(0,209,255,0.4)] transition-all shadow-[0_0_20px_rgba(0,209,255,0.15)] relative overflow-hidden group"
+          <button 
+            className="w-full bg-gradient-to-r from-[#3B82F6]/20 to-[#8B5CF6]/20 border border-[#00D1FF]/40 text-[#00D1FF] font-medium py-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-[#3B82F6]/30 hover:shadow-[0_0_20px_rgba(0,209,255,0.3)] transition-all shadow-[0_0_15px_rgba(0,209,255,0.1)] relative overflow-hidden group active:scale-95"
           >
-            {/* Pulsing background for button */}
-            <motion.div 
-              animate={{ opacity: [0.3, 0.8, 0.3] }}
-              transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-              className="absolute inset-0 bg-gradient-to-r from-[#3B82F6]/0 via-[#00D1FF]/10 to-[#8B5CF6]/0"
-            />
             <Zap size={18} className="relative z-10" /> 
             <span className="relative z-10">{t.extend}</span>
-          </motion.button>
+          </button>
           
-          <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.95 }} className="w-full bg-zinc-800/50 border border-white/10 text-white font-medium py-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-zinc-800 transition-colors">
-            <Settings size={18} className="text-zinc-400 group-hover:rotate-90 transition-transform duration-500" /> {t.install}
-          </motion.button>
+          <button className="w-full bg-zinc-800/50 border border-white/10 text-white font-medium py-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-zinc-800 transition-colors active:scale-95">
+            <Settings size={18} className="text-zinc-400" /> {t.install}
+          </button>
 
           <div className="grid grid-cols-2 gap-3 pt-2">
-            <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.95 }} className="bg-zinc-900/80 border border-white/5 text-zinc-300 text-sm font-medium py-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-zinc-800 transition-colors group">
-              <Gift size={16} className="text-zinc-500 group-hover:text-[#8B5CF6] transition-colors" /> {t.promo}
-            </motion.button>
-            <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.95 }} className="bg-zinc-900/80 border border-white/5 text-zinc-300 text-sm font-medium py-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-zinc-800 transition-colors group">
-              <MonitorSmartphone size={16} className="text-zinc-500 group-hover:text-[#00D1FF] transition-colors" /> {t.myDevices}
-            </motion.button>
+            <button className="bg-zinc-900/80 border border-white/5 text-zinc-300 text-sm font-medium py-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-zinc-800 transition-colors group active:scale-95">
+              <Gift size={16} className="text-zinc-500" /> {t.promo}
+            </button>
+            <button className="bg-zinc-900/80 border border-white/5 text-zinc-300 text-sm font-medium py-4 rounded-2xl flex items-center justify-center gap-2 hover:bg-zinc-800 transition-colors group active:scale-95">
+              <MonitorSmartphone size={16} className="text-zinc-500" /> {t.myDevices}
+            </button>
           </div>
         </div>
-      </motion.div>
+      </div>
     </motion.div>
   );
 }
@@ -502,14 +454,13 @@ function PaymentView({ t, direction }: { t: any, direction: number }) {
   );
 }
 
-function PaymentMethodBtn({ icon, label, isActive, onClick }: { icon: React.ReactNode, label: string, isActive: boolean, onClick: () => void }) {
+const PaymentMethodBtn = memo(function PaymentMethodBtn({ icon, label, isActive, onClick }: { icon: React.ReactNode, label: string, isActive: boolean, onClick: () => void }) {
   return (
-    <motion.button 
-      whileTap={{ scale: 0.95 }}
+    <button 
       onClick={onClick}
-      className={`flex flex-col items-center justify-center p-3 rounded-2xl border transition-all gap-2
+      className={`flex flex-col items-center justify-center p-3 rounded-2xl border transition-all gap-2 active:scale-95
         ${isActive 
-          ? 'bg-zinc-900 border-white/20 shadow-[0_0_15px_rgba(255,255,255,0.05)]' 
+          ? 'bg-zinc-900 border-white/20' 
           : 'bg-zinc-950/50 border-white/5 hover:bg-zinc-900/50'
         }
       `}
@@ -518,9 +469,9 @@ function PaymentMethodBtn({ icon, label, isActive, onClick }: { icon: React.Reac
       <span className={`text-[10px] font-medium uppercase tracking-wider text-center ${isActive ? 'text-white' : 'text-zinc-500'}`}>
         {label}
       </span>
-    </motion.button>
+    </button>
   );
-}
+});
 
 function FeatureItem({ text }: { text: string }) {
   return (
@@ -615,29 +566,21 @@ function ProfileView({ t, lang, setLang, direction }: { t: any, lang: string, se
   );
 }
 
-function NavItem({ icon, label, isActive, onClick }: { icon: React.ReactNode, label: string, isActive: boolean, onClick: () => void }) {
+const NavItem = memo(function NavItem({ icon, label, isActive, onClick }: { icon: React.ReactNode, label: string, isActive: boolean, onClick: () => void }) {
   return (
-    <motion.button 
-      whileTap={{ scale: 0.9 }}
+    <button 
       onClick={onClick}
-      className={`flex flex-col items-center justify-center w-20 h-16 gap-1.5 transition-colors relative group
+      className={`flex flex-col items-center justify-center w-20 h-16 gap-1.5 transition-colors relative group active:scale-90
         ${isActive ? 'text-[#00D1FF]' : 'text-zinc-600 hover:text-zinc-400'}
       `}
     >
-      <motion.div 
-        animate={isActive ? { scale: [1, 1.2, 1] } : { scale: 1 }}
-        transition={{ duration: 0.4, ease: "easeInOut" }}
-        className={`relative ${isActive ? 'drop-shadow-[0_0_8px_rgba(0,209,255,0.8)]' : 'group-hover:scale-110'} transition-transform duration-300`}
-      >
+      <div className={`relative ${isActive ? 'drop-shadow-[0_0_6px_rgba(0,209,255,0.6)]' : ''}`}>
         {icon}
-      </motion.div>
+      </div>
       <span className="text-[10px] font-medium tracking-wider uppercase">{label}</span>
       {isActive && (
-        <motion.div 
-          layoutId="nav-indicator"
-          className="absolute -bottom-1 md:-bottom-3 left-1/2 -translate-x-1/2 w-8 h-1 bg-[#00D1FF] rounded-full shadow-[0_0_12px_rgba(0,209,255,1)]"
-        />
+        <div className="absolute -bottom-1 md:-bottom-3 left-1/2 -translate-x-1/2 w-8 h-1 bg-[#00D1FF] rounded-full shadow-[0_0_8px_rgba(0,209,255,0.8)]" />
       )}
-    </motion.button>
+    </button>
   );
-}
+});
