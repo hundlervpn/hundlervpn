@@ -57,12 +57,12 @@ const pageVariants = {
   animate: {
     opacity: 1,
     x: 0,
-    transition: { duration: 0.25, ease: 'easeOut' }
+    transition: { duration: 0.25, ease: [0, 0, 0.2, 1] as const }
   },
   exit: (direction: number) => ({
     opacity: 0,
     x: direction < 0 ? 20 : -20,
-    transition: { duration: 0.2, ease: 'easeIn' }
+    transition: { duration: 0.2, ease: [0.4, 0, 1, 1] as const }
   })
 };
 
