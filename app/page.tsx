@@ -21,6 +21,7 @@ declare global {
         };
         close: () => void;
         openInvoice: (url: string, callback: (status: string) => void) => void;
+        openLink: (url: string) => void;
         expand: () => void;
         ready: () => void;
       };
@@ -508,7 +509,7 @@ function PaymentView({ t, direction }: { t: any, direction: number }) {
               else if (status === 'failed') alert('Ошибка оплаты');
             });
           } else {
-            window.open(data.invoiceLink, '_blank');
+            window.location.href = data.invoiceLink;
           }
         } else {
           alert(data.error || 'Ошибка создания счета');
@@ -521,7 +522,12 @@ function PaymentView({ t, direction }: { t: any, direction: number }) {
         });
         const data = await response.json();
         if (data.paymentUrl) {
-          window.open(data.paymentUrl, '_blank');
+          // Use Telegram WebApp openLink if available, otherwise redirect
+          if (typeof window !== 'undefined' && window.Telegram?.WebApp?.openLink) {
+            window.Telegram.WebApp.openLink(data.paymentUrl);
+          } else {
+            window.location.href = data.paymentUrl;
+          }
         } else {
           alert(data.error || 'Ошибка создания крипто-счета');
         }
