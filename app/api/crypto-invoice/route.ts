@@ -17,21 +17,16 @@ export async function POST(req: Request) {
     // OxaPay API endpoint
     const url = 'https://api.oxapay.com/v1/payment/invoice';
 
+    // Simplified payload with only required fields
     const payload = {
-      amount: amount, // Amount in USD
+      amount: Number(amount),
       currency: 'USD',
-      lifetime: 30, // 30 minutes expiration
-      fee_paid_by_payer: 1,
-      under_paid_coverage: 2.5,
-      to_currency: 'USDT',
-      auto_withdrawal: false,
-      mixed_payment: true,
-      callback_url: `${process.env.APP_URL}/api/crypto-callback`,
-      return_url: process.env.APP_URL,
-      order_id: `vpn_premium_${months}_months_${Date.now()}`,
-      description: `Hundler VPN Premium (${months} мес.)`,
-      sandbox: false
+      lifetime: 30,
+      order_id: `vpn_${months}m_${Date.now()}`,
+      description: `Hundler VPN Premium ${months} months`
     };
+
+    console.log('OxaPay request payload:', JSON.stringify(payload, null, 2));
 
     const response = await fetch(url, {
       method: 'POST',
@@ -43,6 +38,7 @@ export async function POST(req: Request) {
     });
 
     const data = await response.json();
+    console.log('OxaPay response:', JSON.stringify(data, null, 2));
 
     if (data.status === 200 && data.data?.payment_url) {
       return NextResponse.json({ 
@@ -53,14 +49,14 @@ export async function POST(req: Request) {
     } else {
       console.error('OxaPay API Error:', data);
       return NextResponse.json(
-        { error: data.message || 'Ошибка создания крипто-счета' },
+        { error: data.message || data.error?.message || 'Ошибка создания крипто-счета', details: data },
         { status: 400 }
       );
     }
   } catch (error) {
     console.error('Crypto invoice creation error:', error);
     return NextResponse.json(
-      { error: 'Внутренняя ошибка сервера' },
+      { error: 'Внутренняя ошибка сервера', details: String(error) },
       { status: 500 }
     );
   }

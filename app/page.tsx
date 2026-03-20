@@ -54,9 +54,11 @@ const translations = {
     setupCopyLink: 'Скопировать ссылку с ключом',
     setupDetecting: 'Определение устройства...',
     setupDetected: 'Обнаружено устройство:',
-    setupDesktop: 'Компьютер',
-    setupMobile: 'Смартфон',
-    setupTablet: 'Планшет',
+    setupWindows: 'Windows',
+    setupMacos: 'macOS',
+    setupLinux: 'Linux',
+    setupAndroid: 'Android',
+    setupIos: 'iPhone/iPad',
     setupUnknown: 'Устройство'
   },
   en: {
@@ -84,9 +86,11 @@ const translations = {
     setupCopyLink: 'Copy link with key',
     setupDetecting: 'Detecting device...',
     setupDetected: 'Detected device:',
-    setupDesktop: 'Desktop',
-    setupMobile: 'Smartphone',
-    setupTablet: 'Tablet',
+    setupWindows: 'Windows',
+    setupMacos: 'macOS',
+    setupLinux: 'Linux',
+    setupAndroid: 'Android',
+    setupIos: 'iPhone/iPad',
     setupUnknown: 'Device'
   }
 };
@@ -266,7 +270,7 @@ export default function App() {
 function HomeView({ t, direction }: { t: any, direction: number }) {
   const [isRoaring, setIsRoaring] = useState(false);
   const [showSetupModal, setShowSetupModal] = useState(false);
-  const [deviceType, setDeviceType] = useState<'desktop' | 'mobile' | 'tablet' | 'unknown' | null>(null);
+  const [deviceOS, setDeviceOS] = useState<'windows' | 'macos' | 'linux' | 'android' | 'ios' | 'unknown' | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
 
   const handleTigerClick = () => {
@@ -275,17 +279,36 @@ function HomeView({ t, direction }: { t: any, direction: number }) {
     setTimeout(() => setIsRoaring(false), 500);
   };
 
-  const detectDevice = () => {
+  const detectDevice = (): 'windows' | 'macos' | 'linux' | 'android' | 'ios' | 'unknown' => {
     if (typeof window === 'undefined') return 'unknown';
-    const ua = navigator.userAgent.toLowerCase();
-    if (/ipad|tablet|playbook|silk/.test(ua)) return 'tablet';
-    if (/mobile|android|iphone|ipod|blackberry|opera mini|iemobile/.test(ua)) return 'mobile';
-    return 'desktop';
+    const ua = navigator.userAgent;
+    
+    // Check for iOS first (iPhone, iPad, iPod)
+    if (/iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) {
+      return 'ios';
+    }
+    // Check for Android
+    if (/Android/.test(ua)) {
+      return 'android';
+    }
+    // Check for Windows
+    if (/Windows NT/.test(ua)) {
+      return 'windows';
+    }
+    // Check for macOS
+    if (/Mac OS X/.test(ua) && !/like Mac OS X/.test(ua)) {
+      return 'macos';
+    }
+    // Check for Linux (not Android)
+    if (/Linux/.test(ua) && !/Android/.test(ua)) {
+      return 'linux';
+    }
+    return 'unknown';
   };
 
   const handleInstallClick = () => {
-    const device = detectDevice();
-    setDeviceType(device);
+    const os = detectDevice();
+    setDeviceOS(os);
     setShowSetupModal(true);
   };
 
@@ -302,19 +325,23 @@ function HomeView({ t, direction }: { t: any, direction: number }) {
   };
 
   const getDeviceLabel = () => {
-    switch (deviceType) {
-      case 'desktop': return t.setupDesktop;
-      case 'mobile': return t.setupMobile;
-      case 'tablet': return t.setupTablet;
+    switch (deviceOS) {
+      case 'windows': return t.setupWindows;
+      case 'macos': return t.setupMacos;
+      case 'linux': return t.setupLinux;
+      case 'android': return t.setupAndroid;
+      case 'ios': return t.setupIos;
       default: return t.setupUnknown;
     }
   };
 
   const getDeviceIcon = () => {
-    switch (deviceType) {
-      case 'desktop': return <Monitor size={20} className="text-[#00D1FF]" />;
-      case 'mobile': return <SmartphoneIcon size={20} className="text-[#00D1FF]" />;
-      case 'tablet': return <Tablet size={20} className="text-[#00D1FF]" />;
+    switch (deviceOS) {
+      case 'windows': return <Monitor size={20} className="text-[#00D1FF]" />;
+      case 'macos': return <Monitor size={20} className="text-[#00D1FF]" />;
+      case 'linux': return <Monitor size={20} className="text-[#00D1FF]" />;
+      case 'android': return <SmartphoneIcon size={20} className="text-[#00D1FF]" />;
+      case 'ios': return <SmartphoneIcon size={20} className="text-[#00D1FF]" />;
       default: return <MonitorSmartphone size={20} className="text-[#00D1FF]" />;
     }
   };
