@@ -2,7 +2,7 @@
 
 import { useState, memo, useEffect } from 'react';
 import Image from 'next/image';
-import { Shield, CreditCard, User, Zap, Check, ChevronRight, HelpCircle, Star, Bitcoin, Wallet, Calendar, Smartphone, Settings, Gift, MonitorSmartphone, Globe, X, Monitor, FileText, Lock, Download, ArrowRight, CheckCircle2, Laptop, Smartphone as SmartphoneIcon, ShieldAlert, Users, Ban, Tag, Search, Plus, Trash2 } from 'lucide-react';
+import { Shield, CreditCard, User, Zap, Check, ChevronRight, HelpCircle, Star, Bitcoin, Wallet, Calendar, Smartphone, Settings, Gift, MonitorSmartphone, Globe, X, Monitor, FileText, Lock, Download, ArrowRight, CheckCircle2, Laptop, Smartphone as SmartphoneIcon, ShieldAlert, Users, Ban, Tag, Search, Plus, Trash2, Copy, ClipboardCheck, Key } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 // Telegram WebApp types
@@ -71,9 +71,12 @@ const translations = {
     setupInstallDesc: 'Сначала установите приложение клиента на устройство.',
     setupInstallButton: 'Установить клиент',
     setupAddTitle: 'Добавление подписки',
-    setupAddDesc: 'Добавление ключа подписки будет доступно в следующем обновлении.',
-    setupAddButton: 'Добавить ключ',
-    setupAddPending: 'Пока это не реализовано',
+    setupAddDesc: 'Скопируйте ключ и вставьте его в приложение Happ.',
+    setupAddButton: 'Скопировать ключ',
+    setupKeyCopied: 'Ключ скопирован!',
+    setupNoKey: 'У вас нет активного ключа. Оформите подписку.',
+    setupKeyLoading: 'Загрузка ключа...',
+    setupCopyForOther: 'Скопировать ключ для устройства',
     setupNext: 'Далее',
     setupFinish: 'Завершить',
     setupStepOf: 'из',
@@ -147,9 +150,12 @@ const translations = {
     setupInstallDesc: 'First, install the client application on your device.',
     setupInstallButton: 'Install client',
     setupAddTitle: 'Add subscription key',
-    setupAddDesc: 'Adding the subscription key will be available in the next update.',
-    setupAddButton: 'Add key',
-    setupAddPending: 'Not implemented yet',
+    setupAddDesc: 'Copy the key and paste it into the Happ app.',
+    setupAddButton: 'Copy key',
+    setupKeyCopied: 'Key copied!',
+    setupNoKey: 'No active key. Please subscribe first.',
+    setupKeyLoading: 'Loading key...',
+    setupCopyForOther: 'Copy key for device',
     setupNext: 'Next',
     setupFinish: 'Finish',
     setupStepOf: 'of',
@@ -454,6 +460,9 @@ function HomeView({ t, direction, subscriptionEndDateLabel, tgUser }: { t: any, 
   const [setupStep, setSetupStep] = useState<1 | 2 | 3>(1);
   const [showDevicePicker, setShowDevicePicker] = useState(false);
   const [setupRegion, setSetupRegion] = useState<'global' | 'russia'>('global');
+  const [vpnKey, setVpnKey] = useState<string | null>(null);
+  const [vpnKeyLoading, setVpnKeyLoading] = useState(false);
+  const [keyCopied, setKeyCopied] = useState(false);
 
   const fetchDevices = async () => {
     if (!tgUser?.id) return;
@@ -513,10 +522,41 @@ function HomeView({ t, direction, subscriptionEndDateLabel, tgUser }: { t: any, 
     setShowSetupModal(true);
   };
 
+  const fetchVpnKey = async () => {
+    if (!tgUser?.id) return;
+    setVpnKeyLoading(true);
+    setKeyCopied(false);
+    try {
+      const res = await fetch(`/api/users/devices?telegramId=${encodeURIComponent(String(tgUser.id))}`);
+      if (res.ok) {
+        const data = await res.json();
+        const activeDevice = (data.devices ?? []).find((d: { is_active: boolean; key_uri: string }) => d.is_active && d.key_uri && !d.key_uri.startsWith('pending://'));
+        setVpnKey(activeDevice?.key_uri ?? null);
+      } else {
+        setVpnKey(null);
+      }
+    } catch {
+      setVpnKey(null);
+    } finally {
+      setVpnKeyLoading(false);
+    }
+  };
+
+  const copyKey = async () => {
+    if (!vpnKey) return;
+    try {
+      await navigator.clipboard.writeText(vpnKey);
+      setKeyCopied(true);
+      setTimeout(() => setKeyCopied(false), 3000);
+    } catch { /* ignore */ }
+  };
+
   const closeSetupModal = () => {
     setShowSetupModal(false);
     setSetupStep(1);
     setShowDevicePicker(false);
+    setVpnKey(null);
+    setKeyCopied(false);
   };
 
   const getDeviceLabel = () => {
@@ -586,9 +626,9 @@ function HomeView({ t, direction, subscriptionEndDateLabel, tgUser }: { t: any, 
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-md max-h-[88vh] overflow-y-auto rounded-3xl border border-white/15 bg-gradient-to-b from-[#151515] via-[#0b0b0b] to-[#020202] p-6 shadow-2xl"
+              className="w-full max-w-md max-h-[88vh] overflow-y-auto rounded-3xl border border-white/15 bg-gradient-to-b from-[#151515] via-[#0b0b0b] to-[#020202] p-4 sm:p-6 shadow-2xl"
             >
-              <div className="mb-6 flex items-center justify-between">
+              <div className="mb-4 sm:mb-6 flex items-center justify-between">
                 {setupStep > 1 ? (
                   <button onClick={() => setSetupStep((setupStep - 1) as 1 | 2 | 3)} className="text-zinc-400 hover:text-white transition-colors text-sm">
                     ←
@@ -602,17 +642,17 @@ function HomeView({ t, direction, subscriptionEndDateLabel, tgUser }: { t: any, 
                 </button>
               </div>
 
-              <div className="mx-auto mb-6 flex h-36 w-36 items-center justify-center rounded-full border border-white/30 bg-white/5 relative">
-                <div className="absolute inset-3 rounded-full border border-white/20" />
-                <div className="absolute inset-6 rounded-full border border-white/15" />
-                <div className="absolute inset-9 rounded-full border border-white/10" />
-                <div className="relative z-10">{setupStep === 1 ? getDeviceIcon() : setupStep === 2 ? <Download size={34} className="text-white" /> : <Lock size={34} className="text-white" />}</div>
+              <div className="mx-auto mb-4 sm:mb-6 flex h-24 w-24 sm:h-36 sm:w-36 items-center justify-center rounded-full border border-white/30 bg-white/5 relative">
+                <div className="absolute inset-2 sm:inset-3 rounded-full border border-white/20" />
+                <div className="absolute inset-4 sm:inset-6 rounded-full border border-white/15" />
+                <div className="absolute inset-6 sm:inset-9 rounded-full border border-white/10" />
+                <div className="relative z-10">{setupStep === 1 ? getDeviceIcon() : setupStep === 2 ? <Download size={28} className="text-white sm:w-[34px] sm:h-[34px]" /> : <Key size={28} className="text-white sm:w-[34px] sm:h-[34px]" />}</div>
               </div>
 
               {setupStep === 1 && (
                 <>
-                  <h3 className="text-4xl sm:text-3xl font-bold text-center text-white mb-2">{t.setupFor} {getDeviceLabel()}</h3>
-                  <p className="text-zinc-400 text-center mb-6">{t.setupStepsHint}</p>
+                  <h3 className="text-xl sm:text-2xl font-bold text-center text-white mb-2">{t.setupFor} {getDeviceLabel()}</h3>
+                  <p className="text-zinc-400 text-center text-sm mb-4 sm:mb-6">{t.setupStepsHint}</p>
 
                   <div className="space-y-2.5">
                     <button
@@ -641,6 +681,31 @@ function HomeView({ t, direction, subscriptionEndDateLabel, tgUser }: { t: any, 
                         <button onClick={() => setDeviceOS('linux')} className={`rounded-lg border px-3 py-2 text-sm ${deviceOS === 'linux' ? 'border-white/35 text-white bg-white/10' : 'border-white/10 text-zinc-300'}`}>Linux</button>
                         <button onClick={() => setDeviceOS('unknown')} className={`rounded-lg border px-3 py-2 text-sm ${deviceOS === 'unknown' ? 'border-white/35 text-white bg-white/10' : 'border-white/10 text-zinc-300'}`}>Other</button>
                       </div>
+
+                      <div className="mt-3 pt-3 border-t border-white/10">
+                        {vpnKeyLoading ? (
+                          <div className="text-center py-2 text-zinc-400 text-xs">{t.setupKeyLoading}</div>
+                        ) : vpnKey ? (
+                          <>
+                            <div className="rounded-lg border border-white/10 bg-zinc-800/60 p-2.5 mb-2">
+                              <p className="text-zinc-300 text-[10px] font-mono break-all leading-relaxed select-all">{vpnKey}</p>
+                            </div>
+                            <button
+                              onClick={copyKey}
+                              className={`w-full font-medium py-2.5 rounded-lg flex items-center justify-center gap-2 text-sm active:scale-95 transition-all ${keyCopied ? 'bg-green-500/20 border border-green-500/30 text-green-300' : 'border border-white/15 text-white hover:bg-white/5'}`}
+                            >
+                              {keyCopied ? <><ClipboardCheck size={14} /> {t.setupKeyCopied}</> : <><Copy size={14} /> {t.setupCopyForOther}</>}
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            onClick={fetchVpnKey}
+                            className="w-full border border-white/15 text-zinc-300 font-medium py-2.5 rounded-lg flex items-center justify-center gap-2 text-sm hover:bg-white/5 active:scale-95"
+                          >
+                            <Key size={14} /> {t.setupCopyForOther}
+                          </button>
+                        )}
+                      </div>
                     </div>
                   )}
                 </>
@@ -648,8 +713,8 @@ function HomeView({ t, direction, subscriptionEndDateLabel, tgUser }: { t: any, 
 
               {setupStep === 2 && (
                 <>
-                  <h3 className="text-4xl sm:text-3xl font-bold text-center text-white mb-2">{t.setupInstallTitle}</h3>
-                  <p className="text-zinc-400 text-center mb-5">{t.setupInstallDesc}</p>
+                  <h3 className="text-xl sm:text-2xl font-bold text-center text-white mb-2">{t.setupInstallTitle}</h3>
+                  <p className="text-zinc-400 text-center text-sm mb-4 sm:mb-5">{t.setupInstallDesc}</p>
 
                   {(deviceOS === 'ios' || deviceOS === 'macos') && (
                     <div className="mb-4">
@@ -673,7 +738,7 @@ function HomeView({ t, direction, subscriptionEndDateLabel, tgUser }: { t: any, 
                     </button>
 
                     <button
-                      onClick={() => setSetupStep(3)}
+                      onClick={() => { setSetupStep(3); fetchVpnKey(); }}
                       className="w-full bg-gradient-to-r from-white/25 to-white/10 border border-white/25 text-white font-semibold py-3.5 rounded-full flex items-center justify-center gap-2 active:scale-95"
                     >
                       <ArrowRight size={16} /> {t.setupNext}
@@ -684,17 +749,27 @@ function HomeView({ t, direction, subscriptionEndDateLabel, tgUser }: { t: any, 
 
               {setupStep === 3 && (
                 <>
-                  <h3 className="text-4xl sm:text-3xl font-bold text-center text-white mb-2">{t.setupAddTitle}</h3>
-                  <p className="text-zinc-400 text-center mb-4">{t.setupAddDesc}</p>
+                  <h3 className="text-xl sm:text-2xl font-bold text-center text-white mb-2">{t.setupAddTitle}</h3>
+                  <p className="text-zinc-400 text-center text-sm mb-4">{t.setupAddDesc}</p>
 
-                  <button
-                    disabled
-                    className="w-full mb-3 border border-white/20 text-white/60 font-semibold py-3.5 rounded-full flex items-center justify-center gap-2 cursor-not-allowed"
-                  >
-                    <Lock size={16} /> {t.setupAddButton}
-                  </button>
-
-                  <p className="text-amber-300 text-xs text-center mb-6">{t.setupAddPending}</p>
+                  {vpnKeyLoading ? (
+                    <div className="text-center py-4 text-zinc-400 text-sm">{t.setupKeyLoading}</div>
+                  ) : vpnKey ? (
+                    <div className="mb-4">
+                      <div className="rounded-xl border border-white/10 bg-zinc-900/60 p-3 mb-3">
+                        <p className="text-zinc-500 text-[9px] uppercase tracking-wider mb-1.5">VLESS Key</p>
+                        <p className="text-zinc-300 text-[11px] font-mono break-all leading-relaxed select-all">{vpnKey}</p>
+                      </div>
+                      <button
+                        onClick={copyKey}
+                        className={`w-full font-semibold py-3 rounded-full flex items-center justify-center gap-2 active:scale-95 transition-all ${keyCopied ? 'bg-green-500/20 border border-green-500/30 text-green-300' : 'border border-white/20 text-white hover:bg-white/5'}`}
+                      >
+                        {keyCopied ? <><ClipboardCheck size={16} /> {t.setupKeyCopied}</> : <><Copy size={16} /> {t.setupAddButton}</>}
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="text-amber-300 text-xs text-center mb-4">{t.setupNoKey}</p>
+                  )}
 
                   <button
                     onClick={closeSetupModal}
