@@ -30,17 +30,14 @@ RUN adduser --system --uid 1001 nextjs
 # Copy public files
 COPY --from=builder /app/public ./public
 
-# Copy all standalone files first
+# Copy all standalone files
 COPY --from=builder /app/.next/standalone/ ./temp_standalone/
 
-# Move files from nested directory to root (handles both /app and nested paths)
-RUN if [ -f ./temp_standalone/app/server.js ]; then \
-      mv ./temp_standalone/app/* ./; \
-    elif [ -d ./temp_standalone/Desktop ]; then \
-      find ./temp_standalone/Desktop -name "server.js" -exec dirname {} \; | head -1 | xargs -I {} mv {}/* ./; \
-    else \
-      mv ./temp_standalone/* ./; \
-    fi && \
+# Find and copy from nested directory (handles Windows path structure)
+RUN STANDALONE_DIR=$(find ./temp_standalone -name "server.js" -type f -exec dirname {} \; | head -1) && \
+    echo "Found standalone at: $STANDALONE_DIR" && \
+    cp -r "$STANDALONE_DIR"/* ./ && \
+    cp -r "$STANDALONE_DIR"/.[!.]* ./ 2>/dev/null || true && \
     rm -rf ./temp_standalone
 
 # Copy static files
