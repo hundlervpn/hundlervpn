@@ -2,7 +2,7 @@
 
 import { useState, memo, useEffect } from 'react';
 import Image from 'next/image';
-import { Shield, CreditCard, User, Zap, Check, ChevronRight, HelpCircle, Star, Bitcoin, Wallet, Calendar, Smartphone, Settings, Gift, MonitorSmartphone, Globe, X, Copy, CheckCheck, Monitor, Tablet, Smartphone as SmartphoneIcon } from 'lucide-react';
+import { Shield, CreditCard, User, Zap, Check, ChevronRight, HelpCircle, Star, Bitcoin, Wallet, Calendar, Smartphone, Settings, Gift, MonitorSmartphone, Globe, X, Monitor, FileText, Lock, Download, ArrowRight, CheckCircle2, Laptop, Smartphone as SmartphoneIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 // Telegram WebApp types
@@ -46,7 +46,7 @@ const translations = {
     subscribe: 'Оплатить',
     featTitle: 'Преимущества', f1: 'До 3 устройств', f2: 'Безлимитный трафик', f3: 'Минимальные задержки',
     user: 'Пользователь', daysLeft: 'Осталось 23 дня',
-    app: 'Приложение', lang: 'Язык', support: 'Поддержка (Telegram)',
+    app: 'Приложение', lang: 'Язык', support: 'Поддержка (Telegram)', referral: 'Реферальная система', payments: 'Платежи', userAgreement: 'Пользовательское соглашение', privacyPolicy: 'Политика конфиденциальности',
     connected: 'ПОДКЛЮЧЕНО', disconnected: 'ОТКЛЮЧЕНО', location: 'Германия', ping: '120 мс',
     setupTitle: 'Настройка VPN',
     setupCurrent: 'Настроить это устройство',
@@ -60,7 +60,24 @@ const translations = {
     setupLinux: 'Linux',
     setupAndroid: 'Android',
     setupIos: 'iPhone/iPad',
-    setupUnknown: 'Устройство'
+    setupUnknown: 'Устройство',
+    setupFor: 'Настройка на',
+    setupStepsHint: '3 шага для завершения настройки',
+    setupStart: 'Начать настройку',
+    setupOtherDevice: 'Другое устройство',
+    setupChooseDevice: 'Выберите устройство',
+    setupAddTitle: 'Добавление подписки',
+    setupAddDesc: 'Нажмите кнопку ниже — приложение откроется, и подписка добавится автоматически.',
+    setupAddButton: 'Добавить подписку',
+    setupNext: 'Далее',
+    setupUsageTitle: 'Подключение и использование',
+    setupUsageDesc: 'В главном разделе нажмите большую кнопку включения в центре для подключения к VPN. Не забудьте выбрать сервер в списке серверов.',
+    setupFinish: 'Завершить',
+    setupStepOf: 'из',
+    setupRegion: 'Регион',
+    setupGlobal: 'Global',
+    setupRussia: 'Russia',
+    setupNoStore: 'Для этого устройства ссылка на магазин пока не задана.'
   },
   en: {
     navVpn: 'Home', navPremium: 'Payment', navProfile: 'Profile',
@@ -78,7 +95,7 @@ const translations = {
     subscribe: 'Subscribe Now',
     featTitle: 'Premium Features', f1: 'Up to 3 devices', f2: 'Unlimited bandwidth', f3: 'Minimal latency',
     user: 'User', daysLeft: '23 days left',
-    app: 'App', lang: 'Language', support: 'Support (Telegram)',
+    app: 'App', lang: 'Language', support: 'Support (Telegram)', referral: 'Referral system', payments: 'Payments', userAgreement: 'User agreement', privacyPolicy: 'Privacy policy',
     connected: 'CONNECTED', disconnected: 'DISCONNECTED', location: 'Germany', ping: '120 ms',
     setupTitle: 'VPN Setup',
     setupCurrent: 'Setup this device',
@@ -92,7 +109,24 @@ const translations = {
     setupLinux: 'Linux',
     setupAndroid: 'Android',
     setupIos: 'iPhone/iPad',
-    setupUnknown: 'Device'
+    setupUnknown: 'Device',
+    setupFor: 'Setup for',
+    setupStepsHint: '3 steps to complete setup',
+    setupStart: 'Start setup',
+    setupOtherDevice: 'Other device',
+    setupChooseDevice: 'Choose device',
+    setupAddTitle: 'Add subscription',
+    setupAddDesc: 'Tap the button below — the app will open and your subscription will be added automatically.',
+    setupAddButton: 'Add subscription',
+    setupNext: 'Next',
+    setupUsageTitle: 'Connection and usage',
+    setupUsageDesc: 'In the main section, tap the large center connect button to start VPN. Also select a server from the server list.',
+    setupFinish: 'Finish',
+    setupStepOf: 'of',
+    setupRegion: 'Region',
+    setupGlobal: 'Global',
+    setupRussia: 'Russia',
+    setupNoStore: 'No store link configured for this device yet.'
   }
 };
 
@@ -216,35 +250,38 @@ export default function App() {
         <div className="absolute top-[40%] -right-[10%] w-[50vw] h-[50vw] max-w-[400px] max-h-[400px] rounded-full bg-[#8B5CF6]/10 blur-[50px]" />
       </div>
 
-      {/* Main Content - scrollable */}
-      <main 
-        className="relative z-10 w-full min-h-screen pb-24 px-4 flex flex-col"
-        onTouchStart={onTouchStart}
-        onTouchEnd={onTouchEnd}
-      >
-        {/* Header - part of scrollable content */}
-        <header className="flex items-center justify-center py-6 shrink-0">
-          <h1 className="font-syncopate font-bold text-base tracking-[0.12em] text-white flex items-center">
-            HUNDLER
-            <span className="relative inline-block ml-1.5">
-              <span className="absolute inset-0 bg-gradient-to-r from-[#3B82F6] to-[#00D1FF] blur-sm opacity-40"></span>
-              <span className="relative text-transparent bg-clip-text bg-gradient-to-r from-[#3B82F6] via-white to-[#00D1FF]">
-                VPN
-              </span>
-            </span>
-          </h1>
-        </header>
+      <div className="relative z-10 min-h-screen lg:flex lg:items-stretch lg:gap-8 lg:px-6 lg:py-4">
+        <DesktopSidebar t={t} activeTab={activeTab} navigate={navigate} />
 
-        {/* Views */}
-        <AnimatePresence mode="wait" custom={direction}>
-          {activeTab === 'home' && <HomeView key="home" t={t} direction={direction} />}
-          {activeTab === 'payment' && <PaymentView key="payment" t={t} direction={direction} />}
-          {activeTab === 'profile' && <ProfileView key="profile" t={t} lang={lang} setLang={setLang} direction={direction} tgUser={tgUser} />}
-        </AnimatePresence>
-      </main>
+        <main 
+          className="w-full min-h-screen pb-24 px-4 flex flex-col lg:min-h-0 lg:flex-1 lg:pb-6 lg:px-0"
+          onTouchStart={onTouchStart}
+          onTouchEnd={onTouchEnd}
+        >
+          <header className="flex items-center justify-center py-6 shrink-0 lg:justify-start lg:py-4">
+            <h1 className="font-syncopate font-bold text-base tracking-[0.12em] text-white flex items-center lg:text-lg">
+              HUNDLER
+              <span className="relative inline-block ml-1.5">
+                <span className="absolute inset-0 bg-gradient-to-r from-[#3B82F6] to-[#00D1FF] blur-sm opacity-40"></span>
+                <span className="relative text-transparent bg-clip-text bg-gradient-to-r from-[#3B82F6] via-white to-[#00D1FF]">
+                  VPN
+                </span>
+              </span>
+            </h1>
+          </header>
+
+          <div className="w-full max-w-5xl mx-auto lg:mx-0 lg:flex-1">
+            <AnimatePresence mode="wait" custom={direction}>
+              {activeTab === 'home' && <HomeView key="home" t={t} direction={direction} />}
+              {activeTab === 'payment' && <PaymentView key="payment" t={t} direction={direction} />}
+              {activeTab === 'profile' && <ProfileView key="profile" t={t} lang={lang} setLang={setLang} direction={direction} tgUser={tgUser} />}
+            </AnimatePresence>
+          </div>
+        </main>
+      </div>
 
       {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-zinc-950/95 backdrop-blur-xl border-t border-white/5 pt-2 pb-3 px-4 flex justify-around items-center z-20">
+      <nav className="fixed bottom-0 left-0 right-0 bg-zinc-950/95 backdrop-blur-xl border-t border-white/5 pt-2 pb-3 px-4 flex justify-around items-center z-20 lg:hidden">
         <NavItem 
           icon={<Shield size={20} strokeWidth={1.5} />} 
           label={t.navVpn} 
@@ -268,11 +305,53 @@ export default function App() {
   );
 }
 
+function DesktopSidebar({ t, activeTab, navigate }: { t: any; activeTab: Tab; navigate: (tab: Tab) => void }) {
+  const menuBtnClass = (isActive: boolean) => `w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${isActive ? 'bg-[#1d4ed8]/25 text-white border border-[#3b82f6]/40' : 'text-zinc-300 hover:bg-white/5 border border-transparent'}`;
+
+  return (
+    <aside className="hidden lg:flex lg:w-72 lg:shrink-0 lg:flex-col lg:rounded-2xl lg:border lg:border-white/10 lg:bg-zinc-900/40 lg:p-4 lg:backdrop-blur">
+      <div className="mb-6">
+        <p className="text-zinc-400 text-xs mb-2">Главная</p>
+        <div className="space-y-1">
+          <button onClick={() => navigate('home')} className={menuBtnClass(activeTab === 'home')}>{t.navVpn}</button>
+          <button onClick={() => navigate('payment')} className={menuBtnClass(activeTab === 'payment')}>{t.navPremium}</button>
+          <button onClick={() => navigate('profile')} className={menuBtnClass(activeTab === 'profile')}>{t.navProfile}</button>
+        </div>
+      </div>
+
+      <div className="mb-6">
+        <p className="text-zinc-500 text-xs mb-2">Ссылки</p>
+        <div className="space-y-1 text-sm text-zinc-300">
+          <div className="px-3 py-2 rounded-lg hover:bg-white/5">Политика конфиденциальности</div>
+          <div className="px-3 py-2 rounded-lg hover:bg-white/5">Пользовательское соглашение</div>
+        </div>
+      </div>
+
+      <div className="mb-6">
+        <p className="text-zinc-500 text-xs mb-2">Программы</p>
+        <div className="space-y-1 text-sm text-zinc-300">
+          <div className="px-3 py-2 rounded-lg hover:bg-white/5">Реферальная система</div>
+          <div className="px-3 py-2 rounded-lg hover:bg-white/5">Партнерская программа</div>
+        </div>
+      </div>
+
+      <div>
+        <p className="text-zinc-500 text-xs mb-2">Аккаунт</p>
+        <div className="space-y-1 text-sm text-zinc-300">
+          <div className="px-3 py-2 rounded-lg hover:bg-white/5">Платежи</div>
+        </div>
+      </div>
+    </aside>
+  );
+}
+
 function HomeView({ t, direction }: { t: any, direction: number }) {
   const [isRoaring, setIsRoaring] = useState(false);
   const [showSetupModal, setShowSetupModal] = useState(false);
-  const [deviceOS, setDeviceOS] = useState<'windows' | 'macos' | 'linux' | 'android' | 'ios' | 'unknown' | null>(null);
-  const [linkCopied, setLinkCopied] = useState(false);
+  const [deviceOS, setDeviceOS] = useState<'windows' | 'macos' | 'linux' | 'android' | 'ios' | 'unknown'>('unknown');
+  const [setupStep, setSetupStep] = useState<1 | 2 | 3>(1);
+  const [showDevicePicker, setShowDevicePicker] = useState(false);
+  const [setupRegion, setSetupRegion] = useState<'global' | 'russia'>('global');
 
   const handleTigerClick = () => {
     if (isRoaring) return;
@@ -310,19 +389,15 @@ function HomeView({ t, direction }: { t: any, direction: number }) {
   const handleInstallClick = () => {
     const os = detectDevice();
     setDeviceOS(os);
+    setSetupStep(1);
+    setShowDevicePicker(false);
     setShowSetupModal(true);
   };
 
-  const handleCopyLink = async () => {
-    const key = `hvpn_${Date.now().toString(36)}_${Math.random().toString(36).substr(2, 9)}`;
-    const link = `${window.location.origin}/setup?key=${key}`;
-    try {
-      await navigator.clipboard.writeText(link);
-      setLinkCopied(true);
-      setTimeout(() => setLinkCopied(false), 2000);
-    } catch (err) {
-      console.error('Failed to copy:', err);
-    }
+  const closeSetupModal = () => {
+    setShowSetupModal(false);
+    setSetupStep(1);
+    setShowDevicePicker(false);
   };
 
   const getDeviceLabel = () => {
@@ -338,12 +413,40 @@ function HomeView({ t, direction }: { t: any, direction: number }) {
 
   const getDeviceIcon = () => {
     switch (deviceOS) {
-      case 'windows': return <Monitor size={20} className="text-[#00D1FF]" />;
-      case 'macos': return <Monitor size={20} className="text-[#00D1FF]" />;
-      case 'linux': return <Monitor size={20} className="text-[#00D1FF]" />;
-      case 'android': return <SmartphoneIcon size={20} className="text-[#00D1FF]" />;
-      case 'ios': return <SmartphoneIcon size={20} className="text-[#00D1FF]" />;
-      default: return <MonitorSmartphone size={20} className="text-[#00D1FF]" />;
+      case 'windows': return <Monitor size={34} className="text-white" />;
+      case 'macos': return <Laptop size={34} className="text-white" />;
+      case 'linux': return <Monitor size={34} className="text-white" />;
+      case 'android': return <SmartphoneIcon size={34} className="text-white" />;
+      case 'ios': return <SmartphoneIcon size={34} className="text-white" />;
+      default: return <MonitorSmartphone size={34} className="text-white" />;
+    }
+  };
+
+  const getStoreLink = () => {
+    if (deviceOS === 'android') {
+      return 'https://play.google.com/store/apps/details?id=com.happproxy';
+    }
+
+    if (deviceOS === 'ios' || deviceOS === 'macos') {
+      return setupRegion === 'russia'
+        ? 'https://apps.apple.com/ru/app/happ-proxy-utility-plus/id6746188973'
+        : 'https://apps.apple.com/us/app/happ-proxy-utility/id6504287215?l=ru';
+    }
+
+    return '';
+  };
+
+  const openStoreLink = () => {
+    const link = getStoreLink();
+    if (!link) return;
+
+    if (typeof window !== 'undefined' && window.Telegram?.WebApp?.openLink) {
+      window.Telegram.WebApp.openLink(link);
+      return;
+    }
+
+    if (typeof window !== 'undefined') {
+      window.open(link, '_blank', 'noopener,noreferrer');
     }
   };
 
@@ -357,56 +460,122 @@ function HomeView({ t, direction }: { t: any, direction: number }) {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-            onClick={() => setShowSetupModal(false)}
+            onClick={closeSetupModal}
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-zinc-900 border border-white/10 rounded-2xl p-4 w-full max-w-xs shadow-2xl"
+              className="w-full max-w-md rounded-3xl border border-white/10 bg-gradient-to-b from-[#0f172a] to-[#020617] p-6 shadow-2xl"
             >
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-bold text-white">{t.setupTitle}</h3>
-                <button onClick={() => setShowSetupModal(false)} className="text-zinc-400 hover:text-white transition-colors">
+              <div className="mb-6 flex items-center justify-between">
+                {setupStep > 1 ? (
+                  <button onClick={() => setSetupStep((setupStep - 1) as 1 | 2 | 3)} className="text-zinc-400 hover:text-white transition-colors text-sm">
+                    ←
+                  </button>
+                ) : (
+                  <div />
+                )}
+                <span className="text-zinc-500 text-xs uppercase tracking-widest">{setupStep} {t.setupStepOf} 3</span>
+                <button onClick={closeSetupModal} className="text-zinc-400 hover:text-white transition-colors">
                   <X size={20} />
                 </button>
               </div>
 
-              <div className="flex items-center gap-2 p-3 bg-zinc-800/50 rounded-lg mb-4">
-                {getDeviceIcon()}
-                <div>
-                  <span className="text-zinc-400 text-xs">{t.setupDetected}</span>
-                  <p className="text-white font-medium text-sm">{getDeviceLabel()}</p>
-                </div>
+              <div className="mx-auto mb-6 flex h-36 w-36 items-center justify-center rounded-full border border-[#1d4ed8]/35 bg-[#0b1228]/70 relative">
+                <div className="absolute inset-3 rounded-full border border-[#1d4ed8]/25" />
+                <div className="absolute inset-6 rounded-full border border-[#1d4ed8]/20" />
+                <div className="absolute inset-9 rounded-full border border-[#1d4ed8]/15" />
+                <div className="relative z-10">{setupStep === 1 ? getDeviceIcon() : setupStep === 2 ? <Download size={34} className="text-white" /> : <CheckCircle2 size={34} className="text-white" />}</div>
               </div>
 
-              <div className="space-y-2">
-                <button 
-                  onClick={() => {
-                    setShowSetupModal(false);
-                    // TODO: Start setup for current device
-                  }}
-                  className="w-full bg-gradient-to-r from-[#3B82F6] to-[#00D1FF] text-white font-medium py-3 rounded-lg flex items-center justify-center gap-2 active:scale-95"
-                >
-                  <Zap size={16} /> {t.setupCurrent}
-                </button>
+              {setupStep === 1 && (
+                <>
+                  <h3 className="text-4xl sm:text-3xl font-bold text-center text-white mb-2">{t.setupFor} {getDeviceLabel()}</h3>
+                  <p className="text-zinc-400 text-center mb-6">{t.setupStepsHint}</p>
 
-                <button 
-                  onClick={handleCopyLink}
-                  className="w-full bg-zinc-800 border border-white/10 text-white font-medium py-3 rounded-lg flex items-center justify-center gap-2 active:scale-95"
-                >
-                  {linkCopied ? (
-                    <>
-                      <CheckCheck size={16} className="text-green-400" /> {t.setupLinkCopied}
-                    </>
-                  ) : (
-                    <>
-                      <Copy size={16} className="text-zinc-400" /> {t.setupCopyLink}
-                    </>
+                  <div className="space-y-2.5">
+                    <button
+                      onClick={() => setSetupStep(2)}
+                      className="w-full bg-[#1d4ed8] text-white font-semibold py-3.5 rounded-full flex items-center justify-center gap-2 active:scale-95"
+                    >
+                      <ArrowRight size={16} /> {t.setupStart}
+                    </button>
+
+                    <button
+                      onClick={() => setShowDevicePicker((prev) => !prev)}
+                      className="w-full border border-white/20 text-white font-medium py-3.5 rounded-full flex items-center justify-center gap-2 active:scale-95"
+                    >
+                      <MonitorSmartphone size={16} /> {t.setupOtherDevice}
+                    </button>
+                  </div>
+
+                  {showDevicePicker && (
+                    <div className="mt-4 rounded-2xl border border-white/10 bg-zinc-900/50 p-3">
+                      <p className="text-zinc-400 text-xs uppercase tracking-wider mb-2">{t.setupChooseDevice}</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button onClick={() => setDeviceOS('windows')} className={`rounded-lg border px-3 py-2 text-sm ${deviceOS === 'windows' ? 'border-[#3b82f6] text-white bg-[#1d4ed8]/20' : 'border-white/10 text-zinc-300'}`}>Windows</button>
+                        <button onClick={() => setDeviceOS('macos')} className={`rounded-lg border px-3 py-2 text-sm ${deviceOS === 'macos' ? 'border-[#3b82f6] text-white bg-[#1d4ed8]/20' : 'border-white/10 text-zinc-300'}`}>macOS</button>
+                        <button onClick={() => setDeviceOS('android')} className={`rounded-lg border px-3 py-2 text-sm ${deviceOS === 'android' ? 'border-[#3b82f6] text-white bg-[#1d4ed8]/20' : 'border-white/10 text-zinc-300'}`}>Android</button>
+                        <button onClick={() => setDeviceOS('ios')} className={`rounded-lg border px-3 py-2 text-sm ${deviceOS === 'ios' ? 'border-[#3b82f6] text-white bg-[#1d4ed8]/20' : 'border-white/10 text-zinc-300'}`}>iPhone/iPad</button>
+                        <button onClick={() => setDeviceOS('linux')} className={`rounded-lg border px-3 py-2 text-sm ${deviceOS === 'linux' ? 'border-[#3b82f6] text-white bg-[#1d4ed8]/20' : 'border-white/10 text-zinc-300'}`}>Linux</button>
+                        <button onClick={() => setDeviceOS('unknown')} className={`rounded-lg border px-3 py-2 text-sm ${deviceOS === 'unknown' ? 'border-[#3b82f6] text-white bg-[#1d4ed8]/20' : 'border-white/10 text-zinc-300'}`}>Other</button>
+                      </div>
+                    </div>
                   )}
-                </button>
-              </div>
+                </>
+              )}
+
+              {setupStep === 2 && (
+                <>
+                  <h3 className="text-4xl sm:text-3xl font-bold text-center text-white mb-2">{t.setupAddTitle}</h3>
+                  <p className="text-zinc-400 text-center mb-5">{t.setupAddDesc}</p>
+
+                  {(deviceOS === 'ios' || deviceOS === 'macos') && (
+                    <div className="mb-4">
+                      <p className="text-zinc-500 text-xs uppercase tracking-wider mb-2">{t.setupRegion}</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button onClick={() => setSetupRegion('global')} className={`rounded-lg border px-3 py-2 text-sm ${setupRegion === 'global' ? 'border-[#3b82f6] text-white bg-[#1d4ed8]/20' : 'border-white/10 text-zinc-300'}`}>{t.setupGlobal}</button>
+                        <button onClick={() => setSetupRegion('russia')} className={`rounded-lg border px-3 py-2 text-sm ${setupRegion === 'russia' ? 'border-[#3b82f6] text-white bg-[#1d4ed8]/20' : 'border-white/10 text-zinc-300'}`}>{t.setupRussia}</button>
+                      </div>
+                    </div>
+                  )}
+
+                  {!getStoreLink() && <p className="text-amber-300 text-xs mb-4">{t.setupNoStore}</p>}
+
+                  <div className="space-y-2.5">
+                    <button
+                      onClick={openStoreLink}
+                      disabled={!getStoreLink()}
+                      className="w-full border border-white/20 text-white font-semibold py-3.5 rounded-full flex items-center justify-center gap-2 active:scale-95 disabled:opacity-40"
+                    >
+                      <Download size={16} /> {t.setupAddButton}
+                    </button>
+
+                    <button
+                      onClick={() => setSetupStep(3)}
+                      className="w-full bg-[#1d4ed8] text-white font-semibold py-3.5 rounded-full flex items-center justify-center gap-2 active:scale-95"
+                    >
+                      <ArrowRight size={16} /> {t.setupNext}
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {setupStep === 3 && (
+                <>
+                  <h3 className="text-4xl sm:text-3xl font-bold text-center text-white mb-2">{t.setupUsageTitle}</h3>
+                  <p className="text-zinc-400 text-center mb-6">{t.setupUsageDesc}</p>
+
+                  <button
+                    onClick={closeSetupModal}
+                    className="w-full bg-[#1d4ed8] text-white font-semibold py-3.5 rounded-full flex items-center justify-center gap-2 active:scale-95"
+                  >
+                    <ArrowRight size={16} /> {t.setupFinish}
+                  </button>
+                </>
+              )}
             </motion.div>
           </motion.div>
         )}
@@ -423,7 +592,7 @@ function HomeView({ t, direction }: { t: any, direction: number }) {
       <motion.div
         animate={isRoaring ? { x: [-6, 6, -6, 6, 0], y: [-3, 3, -3, 3, 0] } : {}}
         transition={{ duration: 0.25 }}
-        className="relative w-32 h-32 cursor-pointer"
+        className="relative w-36 h-36 lg:w-64 lg:h-64 cursor-pointer"
         onClick={handleTigerClick}
       >
         <div className={`absolute inset-0 rounded-full ${isRoaring ? 'bg-[#8B5CF6]/15' : 'bg-[#3B82F6]/10'} blur-md`} />
@@ -440,7 +609,7 @@ function HomeView({ t, direction }: { t: any, direction: number }) {
       </motion.div>
 
       {/* Info Card */}
-      <div className="w-full max-w-xs bg-gradient-to-b from-[#0f172a]/90 to-[#020617]/90 border border-[rgba(0,209,255,0.1)] rounded-xl p-3.5 shadow-lg relative overflow-hidden">
+      <div className="w-full max-w-xs lg:max-w-3xl bg-gradient-to-b from-[#0f172a]/90 to-[#020617]/90 border border-[rgba(0,209,255,0.1)] rounded-xl p-3.5 shadow-lg relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-[#3B82F6]/5 to-transparent pointer-events-none rounded-xl" />
         
         <div className="flex justify-between items-start mb-3 relative z-10">
@@ -677,6 +846,38 @@ function ProfileView({ t, lang, setLang, direction, tgUser }: { t: any; lang: st
                 </div>
                 <ChevronRight size={14} strokeWidth={1.5} className="text-zinc-600" />
               </a>
+              <div className="h-px bg-white/5 mx-3" />
+              <button className="w-full flex items-center justify-between p-3 hover:bg-white/5 transition-colors active:scale-[0.98]">
+                <div className="flex items-center gap-2">
+                  <Gift size={18} strokeWidth={1.5} className="text-zinc-400" />
+                  <span className="text-zinc-200 font-medium text-sm">{t.referral}</span>
+                </div>
+                <ChevronRight size={14} strokeWidth={1.5} className="text-zinc-600" />
+              </button>
+              <div className="h-px bg-white/5 mx-3" />
+              <button className="w-full flex items-center justify-between p-3 hover:bg-white/5 transition-colors active:scale-[0.98]">
+                <div className="flex items-center gap-2">
+                  <CreditCard size={18} strokeWidth={1.5} className="text-zinc-400" />
+                  <span className="text-zinc-200 font-medium text-sm">{t.payments}</span>
+                </div>
+                <ChevronRight size={14} strokeWidth={1.5} className="text-zinc-600" />
+              </button>
+              <div className="h-px bg-white/5 mx-3" />
+              <button className="w-full flex items-center justify-between p-3 hover:bg-white/5 transition-colors active:scale-[0.98]">
+                <div className="flex items-center gap-2">
+                  <FileText size={18} strokeWidth={1.5} className="text-zinc-400" />
+                  <span className="text-zinc-200 font-medium text-sm">{t.userAgreement}</span>
+                </div>
+                <ChevronRight size={14} strokeWidth={1.5} className="text-zinc-600" />
+              </button>
+              <div className="h-px bg-white/5 mx-3" />
+              <button className="w-full flex items-center justify-between p-3 hover:bg-white/5 transition-colors active:scale-[0.98]">
+                <div className="flex items-center gap-2">
+                  <Lock size={18} strokeWidth={1.5} className="text-zinc-400" />
+                  <span className="text-zinc-200 font-medium text-sm">{t.privacyPolicy}</span>
+                </div>
+                <ChevronRight size={14} strokeWidth={1.5} className="text-zinc-600" />
+              </button>
             </div>
           </div>
         </motion.div>
