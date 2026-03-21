@@ -6,26 +6,30 @@ import { Shield, CreditCard, User, Zap, Check, ChevronRight, HelpCircle, Star, B
 import { motion, AnimatePresence } from 'motion/react';
 
 // Telegram WebApp types
+interface TelegramWebApp {
+  initDataUnsafe: {
+    start_param?: string;
+    user?: {
+      id: number;
+      first_name: string;
+      last_name?: string;
+      username?: string;
+      photo_url?: string;
+    };
+  };
+  close: () => void;
+  openInvoice: (url: string) => Promise<{ status: 'paid' | 'cancelled' | 'failed' | 'pending' }>;
+  openLink: (url: string) => void;
+  expand: () => void;
+  ready: () => void;
+  version: string;
+  platform: string;
+}
+
 declare global {
   interface Window {
     Telegram?: {
-      WebApp?: {
-        initDataUnsafe: {
-          start_param?: string;
-          user?: {
-            id: number;
-            first_name: string;
-            last_name?: string;
-            username?: string;
-            photo_url?: string;
-          };
-        };
-        close: () => void;
-        openInvoice: (url: string, callback: (status: string) => void) => void;
-        openLink: (url: string) => void;
-        expand: () => void;
-        ready: () => void;
-      };
+      WebApp?: TelegramWebApp;
     };
   }
 }
@@ -626,9 +630,9 @@ function HomeView({ t, direction, subscriptionEndDateLabel, tgUser }: { t: any, 
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-md max-h-[88vh] overflow-y-auto rounded-3xl border border-white/15 bg-gradient-to-b from-[#151515] via-[#0b0b0b] to-[#020202] p-4 sm:p-6 shadow-2xl"
+              className="w-full max-w-md max-h-[75vh] sm:max-h-[88vh] overflow-y-auto rounded-3xl border border-white/15 bg-gradient-to-b from-[#151515] via-[#0b0b0b] to-[#020202] p-3 sm:p-6 shadow-2xl"
             >
-              <div className="mb-4 sm:mb-6 flex items-center justify-between">
+              <div className="mb-3 sm:mb-6 flex items-center justify-between">
                 {setupStep > 1 ? (
                   <button onClick={() => setSetupStep((setupStep - 1) as 1 | 2 | 3)} className="text-zinc-400 hover:text-white transition-colors text-sm">
                     ←
@@ -642,31 +646,31 @@ function HomeView({ t, direction, subscriptionEndDateLabel, tgUser }: { t: any, 
                 </button>
               </div>
 
-              <div className="mx-auto mb-4 sm:mb-6 flex h-24 w-24 sm:h-36 sm:w-36 items-center justify-center rounded-full border border-white/30 bg-white/5 relative">
-                <div className="absolute inset-2 sm:inset-3 rounded-full border border-white/20" />
-                <div className="absolute inset-4 sm:inset-6 rounded-full border border-white/15" />
-                <div className="absolute inset-6 sm:inset-9 rounded-full border border-white/10" />
-                <div className="relative z-10">{setupStep === 1 ? getDeviceIcon() : setupStep === 2 ? <Download size={28} className="text-white sm:w-[34px] sm:h-[34px]" /> : <Key size={28} className="text-white sm:w-[34px] sm:h-[34px]" />}</div>
+              <div className="mx-auto mb-3 sm:mb-6 flex h-20 w-20 sm:h-36 sm:w-36 items-center justify-center rounded-full border border-white/30 bg-white/5 relative">
+                <div className="absolute inset-1.5 sm:inset-3 rounded-full border border-white/20" />
+                <div className="absolute inset-3 sm:inset-6 rounded-full border border-white/15" />
+                <div className="absolute inset-5 sm:inset-9 rounded-full border border-white/10" />
+                <div className="relative z-10">{setupStep === 1 ? getDeviceIcon() : setupStep === 2 ? <Download size={24} className="text-white sm:w-[34px] sm:h-[34px]" /> : <Key size={24} className="text-white sm:w-[34px] sm:h-[34px]" />}</div>
               </div>
 
               {setupStep === 1 && (
                 <>
-                  <h3 className="text-xl sm:text-2xl font-bold text-center text-white mb-2">{t.setupFor} {getDeviceLabel()}</h3>
-                  <p className="text-zinc-400 text-center text-sm mb-4 sm:mb-6">{t.setupStepsHint}</p>
+                  <h3 className="text-lg sm:text-2xl font-bold text-center text-white mb-1.5 sm:mb-2">{t.setupFor} {getDeviceLabel()}</h3>
+                  <p className="text-zinc-400 text-center text-xs sm:text-sm mb-3 sm:mb-6">{t.setupStepsHint}</p>
 
-                  <div className="space-y-2.5">
+                  <div className="space-y-2">
                     <button
                       onClick={() => setSetupStep(2)}
-                      className="w-full bg-gradient-to-r from-white/25 to-white/10 border border-white/25 text-white font-semibold py-3.5 rounded-full flex items-center justify-center gap-2 active:scale-95"
+                      className="w-full bg-gradient-to-r from-white/25 to-white/10 border border-white/25 text-white font-semibold py-3 sm:py-3.5 rounded-full flex items-center justify-center gap-2 active:scale-95 text-sm sm:text-base"
                     >
-                      <ArrowRight size={16} /> {t.setupStart}
+                      <ArrowRight size={14} className="sm:w-4 sm:h-4" /> {t.setupStart}
                     </button>
 
                     <button
                       onClick={() => setShowDevicePicker((prev) => !prev)}
-                      className="w-full border border-white/20 text-white font-medium py-3.5 rounded-full flex items-center justify-center gap-2 active:scale-95"
+                      className="w-full border border-white/20 text-white font-medium py-3 sm:py-3.5 rounded-full flex items-center justify-center gap-2 active:scale-95 text-sm sm:text-base"
                     >
-                      <MonitorSmartphone size={16} /> {t.setupOtherDevice}
+                      <MonitorSmartphone size={14} className="sm:w-4 sm:h-4" /> {t.setupOtherDevice}
                     </button>
                   </div>
 
@@ -713,8 +717,8 @@ function HomeView({ t, direction, subscriptionEndDateLabel, tgUser }: { t: any, 
 
               {setupStep === 2 && (
                 <>
-                  <h3 className="text-xl sm:text-2xl font-bold text-center text-white mb-2">{t.setupInstallTitle}</h3>
-                  <p className="text-zinc-400 text-center text-sm mb-4 sm:mb-5">{t.setupInstallDesc}</p>
+                  <h3 className="text-lg sm:text-2xl font-bold text-center text-white mb-1.5 sm:mb-2">{t.setupInstallTitle}</h3>
+                  <p className="text-zinc-400 text-center text-xs sm:text-sm mb-3 sm:mb-5">{t.setupInstallDesc}</p>
 
                   {(deviceOS === 'ios' || deviceOS === 'macos') && (
                     <div className="mb-4">
@@ -728,20 +732,20 @@ function HomeView({ t, direction, subscriptionEndDateLabel, tgUser }: { t: any, 
 
                   {!getStoreLink() && <p className="text-amber-300 text-xs mb-4">{t.setupNoStore}</p>}
 
-                  <div className="space-y-2.5">
+                  <div className="space-y-2">
                     <button
                       onClick={openStoreLink}
                       disabled={!getStoreLink()}
-                      className="w-full border border-white/20 text-white font-semibold py-3.5 rounded-full flex items-center justify-center gap-2 active:scale-95 disabled:opacity-40"
+                      className="w-full border border-white/20 text-white font-semibold py-3 sm:py-3.5 rounded-full flex items-center justify-center gap-2 active:scale-95 disabled:opacity-40 text-sm sm:text-base"
                     >
-                      <Download size={16} /> {t.setupInstallButton}
+                      <Download size={14} className="sm:w-4 sm:h-4" /> {t.setupInstallButton}
                     </button>
 
                     <button
                       onClick={() => { setSetupStep(3); fetchVpnKey(); }}
-                      className="w-full bg-gradient-to-r from-white/25 to-white/10 border border-white/25 text-white font-semibold py-3.5 rounded-full flex items-center justify-center gap-2 active:scale-95"
+                      className="w-full bg-gradient-to-r from-white/25 to-white/10 border border-white/25 text-white font-semibold py-3 sm:py-3.5 rounded-full flex items-center justify-center gap-2 active:scale-95 text-sm sm:text-base"
                     >
-                      <ArrowRight size={16} /> {t.setupNext}
+                      <ArrowRight size={14} className="sm:w-4 sm:h-4" /> {t.setupNext}
                     </button>
                   </div>
                 </>
@@ -749,8 +753,8 @@ function HomeView({ t, direction, subscriptionEndDateLabel, tgUser }: { t: any, 
 
               {setupStep === 3 && (
                 <>
-                  <h3 className="text-xl sm:text-2xl font-bold text-center text-white mb-2">{t.setupAddTitle}</h3>
-                  <p className="text-zinc-400 text-center text-sm mb-4">{t.setupAddDesc}</p>
+                  <h3 className="text-lg sm:text-2xl font-bold text-center text-white mb-1.5 sm:mb-2">{t.setupAddTitle}</h3>
+                  <p className="text-zinc-400 text-center text-xs sm:text-sm mb-3 sm:mb-4">{t.setupAddDesc}</p>
 
                   {vpnKeyLoading ? (
                     <div className="text-center py-4 text-zinc-400 text-sm">{t.setupKeyLoading}</div>
@@ -773,9 +777,9 @@ function HomeView({ t, direction, subscriptionEndDateLabel, tgUser }: { t: any, 
 
                   <button
                     onClick={closeSetupModal}
-                    className="w-full bg-gradient-to-r from-white/25 to-white/10 border border-white/25 text-white font-semibold py-3.5 rounded-full flex items-center justify-center gap-2 active:scale-95"
+                    className="w-full bg-gradient-to-r from-white/25 to-white/10 border border-white/25 text-white font-semibold py-3 sm:py-3.5 rounded-full flex items-center justify-center gap-2 active:scale-95 text-sm sm:text-base"
                   >
-                    <ArrowRight size={16} /> {t.setupFinish}
+                    <ArrowRight size={14} className="sm:w-4 sm:h-4" /> {t.setupFinish}
                   </button>
                 </>
               )}
@@ -925,10 +929,19 @@ function PaymentView({ t, direction }: { t: any, direction: number }) {
         const data = await response.json();
         if (data.invoiceLink) {
           if (typeof window !== 'undefined' && window.Telegram?.WebApp) {
-            window.Telegram.WebApp.openInvoice(data.invoiceLink, (status: string) => {
-              if (status === 'paid') alert('Оплата прошла успешно!');
-              else if (status === 'failed') alert('Ошибка оплаты');
-            });
+            try {
+              const result = await window.Telegram.WebApp.openInvoice(data.invoiceLink);
+              if (result.status === 'paid') {
+                alert('Оплата прошла успешно!');
+              } else if (result.status === 'cancelled') {
+                alert('Оплата отменена');
+              } else if (result.status === 'failed') {
+                alert('Ошибка оплаты');
+              }
+            } catch (e) {
+              console.error('Invoice error:', e);
+              alert('Не удалось открыть окно оплаты');
+            }
           } else {
             window.location.href = data.invoiceLink;
           }
