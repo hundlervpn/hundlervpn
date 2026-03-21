@@ -29,11 +29,19 @@ export async function GET(req: Request) {
       SELECT
         u.id AS "userId",
         u.telegram_id AS "telegramId",
-        COALESCE(s.status, 'none')::text AS status,
-        s.end_date AS "endDate",
+        CASE
+          WHEN s.status = 'active' AND s.end_date > NOW() THEN 'active'
+          WHEN s.status IS NULL THEN 'none'
+          ELSE 'none'
+        END::text AS status,
+        CASE
+          WHEN s.status = 'active' AND s.end_date > NOW() THEN s.end_date
+          ELSE NULL
+        END AS "endDate",
         CASE
           WHEN s.end_date IS NULL THEN 0
           WHEN s.end_date <= NOW() THEN 0
+          WHEN s.status <> 'active' THEN 0
           ELSE CEIL(EXTRACT(EPOCH FROM (s.end_date - NOW())) / 86400)::int
         END AS "daysLeft",
         EXISTS (

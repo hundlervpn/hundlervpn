@@ -214,8 +214,11 @@ export default function App() {
             if (stateResponse.ok) {
               const statePayload = await stateResponse.json();
               setSubscriptionState(statePayload.profile ?? { endDate: null, daysLeft: 0, status: 'none' });
+            } else {
+              setSubscriptionState({ endDate: null, daysLeft: 0, status: 'none' });
             }
           } catch (error) {
+            setSubscriptionState({ endDate: null, daysLeft: 0, status: 'none' });
             console.error('Failed to sync telegram user:', error);
           }
         }

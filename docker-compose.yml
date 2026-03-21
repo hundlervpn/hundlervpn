@@ -1,0 +1,35 @@
+version: '3.9'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: hundler-app
+    restart: unless-stopped
+    ports:
+      - '3000:3000'
+    environment:
+      NODE_ENV: production
+      APP_URL: ${APP_URL:-http://localhost:3000}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      OXAPAY_API_KEY: ${OXAPAY_API_KEY}
+      POSTGRESQL_HOST: ${POSTGRESQL_HOST}
+      POSTGRESQL_PORT: ${POSTGRESQL_PORT:-5432}
+      POSTGRESQL_USER: ${POSTGRESQL_USER}
+      POSTGRESQL_PASSWORD: ${POSTGRESQL_PASSWORD}
+      POSTGRESQL_DBNAME: ${POSTGRESQL_DBNAME}
+      POSTGRESQL_SSL_MODE: ${POSTGRESQL_SSL_MODE:-disable}
+      POSTGRESQL_SSL_CA_PATH: ${POSTGRESQL_SSL_CA_PATH:-}
+
+  bot:
+    build:
+      context: ./bot
+      dockerfile: Dockerfile
+    container_name: hundler-bot
+    restart: unless-stopped
+    environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      APP_URL: ${APP_URL:-http://localhost:3000}
+    depends_on:
+      - app
