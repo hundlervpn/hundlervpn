@@ -33,7 +33,7 @@ const translations = {
   ru: {
     navVpn: 'Главная', navPremium: 'Оплата', navProfile: 'Профиль',
     mainBadge: 'Основная',
-    planName: 'Premium',
+    planName: 'Подписка',
     until: 'до',
     date: '12.04.2026',
     devices: 'До 3 устройств',
@@ -66,12 +66,14 @@ const translations = {
     setupStart: 'Начать настройку',
     setupOtherDevice: 'Другое устройство',
     setupChooseDevice: 'Выберите устройство',
+    setupInstallTitle: 'Установка клиента',
+    setupInstallDesc: 'Сначала установите приложение клиента на устройство.',
+    setupInstallButton: 'Установить клиент',
     setupAddTitle: 'Добавление подписки',
-    setupAddDesc: 'Нажмите кнопку ниже — приложение откроется, и подписка добавится автоматически.',
-    setupAddButton: 'Добавить подписку',
+    setupAddDesc: 'Добавление ключа подписки будет доступно в следующем обновлении.',
+    setupAddButton: 'Добавить ключ',
+    setupAddPending: 'Пока это не реализовано',
     setupNext: 'Далее',
-    setupUsageTitle: 'Подключение и использование',
-    setupUsageDesc: 'В главном разделе нажмите большую кнопку включения в центре для подключения к VPN. Не забудьте выбрать сервер в списке серверов.',
     setupFinish: 'Завершить',
     setupStepOf: 'из',
     setupRegion: 'Регион',
@@ -82,7 +84,7 @@ const translations = {
   en: {
     navVpn: 'Home', navPremium: 'Payment', navProfile: 'Profile',
     mainBadge: 'Main',
-    planName: 'Premium',
+    planName: 'Subscription',
     until: 'until',
     date: '12.04.2026',
     devices: 'Up to 3 devices',
@@ -115,12 +117,14 @@ const translations = {
     setupStart: 'Start setup',
     setupOtherDevice: 'Other device',
     setupChooseDevice: 'Choose device',
-    setupAddTitle: 'Add subscription',
-    setupAddDesc: 'Tap the button below — the app will open and your subscription will be added automatically.',
-    setupAddButton: 'Add subscription',
+    setupInstallTitle: 'Install client',
+    setupInstallDesc: 'First, install the client application on your device.',
+    setupInstallButton: 'Install client',
+    setupAddTitle: 'Add subscription key',
+    setupAddDesc: 'Adding the subscription key will be available in the next update.',
+    setupAddButton: 'Add key',
+    setupAddPending: 'Not implemented yet',
     setupNext: 'Next',
-    setupUsageTitle: 'Connection and usage',
-    setupUsageDesc: 'In the main section, tap the large center connect button to start VPN. Also select a server from the server list.',
     setupFinish: 'Finish',
     setupStepOf: 'of',
     setupRegion: 'Region',
@@ -250,7 +254,7 @@ export default function App() {
         <div className="absolute top-[40%] -right-[10%] w-[50vw] h-[50vw] max-w-[400px] max-h-[400px] rounded-full bg-[#8B5CF6]/10 blur-[50px]" />
       </div>
 
-      <div className="relative z-10 min-h-screen lg:flex lg:items-stretch lg:gap-8 lg:px-6 lg:py-4">
+      <div className="relative z-10 min-h-screen lg:mx-auto lg:max-w-[1320px] lg:flex lg:items-stretch lg:gap-8 lg:px-6 lg:py-4">
         <DesktopSidebar t={t} activeTab={activeTab} navigate={navigate} />
 
         <main 
@@ -270,7 +274,7 @@ export default function App() {
             </h1>
           </header>
 
-          <div className="w-full max-w-5xl mx-auto lg:mx-0 lg:flex-1">
+          <div className="w-full max-w-6xl mx-auto lg:mx-0 lg:flex-1">
             <AnimatePresence mode="wait" custom={direction}>
               {activeTab === 'home' && <HomeView key="home" t={t} direction={direction} />}
               {activeTab === 'payment' && <PaymentView key="payment" t={t} direction={direction} />}
@@ -322,8 +326,8 @@ function DesktopSidebar({ t, activeTab, navigate }: { t: any; activeTab: Tab; na
       <div className="mb-6">
         <p className="text-zinc-500 text-xs mb-2">Ссылки</p>
         <div className="space-y-1 text-sm text-zinc-300">
-          <div className="px-3 py-2 rounded-lg hover:bg-white/5">Политика конфиденциальности</div>
-          <div className="px-3 py-2 rounded-lg hover:bg-white/5">Пользовательское соглашение</div>
+          <a href="https://telegra.ph/Politika-konfidencialnosti-Hundler-VPN-03-21" target="_blank" rel="noopener noreferrer" className="block px-3 py-2 rounded-lg hover:bg-white/5">Политика конфиденциальности</a>
+          <a href="https://telegra.ph/Polzovatelskoe-soglashenie-Hundler-VPN-03-21" target="_blank" rel="noopener noreferrer" className="block px-3 py-2 rounded-lg hover:bg-white/5">Пользовательское соглашение</a>
         </div>
       </div>
 
@@ -467,7 +471,7 @@ function HomeView({ t, direction }: { t: any, direction: number }) {
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-md rounded-3xl border border-white/10 bg-gradient-to-b from-[#0f172a] to-[#020617] p-6 shadow-2xl"
+              className="w-full max-w-md max-h-[88vh] overflow-y-auto rounded-3xl border border-white/10 bg-gradient-to-b from-[#0f172a] to-[#020617] p-6 shadow-2xl"
             >
               <div className="mb-6 flex items-center justify-between">
                 {setupStep > 1 ? (
@@ -487,7 +491,7 @@ function HomeView({ t, direction }: { t: any, direction: number }) {
                 <div className="absolute inset-3 rounded-full border border-[#1d4ed8]/25" />
                 <div className="absolute inset-6 rounded-full border border-[#1d4ed8]/20" />
                 <div className="absolute inset-9 rounded-full border border-[#1d4ed8]/15" />
-                <div className="relative z-10">{setupStep === 1 ? getDeviceIcon() : setupStep === 2 ? <Download size={34} className="text-white" /> : <CheckCircle2 size={34} className="text-white" />}</div>
+                <div className="relative z-10">{setupStep === 1 ? getDeviceIcon() : setupStep === 2 ? <Download size={34} className="text-white" /> : <Lock size={34} className="text-white" />}</div>
               </div>
 
               {setupStep === 1 && (
@@ -529,8 +533,8 @@ function HomeView({ t, direction }: { t: any, direction: number }) {
 
               {setupStep === 2 && (
                 <>
-                  <h3 className="text-4xl sm:text-3xl font-bold text-center text-white mb-2">{t.setupAddTitle}</h3>
-                  <p className="text-zinc-400 text-center mb-5">{t.setupAddDesc}</p>
+                  <h3 className="text-4xl sm:text-3xl font-bold text-center text-white mb-2">{t.setupInstallTitle}</h3>
+                  <p className="text-zinc-400 text-center mb-5">{t.setupInstallDesc}</p>
 
                   {(deviceOS === 'ios' || deviceOS === 'macos') && (
                     <div className="mb-4">
@@ -550,7 +554,7 @@ function HomeView({ t, direction }: { t: any, direction: number }) {
                       disabled={!getStoreLink()}
                       className="w-full border border-white/20 text-white font-semibold py-3.5 rounded-full flex items-center justify-center gap-2 active:scale-95 disabled:opacity-40"
                     >
-                      <Download size={16} /> {t.setupAddButton}
+                      <Download size={16} /> {t.setupInstallButton}
                     </button>
 
                     <button
@@ -565,8 +569,17 @@ function HomeView({ t, direction }: { t: any, direction: number }) {
 
               {setupStep === 3 && (
                 <>
-                  <h3 className="text-4xl sm:text-3xl font-bold text-center text-white mb-2">{t.setupUsageTitle}</h3>
-                  <p className="text-zinc-400 text-center mb-6">{t.setupUsageDesc}</p>
+                  <h3 className="text-4xl sm:text-3xl font-bold text-center text-white mb-2">{t.setupAddTitle}</h3>
+                  <p className="text-zinc-400 text-center mb-4">{t.setupAddDesc}</p>
+
+                  <button
+                    disabled
+                    className="w-full mb-3 border border-white/20 text-white/60 font-semibold py-3.5 rounded-full flex items-center justify-center gap-2 cursor-not-allowed"
+                  >
+                    <Lock size={16} /> {t.setupAddButton}
+                  </button>
+
+                  <p className="text-amber-300 text-xs text-center mb-6">{t.setupAddPending}</p>
 
                   <button
                     onClick={closeSetupModal}
@@ -586,13 +599,13 @@ function HomeView({ t, direction }: { t: any, direction: number }) {
       initial="initial"
       animate="animate"
       exit="exit"
-      className="flex flex-col items-center gap-3 flex-1"
+      className="flex flex-col items-center gap-4 flex-1 lg:items-start lg:pt-4"
     >
       {/* Logo */}
       <motion.div
         animate={isRoaring ? { x: [-6, 6, -6, 6, 0], y: [-3, 3, -3, 3, 0] } : {}}
         transition={{ duration: 0.25 }}
-        className="relative w-36 h-36 lg:w-64 lg:h-64 cursor-pointer"
+        className="relative w-36 h-36 lg:w-72 lg:h-72 cursor-pointer"
         onClick={handleTigerClick}
       >
         <div className={`absolute inset-0 rounded-full ${isRoaring ? 'bg-[#8B5CF6]/15' : 'bg-[#3B82F6]/10'} blur-md`} />
@@ -863,21 +876,21 @@ function ProfileView({ t, lang, setLang, direction, tgUser }: { t: any; lang: st
                 <ChevronRight size={14} strokeWidth={1.5} className="text-zinc-600" />
               </button>
               <div className="h-px bg-white/5 mx-3" />
-              <button className="w-full flex items-center justify-between p-3 hover:bg-white/5 transition-colors active:scale-[0.98]">
+              <a href="https://telegra.ph/Polzovatelskoe-soglashenie-Hundler-VPN-03-21" target="_blank" rel="noopener noreferrer" className="w-full flex items-center justify-between p-3 hover:bg-white/5 transition-colors active:scale-[0.98]">
                 <div className="flex items-center gap-2">
                   <FileText size={18} strokeWidth={1.5} className="text-zinc-400" />
                   <span className="text-zinc-200 font-medium text-sm">{t.userAgreement}</span>
                 </div>
                 <ChevronRight size={14} strokeWidth={1.5} className="text-zinc-600" />
-              </button>
+              </a>
               <div className="h-px bg-white/5 mx-3" />
-              <button className="w-full flex items-center justify-between p-3 hover:bg-white/5 transition-colors active:scale-[0.98]">
+              <a href="https://telegra.ph/Politika-konfidencialnosti-Hundler-VPN-03-21" target="_blank" rel="noopener noreferrer" className="w-full flex items-center justify-between p-3 hover:bg-white/5 transition-colors active:scale-[0.98]">
                 <div className="flex items-center gap-2">
                   <Lock size={18} strokeWidth={1.5} className="text-zinc-400" />
                   <span className="text-zinc-200 font-medium text-sm">{t.privacyPolicy}</span>
                 </div>
                 <ChevronRight size={14} strokeWidth={1.5} className="text-zinc-600" />
-              </button>
+              </a>
             </div>
           </div>
         </motion.div>
