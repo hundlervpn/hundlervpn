@@ -288,16 +288,6 @@ export default function App() {
       <div className="fixed inset-0 z-0 pointer-events-none">
         <div className="absolute -top-[20%] -left-[10%] w-[40vw] h-[40vw] max-w-[300px] max-h-[300px] rounded-full bg-[#3B82F6]/10 blur-[40px]" />
         <div className="absolute top-[40%] -right-[10%] w-[50vw] h-[50vw] max-w-[400px] max-h-[400px] rounded-full bg-[#8B5CF6]/10 blur-[50px]" />
-        <motion.div
-          className="hidden lg:block absolute left-[22%] top-[16%] h-[2px] w-[220px] bg-gradient-to-r from-transparent via-[#00D1FF]/80 to-transparent"
-          animate={{ opacity: [0.1, 0.9, 0.15], scaleX: [0.8, 1.15, 0.9], x: [-8, 14, -6] }}
-          transition={{ duration: 2.1, repeat: Infinity, ease: 'easeInOut' }}
-        />
-        <motion.div
-          className="hidden lg:block absolute right-[20%] top-[48%] h-[2px] w-[180px] bg-gradient-to-r from-transparent via-[#60A5FA]/75 to-transparent"
-          animate={{ opacity: [0.2, 0.85, 0.2], scaleX: [0.7, 1.2, 0.85], x: [10, -12, 8] }}
-          transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut', delay: 0.35 }}
-        />
       </div>
 
       <div className="relative z-10 min-h-screen lg:mx-auto lg:max-w-[1320px] lg:flex lg:items-stretch lg:gap-8 lg:px-6 lg:py-4">
@@ -320,9 +310,9 @@ export default function App() {
             </h1>
           </header>
 
-          <div className="w-full max-w-6xl mx-auto lg:mx-0 lg:flex-1">
+          <div className="w-full max-w-6xl mx-auto lg:flex-1 lg:flex lg:flex-col lg:items-center lg:justify-start">
             <AnimatePresence mode="wait" custom={direction}>
-              {activeTab === 'home' && <HomeView key="home" t={t} direction={direction} subscriptionEndDateLabel={subscriptionEndDateLabel} />}
+              {activeTab === 'home' && <HomeView key="home" t={t} direction={direction} subscriptionEndDateLabel={subscriptionEndDateLabel} tgUser={tgUser} />}
               {activeTab === 'payment' && <PaymentView key="payment" t={t} direction={direction} />}
               {activeTab === 'profile' && <ProfileView key="profile" t={t} lang={lang} setLang={setLang} direction={direction} tgUser={tgUser} subscriptionDaysLabel={subscriptionDaysLabel} />}
             </AnimatePresence>
@@ -395,19 +385,39 @@ function DesktopSidebar({ t, activeTab, navigate }: { t: any; activeTab: Tab; na
   );
 }
 
-function HomeView({ t, direction, subscriptionEndDateLabel }: { t: any, direction: number; subscriptionEndDateLabel: string }) {
+function HomeView({ t, direction, subscriptionEndDateLabel, tgUser }: { t: any, direction: number; subscriptionEndDateLabel: string; tgUser: { id: number; name: string; photo: string; username?: string } | null }) {
   const [isRoaring, setIsRoaring] = useState(false);
   const [showSetupModal, setShowSetupModal] = useState(false);
+  const [showDevicesModal, setShowDevicesModal] = useState(false);
+  const [devices, setDevices] = useState<{ id: number; device_name: string | null; key_uri: string; is_active: boolean; created_at: string }[]>([]);
+  const [devicesLoading, setDevicesLoading] = useState(false);
   const [deviceOS, setDeviceOS] = useState<'windows' | 'macos' | 'linux' | 'android' | 'ios' | 'unknown'>('unknown');
   const [setupStep, setSetupStep] = useState<1 | 2 | 3>(1);
   const [showDevicePicker, setShowDevicePicker] = useState(false);
   const [setupRegion, setSetupRegion] = useState<'global' | 'russia'>('global');
-  const electricArcs = [
-    { top: '16%', left: '-8%', rotate: -18, delay: 0 },
-    { top: '35%', left: '82%', rotate: 12, delay: 0.35 },
-    { top: '72%', left: '4%', rotate: 21, delay: 0.7 },
-    { top: '58%', left: '74%', rotate: -24, delay: 1.05 },
-  ] as const;
+
+  const fetchDevices = async () => {
+    if (!tgUser?.id) return;
+    setDevicesLoading(true);
+    try {
+      const res = await fetch(`/api/users/devices?telegramId=${encodeURIComponent(String(tgUser.id))}`);
+      if (res.ok) {
+        const data = await res.json();
+        setDevices(data.devices ?? []);
+      } else {
+        setDevices([]);
+      }
+    } catch {
+      setDevices([]);
+    } finally {
+      setDevicesLoading(false);
+    }
+  };
+
+  const handleDevicesClick = () => {
+    setShowDevicesModal(true);
+    fetchDevices();
+  };
 
   const handleTigerClick = () => {
     if (isRoaring) return;
@@ -651,29 +661,16 @@ function HomeView({ t, direction, subscriptionEndDateLabel }: { t: any, directio
       initial="initial"
       animate="animate"
       exit="exit"
-      className="flex flex-col items-center gap-4 flex-1 lg:items-start lg:pt-4"
+      className="flex flex-col items-center gap-6 flex-1 lg:pt-6 w-full"
     >
       {/* Logo */}
       <motion.div
         animate={isRoaring ? { x: [-6, 6, -6, 6, 0], y: [-3, 3, -3, 3, 0] } : {}}
         transition={{ duration: 0.25 }}
-        className="relative w-36 h-36 lg:w-[320px] lg:h-[320px] cursor-pointer"
+        className="relative w-36 h-36 lg:w-[260px] lg:h-[260px] cursor-pointer"
         onClick={handleTigerClick}
       >
-        <motion.div
-          className={`absolute inset-0 rounded-full ${isRoaring ? 'bg-[#8B5CF6]/20' : 'bg-[#3B82F6]/12'} blur-md`}
-          animate={{ scale: [1, 1.05, 1], opacity: [0.45, 0.85, 0.5] }}
-          transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
-        />
-        {electricArcs.map((arc, index) => (
-          <motion.span
-            key={`${arc.top}-${arc.left}-${index}`}
-            className="hidden lg:block absolute h-[2px] w-[96px] rounded-full bg-gradient-to-r from-transparent via-[#67E8F9] to-transparent"
-            style={{ top: arc.top, left: arc.left, rotate: `${arc.rotate}deg` }}
-            animate={{ opacity: [0.15, 0.95, 0.2], scaleX: [0.75, 1.2, 0.8] }}
-            transition={{ duration: 1.25, repeat: Infinity, ease: 'easeInOut', delay: arc.delay }}
-          />
-        ))}
+        <div className={`absolute inset-0 rounded-full ${isRoaring ? 'bg-[#8B5CF6]/15' : 'bg-[#3B82F6]/10'} blur-xl`} />
         <div className="w-full h-full relative z-10">
           <Image 
             src="/logo.png" 
@@ -687,18 +684,8 @@ function HomeView({ t, direction, subscriptionEndDateLabel }: { t: any, directio
       </motion.div>
 
       {/* Info Card */}
-      <div className="w-full max-w-xs lg:max-w-[880px] bg-gradient-to-b from-[#0f172a]/95 via-[#0a1227]/95 to-[#030712]/95 border border-[#1d4ed8]/25 rounded-2xl p-3.5 lg:p-5 shadow-[0_0_38px_rgba(15,23,42,0.65)] relative overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.15),transparent_58%)] pointer-events-none rounded-2xl" />
-        <motion.div
-          className="hidden lg:block absolute top-5 right-5 h-[2px] w-28 bg-gradient-to-r from-transparent via-[#22D3EE] to-transparent"
-          animate={{ opacity: [0.2, 1, 0.25], x: [-8, 6, -4] }}
-          transition={{ duration: 1.35, repeat: Infinity, ease: 'easeInOut' }}
-        />
-        <motion.div
-          className="hidden lg:block absolute bottom-8 left-10 h-[2px] w-24 bg-gradient-to-r from-transparent via-[#60A5FA] to-transparent"
-          animate={{ opacity: [0.25, 0.95, 0.2], x: [6, -10, 4] }}
-          transition={{ duration: 1.6, repeat: Infinity, ease: 'easeInOut', delay: 0.45 }}
-        />
+      <div className="w-full max-w-xs lg:max-w-[540px] bg-gradient-to-b from-[#0f172a]/90 to-[#020617]/90 border border-white/10 rounded-2xl p-3.5 lg:p-5 shadow-lg relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-[#3B82F6]/5 to-transparent pointer-events-none rounded-2xl" />
         
         <div className="flex justify-between items-start mb-3 relative z-10">
           <h3 className="text-lg font-bold text-white">{t.planName}</h3>
@@ -728,13 +715,65 @@ function HomeView({ t, direction, subscriptionEndDateLabel }: { t: any, directio
             <button className="bg-zinc-900/80 border border-white/5 text-zinc-300 text-xs font-medium py-2.5 rounded-xl flex items-center justify-center gap-1 active:scale-95 transition-colors hover:text-white hover:border-[#1d4ed8]/40">
               <Gift size={12} className="text-zinc-500" /> {t.promo}
             </button>
-            <button className="bg-zinc-900/80 border border-white/5 text-zinc-300 text-xs font-medium py-2.5 rounded-xl flex items-center justify-center gap-1 active:scale-95 transition-colors hover:text-white hover:border-[#1d4ed8]/40">
+            <button onClick={handleDevicesClick} className="bg-zinc-900/80 border border-white/5 text-zinc-300 text-xs font-medium py-2.5 rounded-xl flex items-center justify-center gap-1 active:scale-95 transition-colors hover:text-white hover:border-[#1d4ed8]/40">
               <MonitorSmartphone size={12} className="text-zinc-500" /> {t.myDevices}
             </button>
           </div>
         </div>
       </div>
     </motion.div>
+
+      {/* Devices Modal */}
+      <AnimatePresence>
+        {showDevicesModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+            onClick={() => setShowDevicesModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-md max-h-[80vh] overflow-y-auto rounded-3xl border border-white/10 bg-gradient-to-b from-[#0f172a] to-[#020617] p-6 shadow-2xl"
+            >
+              <div className="flex items-center justify-between mb-5">
+                <h3 className="text-lg font-bold text-white">{t.myDevices}</h3>
+                <button onClick={() => setShowDevicesModal(false)} className="text-zinc-400 hover:text-white transition-colors"><X size={20} /></button>
+              </div>
+
+              {devicesLoading ? (
+                <div className="text-center py-8 text-zinc-400 text-sm">Загрузка...</div>
+              ) : devices.length === 0 ? (
+                <div className="text-center py-8">
+                  <MonitorSmartphone size={40} className="text-zinc-600 mx-auto mb-3" />
+                  <p className="text-zinc-400 text-sm">Нет подключённых устройств</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {devices.map((device) => (
+                    <div key={device.id} className="flex items-center gap-3 p-3 rounded-xl border border-white/10 bg-zinc-900/50">
+                      <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${device.is_active ? 'bg-[#00D1FF]/10 border border-[#00D1FF]/20' : 'bg-zinc-800 border border-white/10'}`}>
+                        <MonitorSmartphone size={18} className={device.is_active ? 'text-[#00D1FF]' : 'text-zinc-500'} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-white truncate">{device.device_name || 'Устройство'}</p>
+                        <p className="text-[10px] text-zinc-500">{new Date(device.created_at).toLocaleDateString('ru-RU')}</p>
+                      </div>
+                      <div className={`text-[9px] uppercase tracking-wider font-medium px-2 py-0.5 rounded-full ${device.is_active ? 'text-[#00D1FF] bg-[#00D1FF]/10' : 'text-zinc-500 bg-zinc-800'}`}>
+                        {device.is_active ? 'Активно' : 'Неактивно'}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </>
   );
 }
@@ -927,7 +966,7 @@ function ProfileView({ t, lang, setLang, direction, tgUser, subscriptionDaysLabe
                 </div>
               </button>
               <div className="h-px bg-white/5 mx-3" />
-              <a href="https://t.me/hundler_support" target="_blank" rel="noopener noreferrer" className="w-full flex items-center justify-between p-3 hover:bg-white/5 transition-colors">
+              <a href="https://t.me/hundlervpn" target="_blank" rel="noopener noreferrer" className="w-full flex items-center justify-between p-3 hover:bg-white/5 transition-colors">
                 <div className="flex items-center gap-2">
                   <HelpCircle size={18} strokeWidth={1.5} className="text-zinc-400" />
                   <span className="text-zinc-200 font-medium text-sm">{t.support}</span>

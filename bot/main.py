@@ -3,7 +3,8 @@ import asyncio
 import logging
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import CommandStart
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo, FSInputFile
+from pathlib import Path
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -58,11 +59,20 @@ async def cmd_start(message: types.Message):
         "Нажмите кнопку ниже, чтобы открыть приложение:"
     )
     
-    await message.answer(
-        welcome_text,
-        parse_mode="HTML",
-        reply_markup=keyboard
-    )
+    photo_path = Path(__file__).parent / 'welcome.png'
+    if photo_path.exists():
+        await message.answer_photo(
+            photo=FSInputFile(photo_path),
+            caption=welcome_text,
+            parse_mode="HTML",
+            reply_markup=keyboard
+        )
+    else:
+        await message.answer(
+            welcome_text,
+            parse_mode="HTML",
+            reply_markup=keyboard
+        )
 
 
 async def main():

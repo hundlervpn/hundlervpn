@@ -57,9 +57,13 @@ def main() -> None:
         run_with_retry(client, 'DEBIAN_FRONTEND=noninteractive apt-get install -y python3 python3-venv python3-pip')
         run(client, f'mkdir -p {remote_dir}')
 
+        local_welcome = Path('bot/welcome.png').resolve()
+
         sftp = client.open_sftp()
         try:
             sftp.put(str(local_main), f'{remote_dir}/main.py')
+            if local_welcome.exists():
+                sftp.put(str(local_welcome), f'{remote_dir}/welcome.png')
         finally:
             sftp.close()
 
