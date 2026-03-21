@@ -283,11 +283,11 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen w-full bg-[#020617] overflow-x-hidden relative font-sans">
+    <div className="min-h-screen w-full bg-[#020202] overflow-x-hidden relative font-sans">
       {/* Background */}
       <div className="fixed inset-0 z-0 pointer-events-none">
-        <div className="absolute -top-[20%] -left-[10%] w-[40vw] h-[40vw] max-w-[300px] max-h-[300px] rounded-full bg-[#3B82F6]/10 blur-[40px]" />
-        <div className="absolute top-[40%] -right-[10%] w-[50vw] h-[50vw] max-w-[400px] max-h-[400px] rounded-full bg-[#8B5CF6]/10 blur-[50px]" />
+        <div className="absolute -top-[20%] -left-[10%] w-[40vw] h-[40vw] max-w-[300px] max-h-[300px] rounded-full bg-white/10 blur-[55px]" />
+        <div className="absolute top-[40%] -right-[10%] w-[50vw] h-[50vw] max-w-[400px] max-h-[400px] rounded-full bg-white/5 blur-[65px]" />
       </div>
 
       <div className="relative z-10 min-h-screen lg:mx-auto lg:max-w-[1320px] lg:flex lg:items-stretch lg:gap-8 lg:px-6 lg:py-4">
@@ -302,8 +302,8 @@ export default function App() {
             <h1 className="font-syncopate font-bold text-base tracking-[0.12em] text-white flex items-center lg:text-lg">
               HUNDLER
               <span className="relative inline-block ml-1.5">
-                <span className="absolute inset-0 bg-gradient-to-r from-[#3B82F6] to-[#00D1FF] blur-sm opacity-40"></span>
-                <span className="relative text-transparent bg-clip-text bg-gradient-to-r from-[#3B82F6] via-white to-[#00D1FF]">
+                <span className="absolute inset-0 bg-gradient-to-r from-white to-zinc-300 blur-sm opacity-35"></span>
+                <span className="relative text-transparent bg-clip-text bg-gradient-to-r from-zinc-200 via-white to-zinc-400">
                   VPN
                 </span>
               </span>
@@ -346,11 +346,11 @@ export default function App() {
 }
 
 function DesktopSidebar({ t, activeTab, navigate }: { t: any; activeTab: Tab; navigate: (tab: Tab) => void }) {
-  const menuBtnClass = (isActive: boolean) => `group w-full text-left px-3.5 py-2.5 rounded-xl text-sm transition-all ${isActive ? 'bg-gradient-to-r from-[#1d4ed8]/35 to-[#0ea5e9]/20 text-white border border-[#3b82f6]/45 shadow-[0_0_0_1px_rgba(59,130,246,0.15)]' : 'text-zinc-300 hover:bg-white/5 hover:border-white/10 border border-transparent'}`;
+  const menuBtnClass = (isActive: boolean) => `group w-full text-left px-3.5 py-2.5 rounded-xl text-sm transition-all ${isActive ? 'bg-gradient-to-r from-white/20 to-white/5 text-white border border-white/30 shadow-[0_0_0_1px_rgba(255,255,255,0.12)]' : 'text-zinc-300 hover:bg-white/5 hover:border-white/10 border border-transparent'}`;
 
   return (
-    <aside className="hidden lg:flex lg:w-72 lg:shrink-0 lg:flex-col lg:rounded-3xl lg:border lg:border-[#1d4ed8]/20 lg:bg-gradient-to-b lg:from-[#0b1228]/95 lg:to-[#060b1d]/90 lg:p-4 lg:backdrop-blur-xl lg:shadow-[0_0_45px_rgba(2,6,23,0.8)]">
-      <div className="mb-6 rounded-2xl border border-[#1d4ed8]/20 bg-[#081126]/70 p-3">
+    <aside className="hidden lg:flex lg:w-72 lg:shrink-0 lg:flex-col lg:rounded-3xl lg:border lg:border-white/15 lg:bg-gradient-to-b lg:from-[#121212] lg:via-[#0b0b0b] lg:to-[#020202] lg:p-4 lg:backdrop-blur-xl lg:shadow-[0_0_45px_rgba(0,0,0,0.8)]">
+      <div className="mb-6 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
         <p className="text-zinc-400 text-[11px] uppercase tracking-[0.16em] mb-2.5">Главная</p>
         <div className="space-y-1">
           <button onClick={() => navigate('home')} className={menuBtnClass(activeTab === 'home')}>{t.navVpn}</button>
@@ -670,7 +670,7 @@ function HomeView({ t, direction, subscriptionEndDateLabel, tgUser }: { t: any, 
         className="relative w-36 h-36 lg:w-[260px] lg:h-[260px] cursor-pointer"
         onClick={handleTigerClick}
       >
-        <div className={`absolute inset-0 rounded-full ${isRoaring ? 'bg-[#8B5CF6]/15' : 'bg-[#3B82F6]/10'} blur-xl`} />
+        <div className={`absolute inset-0 rounded-full ${isRoaring ? 'bg-white/20' : 'bg-white/10'} blur-xl`} />
         <div className="w-full h-full relative z-10">
           <Image 
             src="/logo.png" 
@@ -684,8 +684,8 @@ function HomeView({ t, direction, subscriptionEndDateLabel, tgUser }: { t: any, 
       </motion.div>
 
       {/* Info Card */}
-      <div className="w-full max-w-xs lg:max-w-[540px] bg-gradient-to-b from-[#0f172a]/90 to-[#020617]/90 border border-white/10 rounded-2xl p-3.5 lg:p-5 shadow-lg relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-[#3B82F6]/5 to-transparent pointer-events-none rounded-2xl" />
+      <div className="w-full max-w-xs lg:max-w-[540px] bg-gradient-to-b from-[#161616]/95 via-[#0b0b0b]/95 to-[#020202]/95 border border-white/15 rounded-2xl p-3.5 lg:p-5 shadow-lg relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-white/5 pointer-events-none rounded-2xl" />
         
         <div className="flex justify-between items-start mb-3 relative z-10">
           <h3 className="text-lg font-bold text-white">{t.planName}</h3>
@@ -697,25 +697,25 @@ function HomeView({ t, direction, subscriptionEndDateLabel, tgUser }: { t: any, 
           </div>
         </div>
 
-        <div className="inline-flex items-center gap-1 bg-[#00D1FF]/10 border border-[#00D1FF]/15 px-2 py-0.5 rounded-md mb-4 relative z-10">
-          <Smartphone size={10} className="text-[#00D1FF]" />
-          <span className="text-[#00D1FF] text-[10px] font-medium">{t.devices}</span>
+        <div className="inline-flex items-center gap-1 bg-white/10 border border-white/20 px-2 py-0.5 rounded-md mb-4 relative z-10">
+          <Smartphone size={10} className="text-white" />
+          <span className="text-white text-[10px] font-medium">{t.devices}</span>
         </div>
 
         <div className="space-y-2 relative z-10">
-          <button className="w-full bg-gradient-to-r from-[#1d4ed8]/35 via-[#2563eb]/30 to-[#0ea5e9]/30 border border-[#22d3ee]/30 text-[#67e8f9] font-medium py-2.5 rounded-xl flex items-center justify-center gap-1.5 active:scale-95 text-sm transition-transform hover:-translate-y-0.5">
+          <button className="w-full bg-gradient-to-r from-white/20 via-white/15 to-white/10 border border-white/25 text-white font-medium py-2.5 rounded-xl flex items-center justify-center gap-1.5 active:scale-95 text-sm transition-transform hover:-translate-y-0.5">
             <Zap size={14} /> <span>{t.extend}</span>
           </button>
           
-          <button onClick={handleInstallClick} className="w-full bg-zinc-800/50 border border-white/10 text-white font-medium py-2.5 rounded-xl flex items-center justify-center gap-1.5 active:scale-95 text-sm transition-colors hover:border-[#60a5fa]/40 hover:bg-zinc-800/70">
+          <button onClick={handleInstallClick} className="w-full bg-zinc-800/50 border border-white/10 text-white font-medium py-2.5 rounded-xl flex items-center justify-center gap-1.5 active:scale-95 text-sm transition-colors hover:border-white/30 hover:bg-zinc-800/70">
             <Settings size={14} className="text-zinc-400" /> {t.install}
           </button>
 
           <div className="grid grid-cols-2 gap-1.5">
-            <button className="bg-zinc-900/80 border border-white/5 text-zinc-300 text-xs font-medium py-2.5 rounded-xl flex items-center justify-center gap-1 active:scale-95 transition-colors hover:text-white hover:border-[#1d4ed8]/40">
+            <button className="bg-zinc-900/80 border border-white/5 text-zinc-300 text-xs font-medium py-2.5 rounded-xl flex items-center justify-center gap-1 active:scale-95 transition-colors hover:text-white hover:border-white/25">
               <Gift size={12} className="text-zinc-500" /> {t.promo}
             </button>
-            <button onClick={handleDevicesClick} className="bg-zinc-900/80 border border-white/5 text-zinc-300 text-xs font-medium py-2.5 rounded-xl flex items-center justify-center gap-1 active:scale-95 transition-colors hover:text-white hover:border-[#1d4ed8]/40">
+            <button onClick={handleDevicesClick} className="bg-zinc-900/80 border border-white/5 text-zinc-300 text-xs font-medium py-2.5 rounded-xl flex items-center justify-center gap-1 active:scale-95 transition-colors hover:text-white hover:border-white/25">
               <MonitorSmartphone size={12} className="text-zinc-500" /> {t.myDevices}
             </button>
           </div>
