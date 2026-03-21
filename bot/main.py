@@ -32,6 +32,18 @@ async def cmd_start(message: types.Message):
                     text="🚀 Открыть VPN",
                     web_app=WebAppInfo(url=APP_URL)
                 )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="🔒 Политика конфиденциальности",
+                    url="https://telegra.ph/Politika-konfidencialnosti-Hundler-VPN-03-21"
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    text="📄 Пользовательское соглашение",
+                    url="https://telegra.ph/Polzovatelskoe-soglashenie-Hundler-VPN-03-21"
+                )
             ]
         ]
     )
