@@ -15,7 +15,7 @@ COPY . .
 # Build the application
 RUN npm run build
 
-# Production stage
+# Production stage  
 FROM node:20-alpine AS runner
 
 WORKDIR /app
@@ -27,9 +27,23 @@ ENV NODE_ENV=production
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-# Copy built application
+# Copy public files
 COPY --from=builder /app/public ./public
-COPY --from=builder /app/.next/standalone/app/ ./
+
+# Copy all standalone files first
+COPY --from=builder /app/.next/standalone/ ./temp_standalone/
+
+# Move files from nested directory to root (handles both /app and nested paths)
+RUN if [ -f ./temp_standalone/app/server.js ]; then \
+      mv ./temp_standalone/app/* ./; \
+    elif [ -d ./temp_standalone/Desktop ]; then \
+      find ./temp_standalone/Desktop -name "server.js" -exec dirname {} \; | head -1 | xargs -I {} mv {}/* ./; \
+    else \
+      mv ./temp_standalone/* ./; \
+    fi && \
+    rm -rf ./temp_standalone
+
+# Copy static files
 COPY --from=builder /app/.next/static ./.next/static
 
 # Change ownership
