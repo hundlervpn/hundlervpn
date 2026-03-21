@@ -39,7 +39,7 @@ def main() -> None:
     user = os.environ['BOT_DEPLOY_USER']
     password = os.environ['BOT_DEPLOY_PASSWORD']
 
-    app_url = os.getenv('BOT_APP_URL', 'https://hundler-vpn.vercel.app')
+    app_url = os.getenv('BOT_APP_URL', 'https://mihanyazaretsky-hundlervpn-4333.twc1.net/')
     bot_token = os.getenv('BOT_TELEGRAM_TOKEN', '').strip()
 
     local_main = Path('bot/main.py').resolve()

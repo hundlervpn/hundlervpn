@@ -10,7 +10,7 @@ logging.basicConfig(level=logging.INFO)
 
 # Get bot token from environment
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-APP_URL = os.getenv("APP_URL", "https://hundler-vpn.vercel.app")
+APP_URL = os.getenv("APP_URL", "https://mihanyazaretsky-hundlervpn-4333.twc1.net/")
 
 if not BOT_TOKEN:
     raise ValueError("TELEGRAM_BOT_TOKEN environment variable is not set")
