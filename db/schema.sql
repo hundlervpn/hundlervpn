@@ -116,6 +116,29 @@ CREATE INDEX IF NOT EXISTS idx_payments_created_at ON payments(created_at);
 
 CREATE INDEX IF NOT EXISTS idx_logs_user_created ON logs(user_id, created_at);
 
+CREATE TABLE IF NOT EXISTS promo_codes (
+  id BIGSERIAL PRIMARY KEY,
+  code TEXT NOT NULL UNIQUE,
+  days INTEGER NOT NULL CHECK (days > 0),
+  max_uses INTEGER NOT NULL DEFAULT 1,
+  used_count INTEGER NOT NULL DEFAULT 0,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  expires_at TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS promo_code_uses (
+  id BIGSERIAL PRIMARY KEY,
+  promo_code_id BIGINT NOT NULL REFERENCES promo_codes(id) ON DELETE CASCADE,
+  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  used_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE(promo_code_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_promo_codes_code ON promo_codes(code);
+CREATE INDEX IF NOT EXISTS idx_promo_code_uses_user ON promo_code_uses(user_id);
+
 DROP TRIGGER IF EXISTS trg_users_set_updated_at ON users;
 CREATE TRIGGER trg_users_set_updated_at
 BEFORE UPDATE ON users

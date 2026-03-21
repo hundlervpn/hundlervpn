@@ -2,7 +2,7 @@
 
 import { useState, memo, useEffect } from 'react';
 import Image from 'next/image';
-import { Shield, CreditCard, User, Zap, Check, ChevronRight, HelpCircle, Star, Bitcoin, Wallet, Calendar, Smartphone, Settings, Gift, MonitorSmartphone, Globe, X, Monitor, FileText, Lock, Download, ArrowRight, CheckCircle2, Laptop, Smartphone as SmartphoneIcon } from 'lucide-react';
+import { Shield, CreditCard, User, Zap, Check, ChevronRight, HelpCircle, Star, Bitcoin, Wallet, Calendar, Smartphone, Settings, Gift, MonitorSmartphone, Globe, X, Monitor, FileText, Lock, Download, ArrowRight, CheckCircle2, Laptop, Smartphone as SmartphoneIcon, ShieldAlert, Users, Ban, Tag, Search, Plus, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 // Telegram WebApp types
@@ -84,7 +84,28 @@ const translations = {
     ,paymentsHistoryTitle: 'История платежей',
     backToProfile: 'Назад в профиль',
     noPaymentsYet: 'Платежей пока нет',
-    referralCopied: 'Реферальная ссылка скопирована'
+    referralCopied: 'Реферальная ссылка скопирована',
+    adminPanel: 'Админ панель',
+    adminStats: 'Статистика',
+    adminUsers: 'Пользователи',
+    adminPromos: 'Промокоды',
+    adminTotalUsers: 'Всего',
+    adminTodayUsers: 'Сегодня',
+    adminBannedUsers: 'Забанено',
+    adminRevenue: 'Доход',
+    adminActiveSubs: 'Активных подписок',
+    adminPaidPayments: 'Оплаченных',
+    adminSearchUsers: 'Поиск по имени или ID...',
+    adminBan: 'Бан',
+    adminUnban: 'Разбан',
+    adminCreatePromo: 'Создать промокод',
+    adminPromoCode: 'Код',
+    adminPromoDays: 'Дней подписки',
+    adminPromoMaxUses: 'Макс. использований',
+    adminPromoCreate: 'Создать',
+    adminBackToProfile: 'Назад в профиль',
+    adminNoUsers: 'Пользователей не найдено',
+    adminNoPromos: 'Промокодов пока нет'
   },
   en: {
     navVpn: 'Home', navPremium: 'Payment', navProfile: 'Profile',
@@ -139,11 +160,34 @@ const translations = {
     ,paymentsHistoryTitle: 'Payments history',
     backToProfile: 'Back to profile',
     noPaymentsYet: 'No payments yet',
-    referralCopied: 'Referral link copied'
+    referralCopied: 'Referral link copied',
+    adminPanel: 'Admin Panel',
+    adminStats: 'Statistics',
+    adminUsers: 'Users',
+    adminPromos: 'Promo Codes',
+    adminTotalUsers: 'Total',
+    adminTodayUsers: 'Today',
+    adminBannedUsers: 'Banned',
+    adminRevenue: 'Revenue',
+    adminActiveSubs: 'Active subs',
+    adminPaidPayments: 'Paid',
+    adminSearchUsers: 'Search by name or ID...',
+    adminBan: 'Ban',
+    adminUnban: 'Unban',
+    adminCreatePromo: 'Create promo code',
+    adminPromoCode: 'Code',
+    adminPromoDays: 'Subscription days',
+    adminPromoMaxUses: 'Max uses',
+    adminPromoCreate: 'Create',
+    adminBackToProfile: 'Back to profile',
+    adminNoUsers: 'No users found',
+    adminNoPromos: 'No promo codes yet'
   }
 };
 
-const tabs = ['home', 'payment', 'profile', 'payments'] as const;
+const ADMIN_TELEGRAM_IDS = [2029065770, 1483598839];
+
+const tabs = ['home', 'payment', 'profile', 'payments', 'admin'] as const;
 type Tab = typeof tabs[number];
 
 const pageVariants = {
@@ -330,6 +374,7 @@ export default function App() {
               {activeTab === 'payment' && <PaymentView key="payment" t={t} direction={direction} />}
               {activeTab === 'profile' && <ProfileView key="profile" t={t} lang={lang} setLang={setLang} direction={direction} tgUser={tgUser} subscriptionDaysLabel={subscriptionDaysLabel} navigate={navigate} />}
               {activeTab === 'payments' && <PaymentsHistoryView key="payments" t={t} direction={direction} tgUser={tgUser} navigate={navigate} lang={lang} />}
+              {activeTab === 'admin' && <AdminView key="admin" t={t} direction={direction} tgUser={tgUser} navigate={navigate} lang={lang} />}
             </AnimatePresence>
           </div>
         </main>
@@ -1032,6 +1077,21 @@ function ProfileView({ t, lang, setLang, direction, tgUser, subscriptionDaysLabe
               </a>
             </div>
           </div>
+
+          {tgUser && ADMIN_TELEGRAM_IDS.includes(tgUser.id) && (
+            <div className="mt-3">
+              <h3 className="text-[10px] font-medium text-zinc-500 uppercase tracking-widest mb-2 px-2">Admin</h3>
+              <div className="bg-zinc-900/40 border border-white/5 rounded-xl overflow-hidden">
+                <button onClick={() => navigate('admin')} className="w-full flex items-center justify-between p-3 hover:bg-white/5 transition-colors active:scale-[0.98]">
+                  <div className="flex items-center gap-2">
+                    <ShieldAlert size={18} strokeWidth={1.5} className="text-red-400" />
+                    <span className="text-zinc-200 font-medium text-sm">{t.adminPanel}</span>
+                  </div>
+                  <ChevronRight size={14} strokeWidth={1.5} className="text-zinc-600" />
+                </button>
+              </div>
+            </div>
+          )}
         </motion.div>
       </div>
     </motion.div>
@@ -1102,6 +1162,426 @@ function PaymentsHistoryView({ t, direction, tgUser, navigate, lang }: { t: any;
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+type AdminStats = {
+  totalUsers: number;
+  todayUsers: number;
+  bannedUsers: number;
+  totalRevenue: number;
+  totalPayments: number;
+  paidPayments: number;
+  activeSubscriptions: number;
+};
+
+type AdminUser = {
+  id: number;
+  telegram_id: string;
+  username: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  status: string;
+  is_banned: boolean;
+  ban_reason: string | null;
+  created_at: string;
+  last_seen_at: string;
+  total_paid: string;
+  payments_count: string;
+  subscription_status: string | null;
+  subscription_end: string | null;
+};
+
+type AdminPromo = {
+  id: number;
+  code: string;
+  days: number;
+  max_uses: number;
+  used_count: number;
+  is_active: boolean;
+  created_at: string;
+  expires_at: string | null;
+};
+
+function AdminView({ t, direction, tgUser, navigate, lang }: { t: any; direction: number; tgUser: { id: number; name: string; photo: string; username?: string } | null; navigate: (tab: Tab) => void; lang: 'ru' | 'en' }) {
+  const [adminTab, setAdminTab] = useState<'stats' | 'users' | 'promos'>('stats');
+  const [stats, setStats] = useState<AdminStats | null>(null);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [usersSearch, setUsersSearch] = useState('');
+  const [usersPage, setUsersPage] = useState(1);
+  const [usersTotalPages, setUsersTotalPages] = useState(1);
+  const [promos, setPromos] = useState<AdminPromo[]>([]);
+  const [promosLoading, setPromosLoading] = useState(false);
+  const [showPromoForm, setShowPromoForm] = useState(false);
+  const [promoCode, setPromoCode] = useState('');
+  const [promoDays, setPromoDays] = useState('7');
+  const [promoMaxUses, setPromoMaxUses] = useState('100');
+  const [promoCreating, setPromoCreating] = useState(false);
+  const [banningId, setBanningId] = useState<number | null>(null);
+
+  const tgId = tgUser?.id;
+
+  const loadStats = async () => {
+    if (!tgId) return;
+    setStatsLoading(true);
+    try {
+      const res = await fetch(`/api/admin/stats?telegramId=${tgId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setStats(data.stats);
+      }
+    } catch { /* ignore */ } finally { setStatsLoading(false); }
+  };
+
+  const loadUsers = async (page = 1, search = '') => {
+    if (!tgId) return;
+    setUsersLoading(true);
+    try {
+      const params = new URLSearchParams({ telegramId: String(tgId), page: String(page) });
+      if (search) params.set('search', search);
+      const res = await fetch(`/api/admin/users?${params}`);
+      if (res.ok) {
+        const data = await res.json();
+        setUsers(data.users ?? []);
+        setUsersTotalPages(data.totalPages ?? 1);
+        setUsersPage(data.page ?? 1);
+      }
+    } catch { /* ignore */ } finally { setUsersLoading(false); }
+  };
+
+  const loadPromos = async () => {
+    if (!tgId) return;
+    setPromosLoading(true);
+    try {
+      const res = await fetch(`/api/admin/promos?telegramId=${tgId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setPromos(data.promos ?? []);
+      }
+    } catch { /* ignore */ } finally { setPromosLoading(false); }
+  };
+
+  const handleBan = async (userId: number, ban: boolean) => {
+    if (!tgId) return;
+    setBanningId(userId);
+    try {
+      await fetch('/api/admin/ban', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ telegramId: tgId, targetUserId: userId, ban }),
+      });
+      await loadUsers(usersPage, usersSearch);
+    } catch { /* ignore */ } finally { setBanningId(null); }
+  };
+
+  const handleCreatePromo = async () => {
+    if (!tgId || !promoCode.trim() || !promoDays) return;
+    setPromoCreating(true);
+    try {
+      const res = await fetch('/api/admin/promos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          telegramId: tgId,
+          code: promoCode.trim(),
+          days: Number(promoDays),
+          maxUses: Number(promoMaxUses) || 100,
+        }),
+      });
+      if (res.ok) {
+        setPromoCode('');
+        setPromoDays('7');
+        setPromoMaxUses('100');
+        setShowPromoForm(false);
+        await loadPromos();
+      } else {
+        const data = await res.json();
+        alert(data.error || 'Error');
+      }
+    } catch { /* ignore */ } finally { setPromoCreating(false); }
+  };
+
+  const handleDeletePromo = async (promoId: number) => {
+    if (!tgId) return;
+    try {
+      await fetch(`/api/admin/promos?telegramId=${tgId}&promoId=${promoId}`, { method: 'DELETE' });
+      await loadPromos();
+    } catch { /* ignore */ }
+  };
+
+  useEffect(() => {
+    if (adminTab === 'stats') loadStats();
+    else if (adminTab === 'users') loadUsers(1, usersSearch);
+    else if (adminTab === 'promos') loadPromos();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adminTab, tgId]);
+
+  const handleSearchSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    loadUsers(1, usersSearch);
+  };
+
+  return (
+    <motion.div custom={direction} variants={pageVariants} initial="initial" animate="animate" exit="exit" className="flex flex-col flex-1 items-center w-full">
+      <div className="w-full max-w-xs lg:max-w-[640px]">
+        <button onClick={() => navigate('profile')} className="mb-3 text-zinc-300 hover:text-white text-sm inline-flex items-center gap-2">
+          <ChevronRight size={14} className="rotate-180" /> {t.adminBackToProfile}
+        </button>
+
+        <div className="rounded-2xl border border-white/10 bg-zinc-900/40 p-4 mb-4">
+          <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+            <ShieldAlert size={20} className="text-red-400" />
+            {t.adminPanel}
+          </h3>
+
+          {/* Admin Sub-tabs */}
+          <div className="grid grid-cols-3 gap-1.5 mb-4">
+            <button onClick={() => setAdminTab('stats')} className={`text-xs font-medium py-2 rounded-lg border transition-all ${adminTab === 'stats' ? 'bg-white/10 border-white/25 text-white' : 'border-white/5 text-zinc-400 hover:text-white'}`}>
+              {t.adminStats}
+            </button>
+            <button onClick={() => setAdminTab('users')} className={`text-xs font-medium py-2 rounded-lg border transition-all ${adminTab === 'users' ? 'bg-white/10 border-white/25 text-white' : 'border-white/5 text-zinc-400 hover:text-white'}`}>
+              {t.adminUsers}
+            </button>
+            <button onClick={() => setAdminTab('promos')} className={`text-xs font-medium py-2 rounded-lg border transition-all ${adminTab === 'promos' ? 'bg-white/10 border-white/25 text-white' : 'border-white/5 text-zinc-400 hover:text-white'}`}>
+              {t.adminPromos}
+            </button>
+          </div>
+
+          {/* Stats Tab */}
+          {adminTab === 'stats' && (
+            statsLoading ? (
+              <div className="text-center py-8 text-zinc-400 text-sm">Загрузка...</div>
+            ) : stats ? (
+              <div className="grid grid-cols-2 gap-2">
+                <div className="rounded-xl border border-white/10 bg-zinc-900/60 p-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Users size={14} className="text-blue-400" />
+                    <span className="text-zinc-400 text-[10px] uppercase tracking-wider">{t.adminTotalUsers}</span>
+                  </div>
+                  <span className="text-white text-xl font-bold">{stats.totalUsers}</span>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-zinc-900/60 p-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Users size={14} className="text-green-400" />
+                    <span className="text-zinc-400 text-[10px] uppercase tracking-wider">{t.adminTodayUsers}</span>
+                  </div>
+                  <span className="text-white text-xl font-bold">{stats.todayUsers}</span>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-zinc-900/60 p-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Ban size={14} className="text-red-400" />
+                    <span className="text-zinc-400 text-[10px] uppercase tracking-wider">{t.adminBannedUsers}</span>
+                  </div>
+                  <span className="text-white text-xl font-bold">{stats.bannedUsers}</span>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-zinc-900/60 p-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <CreditCard size={14} className="text-yellow-400" />
+                    <span className="text-zinc-400 text-[10px] uppercase tracking-wider">{t.adminRevenue}</span>
+                  </div>
+                  <span className="text-white text-xl font-bold">{stats.totalRevenue}₽</span>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-zinc-900/60 p-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Zap size={14} className="text-cyan-400" />
+                    <span className="text-zinc-400 text-[10px] uppercase tracking-wider">{t.adminActiveSubs}</span>
+                  </div>
+                  <span className="text-white text-xl font-bold">{stats.activeSubscriptions}</span>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-zinc-900/60 p-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Check size={14} className="text-emerald-400" />
+                    <span className="text-zinc-400 text-[10px] uppercase tracking-wider">{t.adminPaidPayments}</span>
+                  </div>
+                  <span className="text-white text-xl font-bold">{stats.paidPayments}</span>
+                </div>
+              </div>
+            ) : null
+          )}
+
+          {/* Users Tab */}
+          {adminTab === 'users' && (
+            <div>
+              <form onSubmit={handleSearchSubmit} className="mb-3 flex gap-2">
+                <div className="relative flex-1">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+                  <input
+                    type="text"
+                    value={usersSearch}
+                    onChange={(e) => setUsersSearch(e.target.value)}
+                    placeholder={t.adminSearchUsers}
+                    className="w-full bg-zinc-800/60 border border-white/10 rounded-lg pl-9 pr-3 py-2 text-sm text-white placeholder:text-zinc-500 outline-none focus:border-white/25"
+                  />
+                </div>
+                <button type="submit" className="bg-white/10 border border-white/15 text-white px-3 rounded-lg text-sm hover:bg-white/15">
+                  <Search size={14} />
+                </button>
+              </form>
+
+              {usersLoading ? (
+                <div className="text-center py-8 text-zinc-400 text-sm">Загрузка...</div>
+              ) : users.length === 0 ? (
+                <div className="text-center py-8 text-zinc-400 text-sm">{t.adminNoUsers}</div>
+              ) : (
+                <div className="space-y-2">
+                  {users.map((u) => (
+                    <div key={u.id} className="rounded-xl border border-white/10 bg-zinc-900/60 p-3">
+                      <div className="flex items-start justify-between gap-2 mb-1.5">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-white text-sm font-medium truncate">
+                            {[u.first_name, u.last_name].filter(Boolean).join(' ') || u.username || `ID ${u.telegram_id}`}
+                          </p>
+                          <p className="text-zinc-500 text-[10px]">
+                            {u.username ? `@${u.username}` : ''} · TG: {u.telegram_id}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {u.is_banned ? (
+                            <button
+                              onClick={() => handleBan(u.id, false)}
+                              disabled={banningId === u.id}
+                              className="text-[10px] px-2 py-1 rounded-md bg-green-500/20 text-green-300 border border-green-500/30 hover:bg-green-500/30 disabled:opacity-50"
+                            >
+                              {t.adminUnban}
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleBan(u.id, true)}
+                              disabled={banningId === u.id}
+                              className="text-[10px] px-2 py-1 rounded-md bg-red-500/20 text-red-300 border border-red-500/30 hover:bg-red-500/30 disabled:opacity-50"
+                            >
+                              {t.adminBan}
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-zinc-400">
+                        <span>💰 {Number(u.total_paid)}₽ ({u.payments_count} {lang === 'ru' ? 'пл.' : 'pay.'})</span>
+                        <span>{u.subscription_status === 'active' && u.subscription_end && new Date(u.subscription_end) > new Date() ? `✅ ${lang === 'ru' ? 'до' : 'until'} ${new Date(u.subscription_end).toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'en-GB')}` : `❌ ${lang === 'ru' ? 'Нет подписки' : 'No sub'}`}</span>
+                        {u.is_banned && <span className="text-red-400">🚫 {lang === 'ru' ? 'Забанен' : 'Banned'}</span>}
+                        <span>📅 {new Date(u.created_at).toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'en-GB')}</span>
+                      </div>
+                    </div>
+                  ))}
+
+                  {usersTotalPages > 1 && (
+                    <div className="flex justify-center gap-2 pt-2">
+                      <button
+                        onClick={() => loadUsers(usersPage - 1, usersSearch)}
+                        disabled={usersPage <= 1}
+                        className="text-xs px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:bg-white/5 disabled:opacity-30"
+                      >
+                        ←
+                      </button>
+                      <span className="text-xs text-zinc-400 py-1.5">{usersPage} / {usersTotalPages}</span>
+                      <button
+                        onClick={() => loadUsers(usersPage + 1, usersSearch)}
+                        disabled={usersPage >= usersTotalPages}
+                        className="text-xs px-3 py-1.5 rounded-lg border border-white/10 text-zinc-300 hover:bg-white/5 disabled:opacity-30"
+                      >
+                        →
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Promos Tab */}
+          {adminTab === 'promos' && (
+            <div>
+              <button
+                onClick={() => setShowPromoForm(!showPromoForm)}
+                className="w-full mb-3 bg-white/10 border border-white/15 text-white font-medium py-2.5 rounded-xl flex items-center justify-center gap-2 text-sm hover:bg-white/15 active:scale-95"
+              >
+                <Plus size={14} /> {t.adminCreatePromo}
+              </button>
+
+              {showPromoForm && (
+                <div className="mb-4 rounded-xl border border-white/10 bg-zinc-900/60 p-3 space-y-2.5">
+                  <div>
+                    <label className="text-zinc-400 text-[10px] uppercase tracking-wider block mb-1">{t.adminPromoCode}</label>
+                    <input
+                      type="text"
+                      value={promoCode}
+                      onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                      placeholder="PROMO2024"
+                      className="w-full bg-zinc-800/60 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-zinc-500 outline-none focus:border-white/25"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-zinc-400 text-[10px] uppercase tracking-wider block mb-1">{t.adminPromoDays}</label>
+                      <input
+                        type="number"
+                        value={promoDays}
+                        onChange={(e) => setPromoDays(e.target.value)}
+                        min="1"
+                        className="w-full bg-zinc-800/60 border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-white/25"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-zinc-400 text-[10px] uppercase tracking-wider block mb-1">{t.adminPromoMaxUses}</label>
+                      <input
+                        type="number"
+                        value={promoMaxUses}
+                        onChange={(e) => setPromoMaxUses(e.target.value)}
+                        min="1"
+                        className="w-full bg-zinc-800/60 border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-white/25"
+                      />
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleCreatePromo}
+                    disabled={promoCreating || !promoCode.trim() || !promoDays}
+                    className="w-full bg-white text-black font-medium py-2.5 rounded-lg hover:bg-zinc-200 transition-colors disabled:opacity-50 text-sm"
+                  >
+                    {promoCreating ? '...' : t.adminPromoCreate}
+                  </button>
+                </div>
+              )}
+
+              {promosLoading ? (
+                <div className="text-center py-8 text-zinc-400 text-sm">Загрузка...</div>
+              ) : promos.length === 0 ? (
+                <div className="text-center py-8 text-zinc-400 text-sm">{t.adminNoPromos}</div>
+              ) : (
+                <div className="space-y-2">
+                  {promos.map((p) => (
+                    <div key={p.id} className={`rounded-xl border p-3 ${p.is_active ? 'border-white/10 bg-zinc-900/60' : 'border-white/5 bg-zinc-900/30 opacity-60'}`}>
+                      <div className="flex items-center justify-between mb-1">
+                        <div className="flex items-center gap-2">
+                          <Tag size={12} className="text-cyan-400" />
+                          <span className="text-white font-mono text-sm font-bold">{p.code}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded-full ${p.is_active ? 'bg-green-500/20 text-green-300' : 'bg-zinc-700 text-zinc-400'}`}>
+                            {p.is_active ? 'Active' : 'Off'}
+                          </span>
+                          {p.is_active && (
+                            <button onClick={() => handleDeletePromo(p.id)} className="text-zinc-500 hover:text-red-400 transition-colors">
+                              <Trash2 size={12} />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-x-3 text-[10px] text-zinc-400">
+                        <span>📅 {p.days} {lang === 'ru' ? 'дн.' : 'days'}</span>
+                        <span>👥 {p.used_count}/{p.max_uses}</span>
+                        <span>{new Date(p.created_at).toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'en-GB')}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
