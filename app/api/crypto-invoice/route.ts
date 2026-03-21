@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { months, amount } = body;
+    const { months } = body;
 
     const apiKey = process.env.OXAPAY_API_KEY;
 
@@ -19,7 +19,7 @@ export async function POST(req: Request) {
 
     // Simplified payload with only required fields
     const payload = {
-      amount: Number(amount),
+      amount: 0.5,
       currency: 'USD',
       lifetime: 30,
       order_id: `vpn_${months}m_${Date.now()}`,

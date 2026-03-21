@@ -10,6 +10,8 @@ CREATE TABLE IF NOT EXISTS users (
   id BIGSERIAL PRIMARY KEY,
   telegram_id BIGINT UNIQUE,
   username TEXT,
+  referral_code TEXT UNIQUE,
+  referred_by_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
   first_name TEXT,
   last_name TEXT,
   photo_url TEXT,
@@ -26,6 +28,10 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS first_name TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS photo_url TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_code TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS referred_by_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_referral_code ON users(referral_code) WHERE referral_code IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS plans (
   id BIGSERIAL PRIMARY KEY,

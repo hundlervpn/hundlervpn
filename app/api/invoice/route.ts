@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { months, amount } = body;
+    const { months } = body;
 
     const botToken = process.env.TELEGRAM_BOT_TOKEN;
 
@@ -26,7 +26,7 @@ export async function POST(req: Request) {
       prices: [
         {
           label: "Premium Subscription",
-          amount: amount // Amount in Stars (1 Star = 1 unit)
+          amount: 1 // Test mode: fixed 1 Star
         }
       ]
     };

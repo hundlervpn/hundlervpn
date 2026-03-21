@@ -11,6 +11,7 @@ declare global {
     Telegram?: {
       WebApp?: {
         initDataUnsafe: {
+          start_param?: string;
           user?: {
             id: number;
             first_name: string;
@@ -80,6 +81,10 @@ const translations = {
     setupGlobal: 'Global',
     setupRussia: 'Russia',
     setupNoStore: 'Для этого устройства ссылка на магазин пока не задана.'
+    ,paymentsHistoryTitle: 'История платежей',
+    backToProfile: 'Назад в профиль',
+    noPaymentsYet: 'Платежей пока нет',
+    referralCopied: 'Реферальная ссылка скопирована'
   },
   en: {
     navVpn: 'Home', navPremium: 'Payment', navProfile: 'Profile',
@@ -131,10 +136,14 @@ const translations = {
     setupGlobal: 'Global',
     setupRussia: 'Russia',
     setupNoStore: 'No store link configured for this device yet.'
+    ,paymentsHistoryTitle: 'Payments history',
+    backToProfile: 'Back to profile',
+    noPaymentsYet: 'No payments yet',
+    referralCopied: 'Referral link copied'
   }
 };
 
-const tabs = ['home', 'payment', 'profile'] as const;
+const tabs = ['home', 'payment', 'profile', 'payments'] as const;
 type Tab = typeof tabs[number];
 
 const pageVariants = {
@@ -197,6 +206,10 @@ export default function App() {
             username: user.username,
           });
 
+          const urlStartParam = typeof window !== 'undefined'
+            ? new URLSearchParams(window.location.search).get('startapp') || new URLSearchParams(window.location.search).get('start')
+            : null;
+
           try {
             await fetch('/api/users/sync', {
               method: 'POST',
@@ -207,6 +220,7 @@ export default function App() {
                 firstName: user.first_name,
                 lastName: user.last_name,
                 photoUrl: user.photo_url,
+                startParam: tg.initDataUnsafe?.start_param ?? urlStartParam ?? undefined,
               }),
             });
 
@@ -314,7 +328,8 @@ export default function App() {
             <AnimatePresence mode="wait" custom={direction}>
               {activeTab === 'home' && <HomeView key="home" t={t} direction={direction} subscriptionEndDateLabel={subscriptionEndDateLabel} tgUser={tgUser} />}
               {activeTab === 'payment' && <PaymentView key="payment" t={t} direction={direction} />}
-              {activeTab === 'profile' && <ProfileView key="profile" t={t} lang={lang} setLang={setLang} direction={direction} tgUser={tgUser} subscriptionDaysLabel={subscriptionDaysLabel} />}
+              {activeTab === 'profile' && <ProfileView key="profile" t={t} lang={lang} setLang={setLang} direction={direction} tgUser={tgUser} subscriptionDaysLabel={subscriptionDaysLabel} navigate={navigate} />}
+              {activeTab === 'payments' && <PaymentsHistoryView key="payments" t={t} direction={direction} tgUser={tgUser} navigate={navigate} lang={lang} />}
             </AnimatePresence>
           </div>
         </main>
@@ -386,7 +401,6 @@ function DesktopSidebar({ t, activeTab, navigate }: { t: any; activeTab: Tab; na
 }
 
 function HomeView({ t, direction, subscriptionEndDateLabel, tgUser }: { t: any, direction: number; subscriptionEndDateLabel: string; tgUser: { id: number; name: string; photo: string; username?: string } | null }) {
-  const [isRoaring, setIsRoaring] = useState(false);
   const [showSetupModal, setShowSetupModal] = useState(false);
   const [showDevicesModal, setShowDevicesModal] = useState(false);
   const [devices, setDevices] = useState<{ id: number; device_name: string | null; key_uri: string; is_active: boolean; created_at: string }[]>([]);
@@ -417,12 +431,6 @@ function HomeView({ t, direction, subscriptionEndDateLabel, tgUser }: { t: any, 
   const handleDevicesClick = () => {
     setShowDevicesModal(true);
     fetchDevices();
-  };
-
-  const handleTigerClick = () => {
-    if (isRoaring) return;
-    setIsRoaring(true);
-    setTimeout(() => setIsRoaring(false), 500);
   };
 
   const detectDevice = (): 'windows' | 'macos' | 'linux' | 'android' | 'ios' | 'unknown' => {
@@ -665,12 +673,9 @@ function HomeView({ t, direction, subscriptionEndDateLabel, tgUser }: { t: any, 
     >
       {/* Logo */}
       <motion.div
-        animate={isRoaring ? { x: [-6, 6, -6, 6, 0], y: [-3, 3, -3, 3, 0] } : {}}
-        transition={{ duration: 0.25 }}
-        className="relative w-40 h-40 lg:w-[260px] lg:h-[260px] cursor-pointer"
-        onClick={handleTigerClick}
+        className="relative w-40 h-40 lg:w-[260px] lg:h-[260px]"
       >
-        <div className={`absolute inset-0 rounded-full ${isRoaring ? 'bg-white/20' : 'bg-white/10'} blur-xl`} />
+        <div className="absolute inset-0 rounded-full bg-white/10 blur-xl" />
         <div className="w-full h-full relative z-10">
           <Image 
             src="/logo.png" 
@@ -684,7 +689,7 @@ function HomeView({ t, direction, subscriptionEndDateLabel, tgUser }: { t: any, 
       </motion.div>
 
       {/* Info Card */}
-      <div className="w-full max-w-xs lg:max-w-[540px] bg-gradient-to-b from-[#161616]/95 via-[#0b0b0b]/95 to-[#020202]/95 border border-white/15 rounded-2xl p-3.5 lg:p-5 shadow-lg relative overflow-hidden">
+      <div className="w-full max-w-[320px] lg:max-w-[540px] bg-gradient-to-b from-[#161616]/95 via-[#0b0b0b]/95 to-[#020202]/95 border border-white/15 rounded-2xl p-3 lg:p-5 shadow-lg relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-white/5 pointer-events-none rounded-2xl" />
         
         <div className="flex justify-between items-start mb-3 relative z-10">
@@ -707,7 +712,7 @@ function HomeView({ t, direction, subscriptionEndDateLabel, tgUser }: { t: any, 
             <Zap size={14} /> <span>{t.extend}</span>
           </button>
           
-          <button onClick={handleInstallClick} className="w-full bg-zinc-800/50 border border-white/10 text-white font-medium py-2.5 rounded-xl flex items-center justify-center gap-1.5 active:scale-95 text-sm transition-colors hover:border-white/30 hover:bg-zinc-800/70">
+          <button onClick={handleInstallClick} className="w-full bg-zinc-800/50 border border-white/10 text-white font-medium py-2 rounded-xl flex items-center justify-center gap-1.5 active:scale-95 text-[13px] transition-colors hover:border-white/30 hover:bg-zinc-800/70 lg:py-2.5 lg:text-sm">
             <Settings size={14} className="text-zinc-400" /> {t.install}
           </button>
 
@@ -783,9 +788,9 @@ function PaymentView({ t, direction }: { t: any, direction: number }) {
   const [payMethod, setPayMethod] = useState<'tg' | 'crypto' | 'sbp'>('tg');
   const [isLoading, setIsLoading] = useState(false);
 
-  const basePrice = 150; 
-  const discountPerMonth = 5; 
-  const pricePerMonth = Math.max(50, basePrice - (months - 1) * discountPerMonth);
+  const basePrice = 1; 
+  const discountPerMonth = 0; 
+  const pricePerMonth = Math.max(1, basePrice - (months - 1) * discountPerMonth);
   const totalPrice = pricePerMonth * months;
 
   const handleSubscribe = async () => {
@@ -795,7 +800,7 @@ function PaymentView({ t, direction }: { t: any, direction: number }) {
         const response = await fetch('/api/invoice', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ months, amount: totalPrice }),
+          body: JSON.stringify({ months, amount: 1 }),
         });
         const data = await response.json();
         if (data.invoiceLink) {
@@ -814,7 +819,7 @@ function PaymentView({ t, direction }: { t: any, direction: number }) {
         const response = await fetch('/api/crypto-invoice', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ months, amount: totalPrice }),
+          body: JSON.stringify({ months, amount: 0.5 }),
         });
         const data = await response.json();
         if (data.paymentUrl) {
@@ -930,30 +935,23 @@ function FeatureItem({ text }: { text: string }) {
   );
 }
 
-function ProfileView({ t, lang, setLang, direction, tgUser, subscriptionDaysLabel }: { t: any; lang: string; setLang: (l: 'ru' | 'en') => void; direction: number; tgUser: { id: number; name: string; photo: string; username?: string } | null; subscriptionDaysLabel: string }) {
-  const [showPaymentsModal, setShowPaymentsModal] = useState(false);
-  const [paymentsLoading, setPaymentsLoading] = useState(false);
-  const [payments, setPayments] = useState<{ id: number; amount: string; currency: string; status: string; provider: string; paid_at: string | null; created_at: string }[]>([]);
+function ProfileView({ t, lang, setLang, direction, tgUser, subscriptionDaysLabel, navigate }: { t: any; lang: string; setLang: (l: 'ru' | 'en') => void; direction: number; tgUser: { id: number; name: string; photo: string; username?: string } | null; subscriptionDaysLabel: string; navigate: (tab: Tab) => void }) {
+  const handleReferralClick = async () => {
+    if (!tgUser?.id) return;
 
-  const openPaymentsModal = async () => {
-    setShowPaymentsModal(true);
-    if (!tgUser?.id) {
-      setPayments([]);
-      return;
-    }
-    setPaymentsLoading(true);
+    const code = `u${tgUser.id.toString(36)}`;
+    const botUsername = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || 'hundlervpn_bot';
+    const referralUrl = `https://t.me/${botUsername}?startapp=ref_${code}`;
+
     try {
-      const res = await fetch(`/api/users/payments?telegramId=${encodeURIComponent(String(tgUser.id))}`);
-      if (!res.ok) {
-        setPayments([]);
-        return;
-      }
-      const data = await res.json();
-      setPayments(data.payments ?? []);
+      await navigator.clipboard.writeText(referralUrl);
+      alert(t.referralCopied);
     } catch {
-      setPayments([]);
-    } finally {
-      setPaymentsLoading(false);
+      if (typeof window !== 'undefined' && window.Telegram?.WebApp?.openLink) {
+        window.Telegram.WebApp.openLink(referralUrl);
+      } else if (typeof window !== 'undefined') {
+        window.open(referralUrl, '_blank', 'noopener,noreferrer');
+      }
     }
   };
 
@@ -1001,7 +999,7 @@ function ProfileView({ t, lang, setLang, direction, tgUser, subscriptionDaysLabe
                 <ChevronRight size={14} strokeWidth={1.5} className="text-zinc-600" />
               </a>
               <div className="h-px bg-white/5 mx-3" />
-              <button className="w-full flex items-center justify-between p-3 hover:bg-white/5 transition-colors active:scale-[0.98]">
+              <button onClick={handleReferralClick} className="w-full flex items-center justify-between p-3 hover:bg-white/5 transition-colors active:scale-[0.98]">
                 <div className="flex items-center gap-2">
                   <Gift size={18} strokeWidth={1.5} className="text-zinc-400" />
                   <span className="text-zinc-200 font-medium text-sm">{t.referral}</span>
@@ -1009,7 +1007,7 @@ function ProfileView({ t, lang, setLang, direction, tgUser, subscriptionDaysLabe
                 <ChevronRight size={14} strokeWidth={1.5} className="text-zinc-600" />
               </button>
               <div className="h-px bg-white/5 mx-3" />
-              <button onClick={openPaymentsModal} className="w-full flex items-center justify-between p-3 hover:bg-white/5 transition-colors active:scale-[0.98]">
+              <button onClick={() => navigate('payments')} className="w-full flex items-center justify-between p-3 hover:bg-white/5 transition-colors active:scale-[0.98]">
                 <div className="flex items-center gap-2">
                   <CreditCard size={18} strokeWidth={1.5} className="text-zinc-400" />
                   <span className="text-zinc-200 font-medium text-sm">{t.payments}</span>
@@ -1037,53 +1035,78 @@ function ProfileView({ t, lang, setLang, direction, tgUser, subscriptionDaysLabe
         </motion.div>
       </div>
     </motion.div>
-      <AnimatePresence>
-        {showPaymentsModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-            onClick={() => setShowPaymentsModal(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-md max-h-[80vh] overflow-y-auto rounded-3xl border border-white/15 bg-gradient-to-b from-[#151515] via-[#0b0b0b] to-[#020202] p-6 shadow-2xl"
-            >
-              <div className="flex items-center justify-between mb-5">
-                <h3 className="text-lg font-bold text-white">{t.payments}</h3>
-                <button onClick={() => setShowPaymentsModal(false)} className="text-zinc-400 hover:text-white transition-colors"><X size={20} /></button>
-              </div>
-
-              {paymentsLoading ? (
-                <div className="text-center py-8 text-zinc-400 text-sm">Загрузка...</div>
-              ) : payments.length === 0 ? (
-                <div className="text-center py-8 text-zinc-400 text-sm">Платежей пока нет</div>
-              ) : (
-                <div className="space-y-2">
-                  {payments.map((payment) => (
-                    <div key={payment.id} className="rounded-xl border border-white/10 bg-zinc-900/50 p-3">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-white font-medium text-sm">{Number(payment.amount)} {payment.currency}</span>
-                        <span className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full ${payment.status === 'paid' ? 'bg-white/15 text-white' : 'bg-zinc-800 text-zinc-400'}`}>{payment.status}</span>
-                      </div>
-                      <div className="text-[11px] text-zinc-400">{payment.provider}</div>
-                      <div className="text-[10px] text-zinc-500 mt-1 flex items-center gap-1">
-                        <Calendar size={11} />
-                        {new Date(payment.paid_at || payment.created_at).toLocaleString(lang === 'ru' ? 'ru-RU' : 'en-GB')}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </>
+  );
+}
+
+function PaymentsHistoryView({ t, direction, tgUser, navigate, lang }: { t: any; direction: number; tgUser: { id: number; name: string; photo: string; username?: string } | null; navigate: (tab: Tab) => void; lang: 'ru' | 'en' }) {
+  const [paymentsLoading, setPaymentsLoading] = useState(false);
+  const [payments, setPayments] = useState<{ id: number; amount: string; currency: string; status: string; provider: string; paid_at: string | null; created_at: string }[]>([]);
+
+  useEffect(() => {
+    let isMounted = true;
+    const load = async () => {
+      if (!tgUser?.id) {
+        if (isMounted) setPayments([]);
+        return;
+      }
+
+      setPaymentsLoading(true);
+      try {
+        const res = await fetch(`/api/users/payments?telegramId=${encodeURIComponent(String(tgUser.id))}`);
+        if (!res.ok) {
+          if (isMounted) setPayments([]);
+          return;
+        }
+        const data = await res.json();
+        if (isMounted) setPayments(data.payments ?? []);
+      } catch {
+        if (isMounted) setPayments([]);
+      } finally {
+        if (isMounted) setPaymentsLoading(false);
+      }
+    };
+
+    void load();
+    return () => {
+      isMounted = false;
+    };
+  }, [tgUser?.id]);
+
+  return (
+    <motion.div custom={direction} variants={pageVariants} initial="initial" animate="animate" exit="exit" className="flex flex-col flex-1 items-center w-full">
+      <div className="w-full max-w-xs lg:max-w-[560px]">
+        <button onClick={() => navigate('profile')} className="mb-3 text-zinc-300 hover:text-white text-sm inline-flex items-center gap-2">
+          <ChevronRight size={14} className="rotate-180" /> {t.backToProfile}
+        </button>
+
+        <div className="rounded-2xl border border-white/10 bg-zinc-900/40 p-4">
+          <h3 className="text-lg font-bold text-white mb-4">{t.paymentsHistoryTitle}</h3>
+
+          {paymentsLoading ? (
+            <div className="text-center py-8 text-zinc-400 text-sm">Загрузка...</div>
+          ) : payments.length === 0 ? (
+            <div className="text-center py-8 text-zinc-400 text-sm">{t.noPaymentsYet}</div>
+          ) : (
+            <div className="space-y-2">
+              {payments.map((payment) => (
+                <div key={payment.id} className="rounded-xl border border-white/10 bg-zinc-900/60 p-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-white font-medium text-sm">{Number(payment.amount)} {payment.currency}</span>
+                    <span className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full ${payment.status === 'paid' ? 'bg-white/15 text-white' : 'bg-zinc-800 text-zinc-400'}`}>{payment.status}</span>
+                  </div>
+                  <div className="text-[11px] text-zinc-400">{payment.provider}</div>
+                  <div className="text-[10px] text-zinc-500 mt-1 flex items-center gap-1">
+                    <Calendar size={11} />
+                    {new Date(payment.paid_at || payment.created_at).toLocaleString(lang === 'ru' ? 'ru-RU' : 'en-GB')}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </motion.div>
   );
 }
 

@@ -24,6 +24,19 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'telegramId is invalid' }, { status: 400 });
     }
 
+    await dbQuery(
+      `
+      UPDATE vpn_keys
+      SET is_active = FALSE
+      WHERE (expires_at IS NOT NULL AND expires_at <= NOW())
+         OR user_id IN (
+           SELECT s.user_id
+           FROM subscriptions s
+           WHERE s.status <> 'active' OR s.end_date <= NOW()
+         );
+      `
+    );
+
     const result = await dbQuery<UserState>(
       `
       SELECT

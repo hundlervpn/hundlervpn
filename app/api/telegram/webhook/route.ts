@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
 import { NextResponse } from 'next/server';
+import type { PoolClient } from 'pg';
 import { getDbPool } from '@/lib/db';
 
 function parseMonthsFromPayload(payload: string): number {
@@ -45,6 +46,102 @@ function buildVlessLink(uuid: string) {
   });
 
   return `vless://${uuid}@${host}:${port}?${query.toString()}#${encodeURIComponent(remark)}`;
+}
+
+async function applyReferralReward(client: PoolClient, paidUserId: number) {
+  const paidHistory = await client.query<{ count: string }>(
+    `
+    SELECT COUNT(*)::text AS count
+    FROM payments
+    WHERE user_id = $1 AND status = 'paid';
+    `,
+    [paidUserId]
+  );
+
+  if (Number(paidHistory.rows[0]?.count ?? '0') > 0) {
+    return;
+  }
+
+  const inviterResult = await client.query<{ referred_by_user_id: number | null }>(
+    `
+    SELECT referred_by_user_id
+    FROM users
+    WHERE id = $1
+    LIMIT 1;
+    `,
+    [paidUserId]
+  );
+
+  const inviterUserId = inviterResult.rows[0]?.referred_by_user_id;
+  if (!inviterUserId) {
+    return;
+  }
+
+  const bonusPlanName = 'Referral Bonus 7d';
+  await client.query(
+    `
+    INSERT INTO plans (name, duration_days, price, max_devices, traffic_limit, is_active)
+    VALUES ($1, 7, 0, 3, NULL, TRUE)
+    ON CONFLICT DO NOTHING;
+    `,
+    [bonusPlanName]
+  );
+
+  const bonusPlanResult = await client.query<{ id: number }>(
+    'SELECT id FROM plans WHERE name = $1 ORDER BY id DESC LIMIT 1;',
+    [bonusPlanName]
+  );
+  const bonusPlanId = bonusPlanResult.rows[0]?.id;
+  if (!bonusPlanId) {
+    return;
+  }
+
+  const inviterSub = await client.query<{ id: number; end_date: Date }>(
+    `
+    SELECT id, end_date
+    FROM subscriptions
+    WHERE user_id = $1 AND status = 'active'
+    ORDER BY end_date DESC
+    LIMIT 1
+    FOR UPDATE;
+    `,
+    [inviterUserId]
+  );
+
+  if (inviterSub.rows[0] && new Date(inviterSub.rows[0].end_date) > new Date()) {
+    await client.query(
+      `
+      UPDATE subscriptions
+      SET end_date = end_date + INTERVAL '7 days',
+          updated_at = NOW(),
+          status = 'active'
+      WHERE id = $1;
+      `,
+      [inviterSub.rows[0].id]
+    );
+
+    await client.query(
+      `
+      UPDATE vpn_keys
+      SET expires_at = CASE
+        WHEN expires_at IS NULL THEN NOW() + INTERVAL '7 days'
+        ELSE expires_at + INTERVAL '7 days'
+      END
+      WHERE user_id = $1
+        AND is_active = TRUE
+        AND (expires_at IS NULL OR expires_at > NOW());
+      `,
+      [inviterUserId]
+    );
+  } else {
+    await client.query(
+      `
+      INSERT INTO subscriptions (user_id, plan_id, start_date, end_date, status)
+      VALUES ($1, $2, NOW(), NOW() + INTERVAL '7 days', 'active');
+      `,
+      [inviterUserId, bonusPlanId]
+    );
+  }
 }
 
 export async function POST(req: Request) {
@@ -116,6 +213,19 @@ export async function POST(req: Request) {
           RETURNING id;
           `,
           [userId, username, firstName, lastName]
+        );
+
+        await client.query(
+          `
+          UPDATE vpn_keys
+          SET is_active = FALSE
+          WHERE (expires_at IS NOT NULL AND expires_at <= NOW())
+             OR user_id IN (
+               SELECT s.user_id
+               FROM subscriptions s
+               WHERE s.status <> 'active' OR s.end_date <= NOW()
+             );
+          `
         );
         const dbUserId = userResult.rows[0].id;
 
@@ -220,6 +330,8 @@ export async function POST(req: Request) {
             endDate,
           ]
         );
+
+        await applyReferralReward(client, dbUserId);
 
         await client.query(
           `
