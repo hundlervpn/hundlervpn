@@ -27,9 +27,9 @@ ENV NODE_ENV=production
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 nextjs
 
-# Copy built application
+# Copy built application (standalone uses full path structure)
 COPY --from=builder /app/public ./public
-COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/standalone/Desktop/hundler-vpn/ ./
 COPY --from=builder /app/.next/static ./.next/static
 
 # Change ownership
