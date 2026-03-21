@@ -533,7 +533,7 @@ function HomeView({ t, direction, subscriptionEndDateLabel, tgUser }: { t: any, 
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-md max-h-[88vh] overflow-y-auto rounded-3xl border border-white/10 bg-gradient-to-b from-[#0f172a] to-[#020617] p-6 shadow-2xl"
+              className="w-full max-w-md max-h-[88vh] overflow-y-auto rounded-3xl border border-white/15 bg-gradient-to-b from-[#151515] via-[#0b0b0b] to-[#020202] p-6 shadow-2xl"
             >
               <div className="mb-6 flex items-center justify-between">
                 {setupStep > 1 ? (
@@ -549,10 +549,10 @@ function HomeView({ t, direction, subscriptionEndDateLabel, tgUser }: { t: any, 
                 </button>
               </div>
 
-              <div className="mx-auto mb-6 flex h-36 w-36 items-center justify-center rounded-full border border-[#1d4ed8]/35 bg-[#0b1228]/70 relative">
-                <div className="absolute inset-3 rounded-full border border-[#1d4ed8]/25" />
-                <div className="absolute inset-6 rounded-full border border-[#1d4ed8]/20" />
-                <div className="absolute inset-9 rounded-full border border-[#1d4ed8]/15" />
+              <div className="mx-auto mb-6 flex h-36 w-36 items-center justify-center rounded-full border border-white/30 bg-white/5 relative">
+                <div className="absolute inset-3 rounded-full border border-white/20" />
+                <div className="absolute inset-6 rounded-full border border-white/15" />
+                <div className="absolute inset-9 rounded-full border border-white/10" />
                 <div className="relative z-10">{setupStep === 1 ? getDeviceIcon() : setupStep === 2 ? <Download size={34} className="text-white" /> : <Lock size={34} className="text-white" />}</div>
               </div>
 
@@ -564,7 +564,7 @@ function HomeView({ t, direction, subscriptionEndDateLabel, tgUser }: { t: any, 
                   <div className="space-y-2.5">
                     <button
                       onClick={() => setSetupStep(2)}
-                      className="w-full bg-[#1d4ed8] text-white font-semibold py-3.5 rounded-full flex items-center justify-center gap-2 active:scale-95"
+                      className="w-full bg-gradient-to-r from-white/25 to-white/10 border border-white/25 text-white font-semibold py-3.5 rounded-full flex items-center justify-center gap-2 active:scale-95"
                     >
                       <ArrowRight size={16} /> {t.setupStart}
                     </button>
@@ -581,12 +581,12 @@ function HomeView({ t, direction, subscriptionEndDateLabel, tgUser }: { t: any, 
                     <div className="mt-4 rounded-2xl border border-white/10 bg-zinc-900/50 p-3">
                       <p className="text-zinc-400 text-xs uppercase tracking-wider mb-2">{t.setupChooseDevice}</p>
                       <div className="grid grid-cols-2 gap-2">
-                        <button onClick={() => setDeviceOS('windows')} className={`rounded-lg border px-3 py-2 text-sm ${deviceOS === 'windows' ? 'border-[#3b82f6] text-white bg-[#1d4ed8]/20' : 'border-white/10 text-zinc-300'}`}>Windows</button>
-                        <button onClick={() => setDeviceOS('macos')} className={`rounded-lg border px-3 py-2 text-sm ${deviceOS === 'macos' ? 'border-[#3b82f6] text-white bg-[#1d4ed8]/20' : 'border-white/10 text-zinc-300'}`}>macOS</button>
-                        <button onClick={() => setDeviceOS('android')} className={`rounded-lg border px-3 py-2 text-sm ${deviceOS === 'android' ? 'border-[#3b82f6] text-white bg-[#1d4ed8]/20' : 'border-white/10 text-zinc-300'}`}>Android</button>
-                        <button onClick={() => setDeviceOS('ios')} className={`rounded-lg border px-3 py-2 text-sm ${deviceOS === 'ios' ? 'border-[#3b82f6] text-white bg-[#1d4ed8]/20' : 'border-white/10 text-zinc-300'}`}>iPhone/iPad</button>
-                        <button onClick={() => setDeviceOS('linux')} className={`rounded-lg border px-3 py-2 text-sm ${deviceOS === 'linux' ? 'border-[#3b82f6] text-white bg-[#1d4ed8]/20' : 'border-white/10 text-zinc-300'}`}>Linux</button>
-                        <button onClick={() => setDeviceOS('unknown')} className={`rounded-lg border px-3 py-2 text-sm ${deviceOS === 'unknown' ? 'border-[#3b82f6] text-white bg-[#1d4ed8]/20' : 'border-white/10 text-zinc-300'}`}>Other</button>
+                        <button onClick={() => setDeviceOS('windows')} className={`rounded-lg border px-3 py-2 text-sm ${deviceOS === 'windows' ? 'border-white/35 text-white bg-white/10' : 'border-white/10 text-zinc-300'}`}>Windows</button>
+                        <button onClick={() => setDeviceOS('macos')} className={`rounded-lg border px-3 py-2 text-sm ${deviceOS === 'macos' ? 'border-white/35 text-white bg-white/10' : 'border-white/10 text-zinc-300'}`}>macOS</button>
+                        <button onClick={() => setDeviceOS('android')} className={`rounded-lg border px-3 py-2 text-sm ${deviceOS === 'android' ? 'border-white/35 text-white bg-white/10' : 'border-white/10 text-zinc-300'}`}>Android</button>
+                        <button onClick={() => setDeviceOS('ios')} className={`rounded-lg border px-3 py-2 text-sm ${deviceOS === 'ios' ? 'border-white/35 text-white bg-white/10' : 'border-white/10 text-zinc-300'}`}>iPhone/iPad</button>
+                        <button onClick={() => setDeviceOS('linux')} className={`rounded-lg border px-3 py-2 text-sm ${deviceOS === 'linux' ? 'border-white/35 text-white bg-white/10' : 'border-white/10 text-zinc-300'}`}>Linux</button>
+                        <button onClick={() => setDeviceOS('unknown')} className={`rounded-lg border px-3 py-2 text-sm ${deviceOS === 'unknown' ? 'border-white/35 text-white bg-white/10' : 'border-white/10 text-zinc-300'}`}>Other</button>
                       </div>
                     </div>
                   )}
@@ -602,8 +602,8 @@ function HomeView({ t, direction, subscriptionEndDateLabel, tgUser }: { t: any, 
                     <div className="mb-4">
                       <p className="text-zinc-500 text-xs uppercase tracking-wider mb-2">{t.setupRegion}</p>
                       <div className="grid grid-cols-2 gap-2">
-                        <button onClick={() => setSetupRegion('global')} className={`rounded-lg border px-3 py-2 text-sm ${setupRegion === 'global' ? 'border-[#3b82f6] text-white bg-[#1d4ed8]/20' : 'border-white/10 text-zinc-300'}`}>{t.setupGlobal}</button>
-                        <button onClick={() => setSetupRegion('russia')} className={`rounded-lg border px-3 py-2 text-sm ${setupRegion === 'russia' ? 'border-[#3b82f6] text-white bg-[#1d4ed8]/20' : 'border-white/10 text-zinc-300'}`}>{t.setupRussia}</button>
+                        <button onClick={() => setSetupRegion('global')} className={`rounded-lg border px-3 py-2 text-sm ${setupRegion === 'global' ? 'border-white/35 text-white bg-white/10' : 'border-white/10 text-zinc-300'}`}>{t.setupGlobal}</button>
+                        <button onClick={() => setSetupRegion('russia')} className={`rounded-lg border px-3 py-2 text-sm ${setupRegion === 'russia' ? 'border-white/35 text-white bg-white/10' : 'border-white/10 text-zinc-300'}`}>{t.setupRussia}</button>
                       </div>
                     </div>
                   )}
@@ -621,7 +621,7 @@ function HomeView({ t, direction, subscriptionEndDateLabel, tgUser }: { t: any, 
 
                     <button
                       onClick={() => setSetupStep(3)}
-                      className="w-full bg-[#1d4ed8] text-white font-semibold py-3.5 rounded-full flex items-center justify-center gap-2 active:scale-95"
+                      className="w-full bg-gradient-to-r from-white/25 to-white/10 border border-white/25 text-white font-semibold py-3.5 rounded-full flex items-center justify-center gap-2 active:scale-95"
                     >
                       <ArrowRight size={16} /> {t.setupNext}
                     </button>
@@ -645,7 +645,7 @@ function HomeView({ t, direction, subscriptionEndDateLabel, tgUser }: { t: any, 
 
                   <button
                     onClick={closeSetupModal}
-                    className="w-full bg-[#1d4ed8] text-white font-semibold py-3.5 rounded-full flex items-center justify-center gap-2 active:scale-95"
+                    className="w-full bg-gradient-to-r from-white/25 to-white/10 border border-white/25 text-white font-semibold py-3.5 rounded-full flex items-center justify-center gap-2 active:scale-95"
                   >
                     <ArrowRight size={16} /> {t.setupFinish}
                   </button>
@@ -667,7 +667,7 @@ function HomeView({ t, direction, subscriptionEndDateLabel, tgUser }: { t: any, 
       <motion.div
         animate={isRoaring ? { x: [-6, 6, -6, 6, 0], y: [-3, 3, -3, 3, 0] } : {}}
         transition={{ duration: 0.25 }}
-        className="relative w-36 h-36 lg:w-[260px] lg:h-[260px] cursor-pointer"
+        className="relative w-40 h-40 lg:w-[260px] lg:h-[260px] cursor-pointer"
         onClick={handleTigerClick}
       >
         <div className={`absolute inset-0 rounded-full ${isRoaring ? 'bg-white/20' : 'bg-white/10'} blur-xl`} />
@@ -738,7 +738,7 @@ function HomeView({ t, direction, subscriptionEndDateLabel, tgUser }: { t: any, 
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-md max-h-[80vh] overflow-y-auto rounded-3xl border border-white/10 bg-gradient-to-b from-[#0f172a] to-[#020617] p-6 shadow-2xl"
+              className="w-full max-w-md max-h-[80vh] overflow-y-auto rounded-3xl border border-white/15 bg-gradient-to-b from-[#151515] via-[#0b0b0b] to-[#020202] p-6 shadow-2xl"
             >
               <div className="flex items-center justify-between mb-5">
                 <h3 className="text-lg font-bold text-white">{t.myDevices}</h3>
@@ -756,14 +756,14 @@ function HomeView({ t, direction, subscriptionEndDateLabel, tgUser }: { t: any, 
                 <div className="space-y-2">
                   {devices.map((device) => (
                     <div key={device.id} className="flex items-center gap-3 p-3 rounded-xl border border-white/10 bg-zinc-900/50">
-                      <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${device.is_active ? 'bg-[#00D1FF]/10 border border-[#00D1FF]/20' : 'bg-zinc-800 border border-white/10'}`}>
-                        <MonitorSmartphone size={18} className={device.is_active ? 'text-[#00D1FF]' : 'text-zinc-500'} />
+                      <div className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${device.is_active ? 'bg-white/10 border border-white/25' : 'bg-zinc-800 border border-white/10'}`}>
+                        <MonitorSmartphone size={18} className={device.is_active ? 'text-white' : 'text-zinc-500'} />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-white truncate">{device.device_name || 'Устройство'}</p>
                         <p className="text-[10px] text-zinc-500">{new Date(device.created_at).toLocaleDateString('ru-RU')}</p>
                       </div>
-                      <div className={`text-[9px] uppercase tracking-wider font-medium px-2 py-0.5 rounded-full ${device.is_active ? 'text-[#00D1FF] bg-[#00D1FF]/10' : 'text-zinc-500 bg-zinc-800'}`}>
+                      <div className={`text-[9px] uppercase tracking-wider font-medium px-2 py-0.5 rounded-full ${device.is_active ? 'text-white bg-white/15' : 'text-zinc-500 bg-zinc-800'}`}>
                         {device.is_active ? 'Активно' : 'Неактивно'}
                       </div>
                     </div>
@@ -845,22 +845,22 @@ function PaymentView({ t, direction }: { t: any, direction: number }) {
       initial="initial"
       animate="animate"
       exit="exit"
-      className="flex flex-col gap-3 flex-1"
+      className="flex flex-col gap-3 flex-1 lg:items-center"
     >
-      <div className="w-full max-w-xs mx-auto flex flex-col">
+      <div className="w-full max-w-xs mx-auto flex flex-col lg:max-w-[720px]">
         <motion.div 
           initial={{ y: 10, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ delay: 0.1, duration: 0.25 }}
-          className="bg-zinc-900/40 border border-white/5 rounded-xl p-3 mb-3"
+          className="bg-zinc-900/40 border border-white/10 rounded-xl p-3 mb-3 lg:p-6"
         >
           <div className="flex justify-between items-end mb-3">
             <div>
-              <span className="text-2xl font-bold text-white">{months}</span>
+              <span className="text-2xl font-bold text-white lg:text-4xl">{months}</span>
               <span className="text-zinc-400 ml-1 text-xs">{t.months}</span>
             </div>
             <div className="text-right">
-              <div className="text-lg font-medium text-white">{pricePerMonth}₽ <span className="text-[10px] text-zinc-500">{t.perMonth}</span></div>
+              <div className="text-lg font-medium text-white lg:text-3xl">{pricePerMonth}₽ <span className="text-[10px] text-zinc-500 lg:text-xs">{t.perMonth}</span></div>
             </div>
           </div>
           
@@ -884,7 +884,7 @@ function PaymentView({ t, direction }: { t: any, direction: number }) {
           initial={{ y: 10, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ delay: 0.15, duration: 0.25 }}
-          className="grid grid-cols-3 gap-1.5 mb-3"
+          className="grid grid-cols-3 gap-1.5 mb-3 lg:gap-3"
         >
           <PaymentMethodBtn icon={<Star size={16} className={payMethod === 'tg' ? "text-yellow-400" : "text-zinc-500"} />} label={t.payTg} isActive={payMethod === 'tg'} onClick={() => setPayMethod('tg')} />
           <PaymentMethodBtn icon={<Bitcoin size={16} className={payMethod === 'crypto' ? "text-orange-400" : "text-zinc-500"} />} label={t.payCrypto} isActive={payMethod === 'crypto'} onClick={() => setPayMethod('crypto')} />
@@ -892,7 +892,7 @@ function PaymentView({ t, direction }: { t: any, direction: number }) {
         </motion.div>
       </div>
 
-      <div className="w-full max-w-xs mx-auto flex flex-col">
+      <div className="w-full max-w-xs mx-auto flex flex-col lg:max-w-[720px]">
         <h3 className="text-[10px] font-medium text-zinc-500 uppercase tracking-widest mb-2">{t.featTitle}</h3>
         <motion.ul variants={listVariants} initial="hidden" animate="visible" className="space-y-1.5">
           <motion.li variants={itemVariants}><FeatureItem text={t.f1} /></motion.li>
@@ -930,10 +930,37 @@ function FeatureItem({ text }: { text: string }) {
   );
 }
 
-function ProfileView({ t, lang, setLang, direction, tgUser, subscriptionDaysLabel }: { t: any; lang: string; setLang: (l: 'ru' | 'en') => void; direction: number; tgUser: { name: string; photo: string } | null; subscriptionDaysLabel: string }) {
+function ProfileView({ t, lang, setLang, direction, tgUser, subscriptionDaysLabel }: { t: any; lang: string; setLang: (l: 'ru' | 'en') => void; direction: number; tgUser: { id: number; name: string; photo: string; username?: string } | null; subscriptionDaysLabel: string }) {
+  const [showPaymentsModal, setShowPaymentsModal] = useState(false);
+  const [paymentsLoading, setPaymentsLoading] = useState(false);
+  const [payments, setPayments] = useState<{ id: number; amount: string; currency: string; status: string; provider: string; paid_at: string | null; created_at: string }[]>([]);
+
+  const openPaymentsModal = async () => {
+    setShowPaymentsModal(true);
+    if (!tgUser?.id) {
+      setPayments([]);
+      return;
+    }
+    setPaymentsLoading(true);
+    try {
+      const res = await fetch(`/api/users/payments?telegramId=${encodeURIComponent(String(tgUser.id))}`);
+      if (!res.ok) {
+        setPayments([]);
+        return;
+      }
+      const data = await res.json();
+      setPayments(data.payments ?? []);
+    } catch {
+      setPayments([]);
+    } finally {
+      setPaymentsLoading(false);
+    }
+  };
+
   return (
+    <>
     <motion.div custom={direction} variants={pageVariants} initial="initial" animate="animate" exit="exit" className="flex flex-col flex-1 items-center">
-      <div className="w-full max-w-xs">
+      <div className="w-full max-w-xs lg:max-w-[560px]">
         <motion.div initial={{ y: 10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.1, duration: 0.25 }} className="flex items-center gap-3 mb-4 bg-zinc-900/40 p-3 rounded-xl border border-white/5">
           <div className="w-12 h-12 rounded-full bg-zinc-800 border border-white/10 flex items-center justify-center shrink-0 overflow-hidden">
             {tgUser?.photo ? (
@@ -982,7 +1009,7 @@ function ProfileView({ t, lang, setLang, direction, tgUser, subscriptionDaysLabe
                 <ChevronRight size={14} strokeWidth={1.5} className="text-zinc-600" />
               </button>
               <div className="h-px bg-white/5 mx-3" />
-              <button className="w-full flex items-center justify-between p-3 hover:bg-white/5 transition-colors active:scale-[0.98]">
+              <button onClick={openPaymentsModal} className="w-full flex items-center justify-between p-3 hover:bg-white/5 transition-colors active:scale-[0.98]">
                 <div className="flex items-center gap-2">
                   <CreditCard size={18} strokeWidth={1.5} className="text-zinc-400" />
                   <span className="text-zinc-200 font-medium text-sm">{t.payments}</span>
@@ -1010,6 +1037,53 @@ function ProfileView({ t, lang, setLang, direction, tgUser, subscriptionDaysLabe
         </motion.div>
       </div>
     </motion.div>
+      <AnimatePresence>
+        {showPaymentsModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+            onClick={() => setShowPaymentsModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-md max-h-[80vh] overflow-y-auto rounded-3xl border border-white/15 bg-gradient-to-b from-[#151515] via-[#0b0b0b] to-[#020202] p-6 shadow-2xl"
+            >
+              <div className="flex items-center justify-between mb-5">
+                <h3 className="text-lg font-bold text-white">{t.payments}</h3>
+                <button onClick={() => setShowPaymentsModal(false)} className="text-zinc-400 hover:text-white transition-colors"><X size={20} /></button>
+              </div>
+
+              {paymentsLoading ? (
+                <div className="text-center py-8 text-zinc-400 text-sm">Загрузка...</div>
+              ) : payments.length === 0 ? (
+                <div className="text-center py-8 text-zinc-400 text-sm">Платежей пока нет</div>
+              ) : (
+                <div className="space-y-2">
+                  {payments.map((payment) => (
+                    <div key={payment.id} className="rounded-xl border border-white/10 bg-zinc-900/50 p-3">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-white font-medium text-sm">{Number(payment.amount)} {payment.currency}</span>
+                        <span className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full ${payment.status === 'paid' ? 'bg-white/15 text-white' : 'bg-zinc-800 text-zinc-400'}`}>{payment.status}</span>
+                      </div>
+                      <div className="text-[11px] text-zinc-400">{payment.provider}</div>
+                      <div className="text-[10px] text-zinc-500 mt-1 flex items-center gap-1">
+                        <Calendar size={11} />
+                        {new Date(payment.paid_at || payment.created_at).toLocaleString(lang === 'ru' ? 'ru-RU' : 'en-GB')}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
   );
 }
 
