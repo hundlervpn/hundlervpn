@@ -10,13 +10,22 @@ CREATE TABLE IF NOT EXISTS users (
   id BIGSERIAL PRIMARY KEY,
   telegram_id BIGINT UNIQUE,
   username TEXT,
+  first_name TEXT,
+  last_name TEXT,
+  photo_url TEXT,
   status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'banned', 'expired')),
   is_banned BOOLEAN NOT NULL DEFAULT FALSE,
   ban_reason TEXT,
   auto_renew BOOLEAN NOT NULL DEFAULT FALSE,
+  last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS first_name TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS photo_url TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 
 CREATE TABLE IF NOT EXISTS plans (
   id BIGSERIAL PRIMARY KEY,

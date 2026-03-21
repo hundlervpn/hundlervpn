@@ -172,6 +172,7 @@ export default function App() {
   const [direction, setDirection] = useState(0);
   const [lang, setLang] = useState<'ru' | 'en'>('ru');
   const [tgUser, setTgUser] = useState<{ id: number; name: string; photo: string; username?: string } | null>(null);
+  const [subscriptionState, setSubscriptionState] = useState<{ endDate: string | null; daysLeft: number; status: string } | null>(null);
 
   // Get Telegram user data on mount
   useEffect(() => {
@@ -203,8 +204,17 @@ export default function App() {
               body: JSON.stringify({
                 telegramId: user.id,
                 username: user.username,
+                firstName: user.first_name,
+                lastName: user.last_name,
+                photoUrl: user.photo_url,
               }),
             });
+
+            const stateResponse = await fetch(`/api/users/state?telegramId=${encodeURIComponent(String(user.id))}`);
+            if (stateResponse.ok) {
+              const statePayload = await stateResponse.json();
+              setSubscriptionState(statePayload.profile ?? { endDate: null, daysLeft: 0, status: 'none' });
+            }
           } catch (error) {
             console.error('Failed to sync telegram user:', error);
           }
@@ -218,6 +228,12 @@ export default function App() {
   }, []);
 
   const t = translations[lang];
+  const subscriptionEndDateLabel = subscriptionState?.endDate
+    ? new Date(subscriptionState.endDate).toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'en-GB')
+    : (lang === 'ru' ? 'Нет подписки' : 'No subscription');
+  const subscriptionDaysLabel = lang === 'ru'
+    ? `Осталось ${subscriptionState?.daysLeft ?? 0} дн.`
+    : `${subscriptionState?.daysLeft ?? 0} days left`;
 
   const navigate = (newTab: Tab) => {
     if (newTab === activeTab) return;
@@ -293,9 +309,9 @@ export default function App() {
 
           <div className="w-full max-w-6xl mx-auto lg:mx-0 lg:flex-1">
             <AnimatePresence mode="wait" custom={direction}>
-              {activeTab === 'home' && <HomeView key="home" t={t} direction={direction} />}
+              {activeTab === 'home' && <HomeView key="home" t={t} direction={direction} subscriptionEndDateLabel={subscriptionEndDateLabel} />}
               {activeTab === 'payment' && <PaymentView key="payment" t={t} direction={direction} />}
-              {activeTab === 'profile' && <ProfileView key="profile" t={t} lang={lang} setLang={setLang} direction={direction} tgUser={tgUser} />}
+              {activeTab === 'profile' && <ProfileView key="profile" t={t} lang={lang} setLang={setLang} direction={direction} tgUser={tgUser} subscriptionDaysLabel={subscriptionDaysLabel} />}
             </AnimatePresence>
           </div>
         </main>
@@ -366,7 +382,7 @@ function DesktopSidebar({ t, activeTab, navigate }: { t: any; activeTab: Tab; na
   );
 }
 
-function HomeView({ t, direction }: { t: any, direction: number }) {
+function HomeView({ t, direction, subscriptionEndDateLabel }: { t: any, direction: number; subscriptionEndDateLabel: string }) {
   const [isRoaring, setIsRoaring] = useState(false);
   const [showSetupModal, setShowSetupModal] = useState(false);
   const [deviceOS, setDeviceOS] = useState<'windows' | 'macos' | 'linux' | 'android' | 'ios' | 'unknown'>('unknown');
@@ -647,7 +663,7 @@ function HomeView({ t, direction }: { t: any, direction: number }) {
           <div className="text-right flex flex-col items-end">
             <span className="text-zinc-500 text-[8px] uppercase tracking-widest mb-0.5">{t.until}</span>
             <div className="text-white/60 text-[11px] font-medium flex items-center gap-1 bg-white/5 px-1.5 py-0.5 rounded border border-white/5">
-              {t.date} <Calendar size={10} className="text-zinc-500"/>
+              {subscriptionEndDateLabel} <Calendar size={10} className="text-zinc-500"/>
             </div>
           </div>
         </div>
@@ -833,7 +849,7 @@ function FeatureItem({ text }: { text: string }) {
   );
 }
 
-function ProfileView({ t, lang, setLang, direction, tgUser }: { t: any; lang: string; setLang: (l: 'ru' | 'en') => void; direction: number; tgUser: { name: string; photo: string } | null }) {
+function ProfileView({ t, lang, setLang, direction, tgUser, subscriptionDaysLabel }: { t: any; lang: string; setLang: (l: 'ru' | 'en') => void; direction: number; tgUser: { name: string; photo: string } | null; subscriptionDaysLabel: string }) {
   return (
     <motion.div custom={direction} variants={pageVariants} initial="initial" animate="animate" exit="exit" className="flex flex-col flex-1 items-center">
       <div className="w-full max-w-xs">
@@ -849,7 +865,7 @@ function ProfileView({ t, lang, setLang, direction, tgUser }: { t: any; lang: st
             <h2 className="text-base font-medium text-white">{tgUser?.name || 'User'}</h2>
             <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/5 border border-white/10">
               <div className="w-1 h-1 rounded-full bg-[#00D1FF]" />
-              <span className="text-zinc-300 text-[9px] font-medium uppercase tracking-wider">{t.daysLeft}</span>
+              <span className="text-zinc-300 text-[9px] font-medium uppercase tracking-wider">{subscriptionDaysLabel}</span>
             </div>
           </div>
         </motion.div>
