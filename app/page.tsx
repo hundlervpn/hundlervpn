@@ -171,11 +171,11 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('home');
   const [direction, setDirection] = useState(0);
   const [lang, setLang] = useState<'ru' | 'en'>('ru');
-  const [tgUser, setTgUser] = useState<{name: string; photo: string} | null>(null);
+  const [tgUser, setTgUser] = useState<{ id: number; name: string; photo: string; username?: string } | null>(null);
 
   // Get Telegram user data on mount
   useEffect(() => {
-    const initTg = () => {
+    const initTg = async () => {
       if (typeof window !== 'undefined' && window.Telegram?.WebApp) {
         const tg = window.Telegram.WebApp;
         tg.ready();
@@ -187,10 +187,27 @@ export default function App() {
         const user = tg.initDataUnsafe?.user;
         if (user) {
           console.log('User data:', user);
+          const normalizedName = [user.first_name, user.last_name].filter(Boolean).join(' ') || 'User';
+
           setTgUser({
-            name: [user.first_name, user.last_name].filter(Boolean).join(' ') || 'User',
-            photo: user.photo_url || ''
+            id: user.id,
+            name: normalizedName,
+            photo: user.photo_url || '',
+            username: user.username,
           });
+
+          try {
+            await fetch('/api/users/sync', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                telegramId: user.id,
+                username: user.username,
+              }),
+            });
+          } catch (error) {
+            console.error('Failed to sync telegram user:', error);
+          }
         }
       }
     };
