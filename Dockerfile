@@ -43,6 +43,9 @@ RUN STANDALONE_DIR=$(find ./temp_standalone -name "server.js" -type f -exec dirn
 # Copy static files
 COPY --from=builder /app/.next/static ./.next/static
 
+# Fix Next.js 15 standalone missing @mswjs/interceptors
+COPY --from=builder /app/node_modules/next/dist/compiled/@mswjs ./node_modules/next/dist/compiled/@mswjs
+
 # Change ownership
 RUN chown -R nextjs:nodejs /app
 
