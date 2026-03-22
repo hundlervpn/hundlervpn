@@ -576,12 +576,12 @@ function HomeView({ t, direction, subscriptionEndDateLabel, tgUser }: { t: any, 
 
   const getDeviceIcon = () => {
     switch (deviceOS) {
-      case 'windows': return <Monitor size={34} className="text-white" />;
-      case 'macos': return <Laptop size={34} className="text-white" />;
-      case 'linux': return <Monitor size={34} className="text-white" />;
-      case 'android': return <SmartphoneIcon size={34} className="text-white" />;
-      case 'ios': return <SmartphoneIcon size={34} className="text-white" />;
-      default: return <MonitorSmartphone size={34} className="text-white" />;
+      case 'windows': return <Monitor size={20} className="text-white sm:w-[34px] sm:h-[34px]" />;
+      case 'macos': return <Laptop size={20} className="text-white sm:w-[34px] sm:h-[34px]" />;
+      case 'linux': return <Monitor size={20} className="text-white sm:w-[34px] sm:h-[34px]" />;
+      case 'android': return <SmartphoneIcon size={20} className="text-white sm:w-[34px] sm:h-[34px]" />;
+      case 'ios': return <SmartphoneIcon size={20} className="text-white sm:w-[34px] sm:h-[34px]" />;
+      default: return <MonitorSmartphone size={20} className="text-white sm:w-[34px] sm:h-[34px]" />;
     }
   };
 
@@ -630,7 +630,7 @@ function HomeView({ t, direction, subscriptionEndDateLabel, tgUser }: { t: any, 
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
               onClick={(e) => e.stopPropagation()}
-              className="w-full max-w-md max-h-[75vh] sm:max-h-[88vh] overflow-y-auto rounded-3xl border border-white/15 bg-gradient-to-b from-[#151515] via-[#0b0b0b] to-[#020202] p-3 sm:p-6 shadow-2xl"
+              className="w-full max-w-md max-h-[55vh] sm:max-h-[88vh] overflow-y-auto rounded-3xl border border-white/15 bg-gradient-to-b from-[#151515] via-[#0b0b0b] to-[#020202] p-3 sm:p-6 shadow-2xl"
             >
               <div className="mb-3 sm:mb-6 flex items-center justify-between">
                 {setupStep > 1 ? (
@@ -646,11 +646,11 @@ function HomeView({ t, direction, subscriptionEndDateLabel, tgUser }: { t: any, 
                 </button>
               </div>
 
-              <div className="mx-auto mb-3 sm:mb-6 flex h-20 w-20 sm:h-36 sm:w-36 items-center justify-center rounded-full border border-white/30 bg-white/5 relative">
-                <div className="absolute inset-1.5 sm:inset-3 rounded-full border border-white/20" />
-                <div className="absolute inset-3 sm:inset-6 rounded-full border border-white/15" />
-                <div className="absolute inset-5 sm:inset-9 rounded-full border border-white/10" />
-                <div className="relative z-10">{setupStep === 1 ? getDeviceIcon() : setupStep === 2 ? <Download size={24} className="text-white sm:w-[34px] sm:h-[34px]" /> : <Key size={24} className="text-white sm:w-[34px] sm:h-[34px]" />}</div>
+              <div className="mx-auto mb-2 sm:mb-6 flex h-14 w-14 sm:h-36 sm:w-36 items-center justify-center rounded-full border border-white/30 bg-white/5 relative">
+                <div className="absolute inset-1 sm:inset-3 rounded-full border border-white/20" />
+                <div className="absolute inset-2 sm:inset-6 rounded-full border border-white/15" />
+                <div className="absolute inset-3.5 sm:inset-9 rounded-full border border-white/10" />
+                <div className="relative z-10">{setupStep === 1 ? getDeviceIcon() : setupStep === 2 ? <Download size={18} className="text-white sm:w-[34px] sm:h-[34px]" /> : <Key size={18} className="text-white sm:w-[34px] sm:h-[34px]" />}</div>
               </div>
 
               {setupStep === 1 && (

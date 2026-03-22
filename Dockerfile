@@ -30,21 +30,15 @@ RUN adduser --system --uid 1001 nextjs
 # Copy public files
 COPY --from=builder /app/public ./public
 
-# Copy all standalone files
-COPY --from=builder /app/.next/standalone/ ./temp_standalone/
+# Copy standalone output (build runs in Linux — paths are flat)
+COPY --from=builder /app/.next/standalone ./
 
-# Find and copy from nested directory (handles Windows path structure)
-RUN STANDALONE_DIR=$(find ./temp_standalone -name "server.js" -type f -exec dirname {} \; | head -1) && \
-    echo "Found standalone at: $STANDALONE_DIR" && \
-    cp -r "$STANDALONE_DIR"/* ./ && \
-    cp -r "$STANDALONE_DIR"/.[!.]* ./ 2>/dev/null || true && \
-    rm -rf ./temp_standalone
-
-# Copy static files
+# Copy static files (not included in standalone)
 COPY --from=builder /app/.next/static ./.next/static
 
 # Fix Next.js 15 standalone missing @mswjs/interceptors
-COPY --from=builder /app/node_modules/next/dist/compiled/@mswjs ./node_modules/next/dist/compiled/@mswjs
+RUN mkdir -p ./node_modules/next/dist/compiled/@mswjs
+COPY --from=builder /app/node_modules/next/dist/compiled/@mswjs/ ./node_modules/next/dist/compiled/@mswjs/
 
 # Change ownership
 RUN chown -R nextjs:nodejs /app
