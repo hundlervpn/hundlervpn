@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import { NextResponse } from 'next/server';
 import { getDbPool } from '@/lib/db';
+import { buildVlessLink, getSubscriptionUrl } from '@/lib/sub-token';
 
 type SyncBody = {
   telegramId?: number;
@@ -11,33 +12,6 @@ type SyncBody = {
   startParam?: string;
 };
 
-function buildVlessLink(uuid: string) {
-  const host = process.env.XRAY_VLESS_HOST;
-  const port = process.env.XRAY_VLESS_PORT ?? '443';
-  const publicKey = process.env.XRAY_REALITY_PUBLIC_KEY;
-  const serverName = process.env.XRAY_REALITY_SNI;
-  const shortId = process.env.XRAY_REALITY_SHORT_ID;
-  const fingerprint = process.env.XRAY_REALITY_FINGERPRINT ?? 'chrome';
-  const flow = process.env.XRAY_VLESS_FLOW ?? 'xtls-rprx-vision';
-  const remark = process.env.XRAY_VLESS_REMARK ?? 'HundlerVPN';
-
-  if (!host || !publicKey || !serverName || !shortId) {
-    return null;
-  }
-
-  const query = new URLSearchParams({
-    encryption: 'none',
-    security: 'reality',
-    type: 'tcp',
-    sni: serverName,
-    fp: fingerprint,
-    pbk: publicKey,
-    sid: shortId,
-    flow,
-  });
-
-  return `vless://${uuid}@${host}:${port}?${query.toString()}#${encodeURIComponent(remark)}`;
-}
 
 function parseReferralCode(startParam?: string | null) {
   const raw = (startParam ?? '').trim();
@@ -192,7 +166,8 @@ export async function POST(req: Request) {
 
       await client.query('COMMIT');
 
-      return NextResponse.json({ ok: true, userId, referralCode: row.referral_code ?? ownReferralCode });
+      const subUrl = getSubscriptionUrl(telegramId);
+      return NextResponse.json({ ok: true, userId, referralCode: row.referral_code ?? ownReferralCode, subscriptionUrl: subUrl });
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;

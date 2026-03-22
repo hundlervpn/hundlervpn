@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import { NextResponse } from 'next/server';
 import type { PoolClient } from 'pg';
 import { getDbPool } from '@/lib/db';
+import { buildVlessLink, getSubscriptionUrl } from '@/lib/sub-token';
 
 function parseMonthsFromPayload(payload: string): number {
   const match = payload.match(/vpn_premium_(\d+)_months_/);
@@ -20,33 +21,6 @@ function escapeHtml(value: string): string {
     .replaceAll("'", '&#39;');
 }
 
-function buildVlessLink(uuid: string) {
-  const host = process.env.XRAY_VLESS_HOST;
-  const port = process.env.XRAY_VLESS_PORT ?? '443';
-  const publicKey = process.env.XRAY_REALITY_PUBLIC_KEY;
-  const serverName = process.env.XRAY_REALITY_SNI;
-  const shortId = process.env.XRAY_REALITY_SHORT_ID;
-  const fingerprint = process.env.XRAY_REALITY_FINGERPRINT ?? 'chrome';
-  const flow = process.env.XRAY_VLESS_FLOW ?? 'xtls-rprx-vision';
-  const remark = process.env.XRAY_VLESS_REMARK ?? 'HundlerVPN';
-
-  if (!host || !publicKey || !serverName || !shortId) {
-    return null;
-  }
-
-  const query = new URLSearchParams({
-    encryption: 'none',
-    security: 'reality',
-    type: 'tcp',
-    sni: serverName,
-    fp: fingerprint,
-    pbk: publicKey,
-    sid: shortId,
-    flow,
-  });
-
-  return `vless://${uuid}@${host}:${port}?${query.toString()}#${encodeURIComponent(remark)}`;
-}
 
 async function applyReferralReward(client: PoolClient, paidUserId: number) {
   const paidHistory = await client.query<{ count: string }>(
@@ -359,8 +333,12 @@ export async function POST(req: Request) {
       // Send a thank you message to the user
       const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
       const expiryLabel = endDate ? new Date(endDate).toLocaleDateString('ru-RU') : '—';
+      const subUrl = getSubscriptionUrl(userId);
+      const subMessage = subUrl
+        ? `\n\n📡 <b>Ссылка на подписку (вставьте в VPN-клиент):</b>\n<code>${escapeHtml(subUrl)}</code>`
+        : '';
       const keyMessage = vlessKey
-        ? `\n\n🔑 <b>Ваш VLESS ключ:</b>\n<code>${escapeHtml(vlessKey)}</code>`
+        ? `\n\n🔑 <b>Ваш VLESS ключ:</b>\n<code>${escapeHtml(vlessKey)}</code>${subMessage}`
         : '\n\n⚠️ Ключ создан в базе, но не выдан: заполните XRAY_* переменные окружения на сервере.';
 
       await fetch(url, {
