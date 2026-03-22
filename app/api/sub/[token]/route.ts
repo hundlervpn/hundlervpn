@@ -1,6 +1,10 @@
-import { NextResponse } from 'next/server';
 import { dbQuery } from '@/lib/db';
-import { parseSubToken, buildVlessLink, countryCodeToFlag } from '@/lib/sub-token';
+import {
+  parseSubToken,
+  buildVlessLink,
+  buildVlessLinkFromServer,
+  type ServerConfig,
+} from '@/lib/sub-token';
 
 type VpnKeyRow = {
   key_hash: string;
@@ -19,7 +23,7 @@ export async function GET(
       return new Response('Invalid subscription token', { status: 403 });
     }
 
-    const result = await dbQuery<VpnKeyRow>(
+    const keysResult = await dbQuery<VpnKeyRow>(
       `
       SELECT vk.key_hash, vk.expires_at
       FROM vpn_keys vk
@@ -36,30 +40,47 @@ export async function GET(
       [telegramId]
     );
 
-    if (result.rows.length === 0) {
+    if (keysResult.rows.length === 0) {
       return new Response('No active subscription', { status: 404 });
     }
 
-    const links = result.rows
-      .map((row) => buildVlessLink(row.key_hash))
-      .filter(Boolean)
-      .join('\n');
+    const serversResult = await dbQuery<ServerConfig>(
+      `
+      SELECT name, host, port, country, public_key, sni, short_id, fingerprint, flow
+      FROM servers
+      WHERE is_active = TRUE
+        AND public_key IS NOT NULL
+        AND sni IS NOT NULL
+        AND short_id IS NOT NULL
+      ORDER BY country, name;
+      `
+    );
 
-    if (!links) {
+    const allLinks: string[] = [];
+
+    for (const key of keysResult.rows) {
+      if (serversResult.rows.length > 0) {
+        for (const server of serversResult.rows) {
+          allLinks.push(buildVlessLinkFromServer(key.key_hash, server));
+        }
+      } else {
+        const envLink = buildVlessLink(key.key_hash);
+        if (envLink) allLinks.push(envLink);
+      }
+    }
+
+    if (allLinks.length === 0) {
       return new Response('Server configuration incomplete', { status: 500 });
     }
 
-    const encoded = Buffer.from(links).toString('base64');
+    const encoded = Buffer.from(allLinks.join('\n')).toString('base64');
 
-    const latestExpiry = result.rows[0]?.expires_at;
+    const latestExpiry = keysResult.rows[0]?.expires_at;
     const expireTs = latestExpiry
       ? Math.floor(new Date(latestExpiry).getTime() / 1000)
       : 0;
 
-    const country = process.env.XRAY_VLESS_COUNTRY ?? '';
-    const flag = country ? countryCodeToFlag(country) : '';
-    const baseRemark = process.env.XRAY_VLESS_REMARK ?? 'HundlerVPN';
-    const profileTitle = flag ? `${flag} ${baseRemark}` : baseRemark;
+    const profileTitle = 'HundlerVPN';
 
     const headers = new Headers({
       'Content-Type': 'text/plain; charset=utf-8',

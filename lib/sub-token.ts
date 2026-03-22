@@ -46,6 +46,36 @@ export function countryCodeToFlag(code: string): string {
   );
 }
 
+export type ServerConfig = {
+  name: string;
+  host: string;
+  port: number;
+  country: string;
+  public_key: string;
+  sni: string;
+  short_id: string;
+  fingerprint: string;
+  flow: string;
+};
+
+export function buildVlessLinkFromServer(uuid: string, server: ServerConfig): string {
+  const flag = server.country ? countryCodeToFlag(server.country) : '';
+  const remark = flag ? `${flag} ${server.name}` : server.name;
+
+  const query = new URLSearchParams({
+    encryption: 'none',
+    security: 'reality',
+    type: 'tcp',
+    sni: server.sni,
+    fp: server.fingerprint,
+    pbk: server.public_key,
+    sid: server.short_id,
+    flow: server.flow,
+  });
+
+  return `vless://${uuid}@${server.host}:${server.port}?${query.toString()}#${encodeURIComponent(remark)}`;
+}
+
 export function buildVlessLink(uuid: string): string | null {
   const host = process.env.XRAY_VLESS_HOST;
   const port = process.env.XRAY_VLESS_PORT ?? '443';

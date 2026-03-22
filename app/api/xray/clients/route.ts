@@ -7,13 +7,36 @@ type XrayClientRow = {
   expiresAt: string | null;
 };
 
+type ServerRow = {
+  id: number;
+  flow: string;
+};
+
+async function authenticateToken(token: string): Promise<{ flow: string } | null> {
+  const globalToken = process.env.XRAY_SYNC_TOKEN;
+  if (globalToken && token === globalToken) {
+    return { flow: process.env.XRAY_VLESS_FLOW ?? 'xtls-rprx-vision' };
+  }
+
+  const serverResult = await dbQuery<ServerRow>(
+    `SELECT id, flow FROM servers WHERE sync_token = $1 AND is_active = TRUE LIMIT 1;`,
+    [token]
+  );
+
+  if (serverResult.rows.length > 0) {
+    return { flow: serverResult.rows[0].flow };
+  }
+
+  return null;
+}
+
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
     const token = url.searchParams.get('token') || req.headers.get('x-xray-sync-token') || '';
 
-    const expectedToken = process.env.XRAY_SYNC_TOKEN;
-    if (!expectedToken || token !== expectedToken) {
+    const auth = await authenticateToken(token);
+    if (!auth) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -38,7 +61,7 @@ export async function GET(req: Request) {
       ok: true,
       clients: result.rows.map((row) => ({
         id: row.uuid,
-        flow: process.env.XRAY_VLESS_FLOW ?? 'xtls-rprx-vision',
+        flow: auth.flow,
         email: row.email,
         expiryTime: row.expiresAt ? new Date(row.expiresAt).toISOString() : null,
       })),
