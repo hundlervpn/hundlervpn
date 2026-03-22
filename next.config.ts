@@ -20,10 +20,8 @@ const nextConfig: NextConfig = {
     ],
   },
   output: 'standalone',
-  experimental: {
-    outputFileTracingIncludes: {
-      '/**': ['./node_modules/next/dist/compiled/@mswjs/**/*'],
-    },
+  outputFileTracingIncludes: {
+    '/**': ['./node_modules/next/dist/compiled/@mswjs/**/*'],
   },
   transpilePackages: ['motion'],
   webpack: (config, {dev}) => {
