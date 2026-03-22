@@ -35,8 +35,7 @@ fi
 
 # ── Fetch active clients ──────────────────────────────────────
 RESPONSE=$(curl -sf --max-time 15 \
-  -H "x-xray-sync-token: $SYNC_TOKEN" \
-  "${APP_URL}/api/xray/clients" 2>/dev/null) || {
+  "${APP_URL}/api/xray/clients?token=${SYNC_TOKEN}" 2>/dev/null) || {
   echo "[$(date)] ERROR: Failed to fetch clients from API"
   exit 1
 }
