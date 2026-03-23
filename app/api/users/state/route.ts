@@ -16,22 +16,27 @@ export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
     const telegramIdRaw = url.searchParams.get('telegramId');
+    const userIdRaw = url.searchParams.get('userId');
 
-    if (!telegramIdRaw) {
-      return NextResponse.json({ error: 'telegramId is required' }, { status: 400 });
+    if (!telegramIdRaw && !userIdRaw) {
+      return NextResponse.json({ error: 'telegramId or userId is required' }, { status: 400 });
     }
 
-    const telegramId = Number(telegramIdRaw);
-    if (!Number.isFinite(telegramId)) {
-      return NextResponse.json({ error: 'telegramId is invalid' }, { status: 400 });
+    const telegramId = telegramIdRaw ? Number(telegramIdRaw) : null;
+    const userId = userIdRaw ? Number(userIdRaw) : null;
+    if ((telegramIdRaw && !Number.isFinite(telegramId)) || (userIdRaw && !Number.isFinite(userId))) {
+      return NextResponse.json({ error: 'Invalid id parameter' }, { status: 400 });
     }
+
+    const userWhereClause = telegramId ? 'telegram_id = $1' : 'id = $1';
+    const userParam = telegramId ?? userId;
 
     await dbQuery(
       `
       WITH target_user AS (
         SELECT id
         FROM users
-        WHERE telegram_id = $1
+        WHERE ${userWhereClause}
         LIMIT 1
       ),
       candidate AS (
@@ -51,7 +56,7 @@ export async function GET(req: Request) {
       SET is_active = CASE WHEN vk.id = (SELECT id FROM candidate) THEN TRUE ELSE FALSE END
       WHERE vk.user_id IN (SELECT id FROM target_user);
       `,
-      [telegramId]
+      [userParam]
     );
 
     const result = await dbQuery<UserState>(
@@ -91,10 +96,10 @@ export async function GET(req: Request) {
         ORDER BY end_date DESC NULLS LAST
         LIMIT 1
       ) s ON TRUE
-      WHERE u.telegram_id = $1
+      WHERE u.${userWhereClause}
       LIMIT 1;
       `,
-      [telegramId]
+      [userParam]
     );
 
     if (!result.rows[0]) {
@@ -108,7 +113,7 @@ export async function GET(req: Request) {
       ok: true,
       profile: {
         ...result.rows[0],
-        subscriptionUrl: result.rows[0].status === 'active' && result.rows[0].hasActiveKey ? getSubscriptionUrl(telegramId) : null,
+        subscriptionUrl: result.rows[0].status === 'active' && result.rows[0].hasActiveKey && result.rows[0].telegramId ? getSubscriptionUrl(Number(result.rows[0].telegramId)) : null,
       },
     });
   } catch (error) {

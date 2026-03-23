@@ -2,7 +2,7 @@
 
 import { useState, memo, useEffect } from 'react';
 import Image from 'next/image';
-import { Shield, CreditCard, User, Zap, Check, ChevronRight, HelpCircle, Star, Bitcoin, Wallet, Calendar, Smartphone, Settings, Gift, MonitorSmartphone, Globe, X, Monitor, FileText, Lock, Download, ArrowRight, CheckCircle2, Laptop, Smartphone as SmartphoneIcon, ShieldAlert, Users, Ban, Tag, Search, Plus, Trash2, Copy, ClipboardCheck, Key } from 'lucide-react';
+import { Shield, CreditCard, User, Zap, Check, ChevronRight, HelpCircle, Star, Bitcoin, Wallet, Calendar, Smartphone, Settings, Gift, MonitorSmartphone, Globe, X, Monitor, FileText, Lock, Download, ArrowRight, CheckCircle2, Laptop, Smartphone as SmartphoneIcon, ShieldAlert, Users, Ban, Tag, Search, Plus, Trash2, Copy, ClipboardCheck, Key, Mail, LogOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 // Telegram WebApp types
@@ -250,15 +250,37 @@ const itemVariants = {
   visible: { opacity: 1, x: 0, transition: { duration: 0.3 } }
 };
 
+type AuthMode = 'telegram' | 'email' | 'none';
+type UserIdentifier = { type: 'telegram'; telegramId: number } | { type: 'email'; userId: number };
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('home');
   const [direction, setDirection] = useState(0);
   const [lang, setLang] = useState<'ru' | 'en'>('ru');
   const [tgUser, setTgUser] = useState<{ id: number; name: string; photo: string; username?: string } | null>(null);
   const [subscriptionState, setSubscriptionState] = useState<{ endDate: string | null; daysLeft: number; status: string; subscriptionUrl: string | null } | null>(null);
+  const [authMode, setAuthMode] = useState<AuthMode>('none');
+  const [authLoading, setAuthLoading] = useState(true);
+  const [userIdentifier, setUserIdentifier] = useState<UserIdentifier | null>(null);
 
-  const refreshSubscriptionState = async (telegramId: number) => {
-    const stateResponse = await fetch(`/api/users/state?telegramId=${encodeURIComponent(String(telegramId))}`);
+  const buildStateQuery = (ident: UserIdentifier | null) => {
+    if (!ident) return '';
+    return ident.type === 'telegram'
+      ? `telegramId=${encodeURIComponent(String(ident.telegramId))}`
+      : `userId=${encodeURIComponent(String(ident.userId))}`;
+  };
+
+  const refreshSubscriptionState = async (identOrTgId?: number | UserIdentifier) => {
+    let query = '';
+    if (typeof identOrTgId === 'number') {
+      query = `telegramId=${encodeURIComponent(String(identOrTgId))}`;
+    } else if (identOrTgId) {
+      query = buildStateQuery(identOrTgId);
+    } else {
+      query = buildStateQuery(userIdentifier);
+    }
+    if (!query) return;
+    const stateResponse = await fetch(`/api/users/state?${query}`);
     if (stateResponse.ok) {
       const statePayload = await stateResponse.json();
       setSubscriptionState(statePayload.profile ?? { endDate: null, daysLeft: 0, status: 'none', subscriptionUrl: null });
@@ -267,21 +289,39 @@ export default function App() {
     setSubscriptionState({ endDate: null, daysLeft: 0, status: 'none', subscriptionUrl: null });
   };
 
-  // Get Telegram user data on mount
+  const handleEmailLogin = (user: { id: number; email: string; name: string }, sessionToken: string) => {
+    localStorage.setItem('hvpn_session', sessionToken);
+    const ident: UserIdentifier = { type: 'email', userId: user.id };
+    setTgUser({ id: user.id, name: user.name, photo: '', username: user.email });
+    setUserIdentifier(ident);
+    setAuthMode('email');
+    refreshSubscriptionState(ident);
+  };
+
+  const handleEmailLogout = () => {
+    localStorage.removeItem('hvpn_session');
+    setTgUser(null);
+    setUserIdentifier(null);
+    setAuthMode('none');
+    setSubscriptionState(null);
+  };
+
+  // Get Telegram user data on mount or restore email session
   useEffect(() => {
-    const initTg = async () => {
+    const init = async () => {
+      // Try Telegram WebApp first
       if (typeof window !== 'undefined' && window.Telegram?.WebApp) {
         const tg = window.Telegram.WebApp;
         tg.ready();
         tg.expand();
         
-        // Log for debugging
         console.log('Telegram WebApp initialized:', tg.initDataUnsafe);
         
         const user = tg.initDataUnsafe?.user;
         if (user) {
           console.log('User data:', user);
           const normalizedName = [user.first_name, user.last_name].filter(Boolean).join(' ') || 'User';
+          const ident: UserIdentifier = { type: 'telegram', telegramId: user.id };
 
           setTgUser({
             id: user.id,
@@ -289,6 +329,8 @@ export default function App() {
             photo: user.photo_url || '',
             username: user.username,
           });
+          setUserIdentifier(ident);
+          setAuthMode('telegram');
 
           const urlStartParam = typeof window !== 'undefined'
             ? new URLSearchParams(window.location.search).get('startapp') || new URLSearchParams(window.location.search).get('start')
@@ -318,12 +360,39 @@ export default function App() {
             setSubscriptionState({ endDate: null, daysLeft: 0, status: 'none', subscriptionUrl: null });
             console.error('Failed to sync telegram user:', error);
           }
+          setAuthLoading(false);
+          return;
         }
       }
+
+      // Try restoring email session
+      if (typeof window !== 'undefined') {
+        const savedToken = localStorage.getItem('hvpn_session');
+        if (savedToken) {
+          try {
+            const res = await fetch(`/api/auth/session?token=${encodeURIComponent(savedToken)}`);
+            if (res.ok) {
+              const data = await res.json();
+              if (data.ok && data.user) {
+                const ident: UserIdentifier = { type: 'email', userId: data.user.id };
+                setTgUser({ id: data.user.id, name: data.user.name, photo: '', username: data.user.email });
+                setUserIdentifier(ident);
+                setAuthMode('email');
+                await refreshSubscriptionState(ident);
+                setAuthLoading(false);
+                return;
+              }
+            }
+            localStorage.removeItem('hvpn_session');
+          } catch { /* ignore */ }
+        }
+      }
+
+      setAuthMode('none');
+      setAuthLoading(false);
     };
     
-    // Small delay to ensure Telegram script is loaded
-    const timer = setTimeout(initTg, 100);
+    const timer = setTimeout(init, 100);
     return () => clearTimeout(timer);
   }, []);
 
@@ -382,6 +451,20 @@ export default function App() {
     setTouchStartY(null);
   };
 
+  // Show loading
+  if (authLoading) {
+    return (
+      <div className="min-h-screen w-full bg-[#020202] flex items-center justify-center">
+        <div className="text-zinc-500 text-sm">...</div>
+      </div>
+    );
+  }
+
+  // Show email auth screen if not authenticated
+  if (authMode === 'none') {
+    return <EmailAuthView lang={lang} setLang={setLang} onLogin={handleEmailLogin} />;
+  }
+
   return (
     <div className="min-h-screen w-full bg-[#020202] overflow-x-hidden relative font-sans">
       {/* Background */}
@@ -412,9 +495,9 @@ export default function App() {
 
           <div className="w-full max-w-6xl mx-auto lg:flex-1 lg:flex lg:flex-col lg:items-center lg:justify-start">
             <AnimatePresence mode="wait" custom={direction}>
-              {activeTab === 'home' && <HomeView key="home" t={t} direction={direction} subscriptionEndDateLabel={subscriptionEndDateLabel} subscriptionDaysLabel={subscriptionDaysLabel} subscriptionUrl={subscriptionState?.subscriptionUrl ?? null} tgUser={tgUser} onSubscriptionChange={refreshSubscriptionState} />}
+              {activeTab === 'home' && <HomeView key="home" t={t} direction={direction} subscriptionEndDateLabel={subscriptionEndDateLabel} subscriptionDaysLabel={subscriptionDaysLabel} subscriptionUrl={subscriptionState?.subscriptionUrl ?? null} tgUser={tgUser} onSubscriptionChange={refreshSubscriptionState} userIdentifier={userIdentifier} />}
               {activeTab === 'payment' && <PaymentView key="payment" t={t} direction={direction} tgUser={tgUser} onSubscriptionChange={refreshSubscriptionState} />}
-              {activeTab === 'profile' && <ProfileView key="profile" t={t} lang={lang} setLang={setLang} direction={direction} tgUser={tgUser} subscriptionDaysLabel={subscriptionDaysLabel} navigate={navigate} />}
+              {activeTab === 'profile' && <ProfileView key="profile" t={t} lang={lang} setLang={setLang} direction={direction} tgUser={tgUser} subscriptionDaysLabel={subscriptionDaysLabel} navigate={navigate} authMode={authMode} onLogout={handleEmailLogout} />}
               {activeTab === 'payments' && <PaymentsHistoryView key="payments" t={t} direction={direction} tgUser={tgUser} navigate={navigate} lang={lang} />}
               {activeTab === 'admin' && <AdminView key="admin" t={t} direction={direction} tgUser={tgUser} navigate={navigate} lang={lang} />}
             </AnimatePresence>
@@ -487,7 +570,7 @@ function DesktopSidebar({ t, activeTab, navigate }: { t: any; activeTab: Tab; na
   );
 }
 
-function HomeView({ t, direction, subscriptionEndDateLabel, subscriptionDaysLabel, subscriptionUrl, tgUser, onSubscriptionChange }: { t: any, direction: number; subscriptionEndDateLabel: string; subscriptionDaysLabel: string; subscriptionUrl: string | null; tgUser: { id: number; name: string; photo: string; username?: string } | null; onSubscriptionChange: (telegramId: number) => Promise<void> }) {
+function HomeView({ t, direction, subscriptionEndDateLabel, subscriptionDaysLabel, subscriptionUrl, tgUser, onSubscriptionChange, userIdentifier }: { t: any, direction: number; subscriptionEndDateLabel: string; subscriptionDaysLabel: string; subscriptionUrl: string | null; tgUser: { id: number; name: string; photo: string; username?: string } | null; onSubscriptionChange: (telegramId: number) => Promise<void>; userIdentifier: UserIdentifier | null }) {
   const [showSetupModal, setShowSetupModal] = useState(false);
   const [showDevicesModal, setShowDevicesModal] = useState(false);
   const [showPromoModal, setShowPromoModal] = useState(false);
@@ -504,11 +587,15 @@ function HomeView({ t, direction, subscriptionEndDateLabel, subscriptionDaysLabe
   const [promoLoading, setPromoLoading] = useState(false);
   const [promoError, setPromoError] = useState<string | null>(null);
 
+  const userQuery = userIdentifier
+    ? (userIdentifier.type === 'telegram' ? `telegramId=${encodeURIComponent(String(userIdentifier.telegramId))}` : `userId=${encodeURIComponent(String(userIdentifier.userId))}`)
+    : (tgUser ? `telegramId=${encodeURIComponent(String(tgUser.id))}` : '');
+
   const fetchDevices = async () => {
-    if (!tgUser?.id) return;
+    if (!userQuery) return;
     setDevicesLoading(true);
     try {
-      const res = await fetch(`/api/users/devices?telegramId=${encodeURIComponent(String(tgUser.id))}`);
+      const res = await fetch(`/api/users/devices?${userQuery}`);
       if (res.ok) {
         const data = await res.json();
         setDevices(data.devices ?? []);
@@ -528,10 +615,10 @@ function HomeView({ t, direction, subscriptionEndDateLabel, subscriptionDaysLabe
   };
 
   const handleDeleteDevice = async (deviceId: number) => {
-    if (!tgUser?.id) return;
+    if (!userQuery) return;
     if (!confirm(t.deleteDeviceConfirm)) return;
     try {
-      const res = await fetch(`/api/users/devices?telegramId=${encodeURIComponent(String(tgUser.id))}&deviceId=${deviceId}`, { method: 'DELETE' });
+      const res = await fetch(`/api/users/devices?${userQuery}&deviceId=${deviceId}`, { method: 'DELETE' });
       if (res.ok) {
         setDevices((prev) => prev.filter((d) => d.id !== deviceId));
       }
@@ -1233,7 +1320,7 @@ function FeatureItem({ text }: { text: string }) {
   );
 }
 
-function ProfileView({ t, lang, setLang, direction, tgUser, subscriptionDaysLabel, navigate }: { t: any; lang: string; setLang: (l: 'ru' | 'en') => void; direction: number; tgUser: { id: number; name: string; photo: string; username?: string } | null; subscriptionDaysLabel: string; navigate: (tab: Tab) => void }) {
+function ProfileView({ t, lang, setLang, direction, tgUser, subscriptionDaysLabel, navigate, authMode, onLogout }: { t: any; lang: string; setLang: (l: 'ru' | 'en') => void; direction: number; tgUser: { id: number; name: string; photo: string; username?: string } | null; subscriptionDaysLabel: string; navigate: (tab: Tab) => void; authMode?: AuthMode; onLogout?: () => void }) {
   const [servers, setServers] = useState<{ id: number; name: string; host: string; port: number; country: string; is_active: boolean }[]>([]);
   const [serversLoading, setServersLoading] = useState(false);
   const [showServers, setShowServers] = useState(false);
@@ -1407,6 +1494,15 @@ function ProfileView({ t, lang, setLang, direction, tgUser, subscriptionDaysLabe
                   <ChevronRight size={14} strokeWidth={1.5} className="text-zinc-600" />
                 </button>
               </div>
+            </div>
+          )}
+
+          {authMode === 'email' && onLogout && (
+            <div className="mt-3">
+              <button onClick={onLogout} className="w-full bg-zinc-900/40 border border-white/5 rounded-xl p-3 flex items-center justify-center gap-2 hover:bg-red-500/10 hover:border-red-500/20 transition-colors active:scale-[0.98]">
+                <LogOut size={16} strokeWidth={1.5} className="text-red-400" />
+                <span className="text-red-400 font-medium text-sm">{lang === 'ru' ? 'Выйти' : 'Log out'}</span>
+              </button>
             </div>
           )}
         </motion.div>
@@ -1917,6 +2013,207 @@ function AdminView({ t, direction, tgUser, navigate, lang }: { t: any; direction
         </div>
       </div>
     </motion.div>
+  );
+}
+
+function EmailAuthView({ lang, setLang, onLogin }: { lang: 'ru' | 'en'; setLang: (l: 'ru' | 'en') => void; onLogin: (user: { id: number; email: string; name: string }, sessionToken: string) => void }) {
+  const [step, setStep] = useState<'email' | 'code'>('email');
+  const [email, setEmail] = useState('');
+  const [code, setCode] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [cooldown, setCooldown] = useState(0);
+
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    const timer = setTimeout(() => setCooldown(cooldown - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [cooldown]);
+
+  const handleSendCode = async () => {
+    if (!email.trim()) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/auth/send-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || (lang === 'ru' ? 'Ошибка' : 'Error'));
+        return;
+      }
+      setStep('code');
+      setCooldown(60);
+    } catch {
+      setError(lang === 'ru' ? 'Ошибка сети' : 'Network error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyCode = async () => {
+    if (!code.trim()) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/auth/verify-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim(), code: code.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || (lang === 'ru' ? 'Неверный код' : 'Invalid code'));
+        return;
+      }
+      onLogin(data.user, data.sessionToken);
+    } catch {
+      setError(lang === 'ru' ? 'Ошибка сети' : 'Network error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    if (cooldown > 0) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/auth/send-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || (lang === 'ru' ? 'Ошибка' : 'Error'));
+        return;
+      }
+      setCooldown(60);
+      setCode('');
+    } catch {
+      setError(lang === 'ru' ? 'Ошибка сети' : 'Network error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen w-full bg-[#020202] flex flex-col items-center justify-center p-4 font-sans relative overflow-hidden">
+      <div className="fixed inset-0 z-0 pointer-events-none">
+        <div className="absolute -top-[20%] -left-[10%] w-[40vw] h-[40vw] max-w-[300px] max-h-[300px] rounded-full bg-white/10 blur-[55px]" />
+        <div className="absolute top-[40%] -right-[10%] w-[50vw] h-[50vw] max-w-[400px] max-h-[400px] rounded-full bg-white/5 blur-[65px]" />
+      </div>
+
+      <div className="relative z-10 w-full max-w-sm">
+        <div className="text-center mb-8">
+          <h1 className="font-syncopate font-bold text-xl tracking-[0.12em] text-white mb-1">
+            HUNDLER
+            <span className="relative inline-block ml-1.5">
+              <span className="absolute inset-0 bg-gradient-to-r from-white to-zinc-300 blur-sm opacity-35"></span>
+              <span className="relative text-transparent bg-clip-text bg-gradient-to-r from-zinc-200 via-white to-zinc-400">VPN</span>
+            </span>
+          </h1>
+          <p className="text-zinc-500 text-xs mt-2">
+            {lang === 'ru' ? 'Войдите или зарегистрируйтесь по email' : 'Sign in or register with email'}
+          </p>
+        </div>
+
+        <motion.div
+          initial={{ y: 10, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          className="bg-gradient-to-b from-[#151515] via-[#0b0b0b] to-[#020202] border border-white/15 rounded-2xl p-5 shadow-2xl"
+        >
+          {step === 'email' ? (
+            <>
+              <div className="mb-4">
+                <label className="text-zinc-400 text-[10px] uppercase tracking-wider block mb-1.5">Email</label>
+                <div className="relative">
+                  <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSendCode()}
+                    placeholder="user@example.com"
+                    autoFocus
+                    className="w-full bg-zinc-800/60 border border-white/10 rounded-xl pl-10 pr-3 py-3 text-sm text-white placeholder:text-zinc-500 outline-none focus:border-white/25 transition-colors"
+                  />
+                </div>
+              </div>
+
+              {error && <p className="text-red-400 text-xs mb-3">{error}</p>}
+
+              <button
+                onClick={handleSendCode}
+                disabled={loading || !email.trim()}
+                className="w-full bg-gradient-to-r from-white/20 to-white/10 border border-white/25 text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 text-sm transition-all"
+              >
+                {loading ? '...' : (lang === 'ru' ? 'Получить код' : 'Get code')}
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="mb-2">
+                <p className="text-zinc-400 text-xs mb-3">
+                  {lang === 'ru' ? 'Код отправлен на' : 'Code sent to'} <span className="text-white">{email}</span>
+                </p>
+                <button onClick={() => { setStep('email'); setError(null); setCode(''); }} className="text-zinc-500 text-[10px] hover:text-white transition-colors mb-3 inline-block">
+                  {lang === 'ru' ? '← Изменить email' : '← Change email'}
+                </button>
+              </div>
+
+              <div className="mb-4">
+                <label className="text-zinc-400 text-[10px] uppercase tracking-wider block mb-1.5">
+                  {lang === 'ru' ? 'Код подтверждения' : 'Verification code'}
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  onKeyDown={(e) => e.key === 'Enter' && handleVerifyCode()}
+                  placeholder="000000"
+                  autoFocus
+                  maxLength={6}
+                  className="w-full bg-zinc-800/60 border border-white/10 rounded-xl px-3 py-3 text-center text-lg font-mono text-white tracking-[0.5em] placeholder:text-zinc-600 placeholder:tracking-[0.5em] outline-none focus:border-white/25 transition-colors"
+                />
+              </div>
+
+              {error && <p className="text-red-400 text-xs mb-3">{error}</p>}
+
+              <button
+                onClick={handleVerifyCode}
+                disabled={loading || code.length < 6}
+                className="w-full bg-gradient-to-r from-white/20 to-white/10 border border-white/25 text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50 text-sm transition-all mb-3"
+              >
+                {loading ? '...' : (lang === 'ru' ? 'Войти' : 'Sign in')}
+              </button>
+
+              <button
+                onClick={handleResend}
+                disabled={cooldown > 0 || loading}
+                className="w-full text-zinc-500 text-xs py-2 hover:text-white transition-colors disabled:opacity-40"
+              >
+                {cooldown > 0
+                  ? (lang === 'ru' ? `Отправить повторно (${cooldown}с)` : `Resend (${cooldown}s)`)
+                  : (lang === 'ru' ? 'Отправить повторно' : 'Resend code')
+                }
+              </button>
+            </>
+          )}
+        </motion.div>
+
+        <div className="mt-4 text-center">
+          <button onClick={() => setLang(lang === 'ru' ? 'en' : 'ru')} className="text-zinc-600 text-xs hover:text-zinc-400 transition-colors">
+            {lang === 'ru' ? 'English' : 'Русский'}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
