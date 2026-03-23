@@ -116,18 +116,21 @@ if [ "$CLIENTS" = "$CURRENT_CLIENTS" ]; then
   exit 0
 fi
 
+TMP_CONFIG="${XRAY_CONFIG}.tmp.json"
+FAILED_CONFIG="${XRAY_CONFIG}.failed.json"
+
 # ── Apply ─────────────────────────────────────────────────────
-echo "$NEW_CONFIG" | jq . > "${XRAY_CONFIG}.tmp"
+echo "$NEW_CONFIG" | jq . > "$TMP_CONFIG"
 
 # Test config before applying
-if VALIDATION_OUTPUT=$(/usr/local/bin/xray -test -config "${XRAY_CONFIG}.tmp" 2>&1); then
-  mv "${XRAY_CONFIG}.tmp" "$XRAY_CONFIG"
+if VALIDATION_OUTPUT=$(/usr/local/bin/xray -test -config "$TMP_CONFIG" 2>&1); then
+  mv "$TMP_CONFIG" "$XRAY_CONFIG"
   systemctl restart xray
   echo "[$(date)] OK: Updated Xray config with ${CLIENT_COUNT} clients"
 else
   echo "$VALIDATION_OUTPUT"
-  cp "${XRAY_CONFIG}.tmp" "${XRAY_CONFIG}.failed"
-  rm -f "${XRAY_CONFIG}.tmp"
+  cp "$TMP_CONFIG" "$FAILED_CONFIG"
+  rm -f "$TMP_CONFIG"
   echo "[$(date)] ERROR: New config failed validation, keeping old config"
   exit 1
 fi
