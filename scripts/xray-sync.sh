@@ -77,10 +77,10 @@ NEW_CONFIG=$(cat <<CONF
         "decryption": "none"
       },
       "streamSettings": {
-        "network": "raw",
+        "network": "tcp",
         "security": "reality",
         "realitySettings": {
-          "target": "${TARGET}",
+          "dest": "${TARGET}",
           "serverNames": ["${SNI}"],
           "privateKey": "${PRIVATE_KEY}",
           "shortIds": ["${SHORT_ID}"]
@@ -120,11 +120,13 @@ fi
 echo "$NEW_CONFIG" | jq . > "${XRAY_CONFIG}.tmp"
 
 # Test config before applying
-if /usr/local/bin/xray -test -config "${XRAY_CONFIG}.tmp" > /dev/null 2>&1; then
+if VALIDATION_OUTPUT=$(/usr/local/bin/xray -test -config "${XRAY_CONFIG}.tmp" 2>&1); then
   mv "${XRAY_CONFIG}.tmp" "$XRAY_CONFIG"
   systemctl restart xray
   echo "[$(date)] OK: Updated Xray config with ${CLIENT_COUNT} clients"
 else
+  echo "$VALIDATION_OUTPUT"
+  cp "${XRAY_CONFIG}.tmp" "${XRAY_CONFIG}.failed"
   rm -f "${XRAY_CONFIG}.tmp"
   echo "[$(date)] ERROR: New config failed validation, keeping old config"
   exit 1

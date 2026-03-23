@@ -7,17 +7,18 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const { telegramId, targetUserId, ban, reason } = body as {
-      telegramId?: number;
-      targetUserId?: number;
+      telegramId?: number | string;
+      targetUserId?: number | string;
       ban?: boolean;
       reason?: string;
     };
+    const normalizedTargetUserId = typeof targetUserId === 'string' ? Number(targetUserId) : targetUserId;
 
     if (!isAdmin(telegramId)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    if (!targetUserId || !Number.isFinite(targetUserId)) {
+    if (!normalizedTargetUserId || !Number.isFinite(normalizedTargetUserId)) {
       return NextResponse.json({ error: 'targetUserId is required' }, { status: 400 });
     }
 
@@ -37,7 +38,7 @@ export async function POST(req: Request) {
         LIMIT 1
         FOR UPDATE;
         `,
-        [targetUserId]
+        [normalizedTargetUserId]
       );
 
       if (!userResult.rows[0]?.id) {
@@ -54,15 +55,15 @@ export async function POST(req: Request) {
             updated_at = NOW()
         WHERE id = $1;
         `,
-        [targetUserId, shouldBan, shouldBan ? (reason?.trim() || 'Banned by admin') : null]
+        [normalizedTargetUserId, shouldBan, shouldBan ? (reason?.trim() || 'Banned by admin') : null]
       );
 
       let restored = null;
 
       if (shouldBan) {
-        await banUserAccess(client, targetUserId);
+        await banUserAccess(client, normalizedTargetUserId);
       } else {
-        restored = await reactivatePaidAccessIfEligible(client, targetUserId);
+        restored = await reactivatePaidAccessIfEligible(client, normalizedTargetUserId);
       }
 
       await client.query('COMMIT');

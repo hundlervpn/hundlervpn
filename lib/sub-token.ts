@@ -58,9 +58,22 @@ export type ServerConfig = {
   flow: string;
 };
 
+function normalizeRemarkName(name: string | null | undefined): string {
+  const trimmed = (name ?? '').trim();
+  if (!trimmed) return 'Hundler VPN';
+
+  const compact = trimmed.replace(/\s+/g, '').toLowerCase();
+  if (compact === 'hundlervpn') {
+    return 'Hundler VPN';
+  }
+
+  return trimmed;
+}
+
 export function buildVlessLinkFromServer(uuid: string, server: ServerConfig): string {
+  const displayName = normalizeRemarkName(server.name);
   const flag = server.country ? countryCodeToFlag(server.country) : '';
-  const remark = flag ? `${flag} ${server.name}` : server.name;
+  const remark = flag ? `${flag} ${displayName}` : displayName;
 
   const query = new URLSearchParams({
     encryption: 'none',
@@ -86,7 +99,7 @@ export function buildVlessLink(uuid: string): string | null {
   const flow = process.env.XRAY_VLESS_FLOW ?? 'xtls-rprx-vision';
   const country = process.env.XRAY_VLESS_COUNTRY ?? '';
   const flag = country ? countryCodeToFlag(country) : '';
-  const baseRemark = process.env.XRAY_VLESS_REMARK ?? 'HundlerVPN';
+  const baseRemark = normalizeRemarkName(process.env.XRAY_VLESS_REMARK ?? 'Hundler VPN');
   const remark = flag ? `${flag} ${baseRemark}` : baseRemark;
 
   if (!host || !publicKey || !serverName || !shortId) {
@@ -109,7 +122,8 @@ export function buildVlessLink(uuid: string): string | null {
 
 export function getSubscriptionUrl(telegramId: number): string | null {
   const appUrl = process.env.APP_URL;
-  if (!appUrl) return null;
+  const secret = process.env.XRAY_SYNC_TOKEN;
+  if (!appUrl || !secret) return null;
   const token = generateSubToken(telegramId);
   return `${appUrl}/api/sub/${token}`;
 }

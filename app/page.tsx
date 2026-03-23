@@ -1400,7 +1400,7 @@ type AdminStats = {
 };
 
 type AdminUser = {
-  id: number;
+  id: string;
   telegram_id: string;
   username: string | null;
   first_name: string | null;
@@ -1487,14 +1487,20 @@ function AdminView({ t, direction, tgUser, navigate, lang }: { t: any; direction
     } catch { /* ignore */ } finally { setPromosLoading(false); }
   };
 
-  const handleBan = async (userId: number, ban: boolean) => {
+  const handleBan = async (userId: number | string, ban: boolean) => {
     if (!tgId) return;
-    setBanningId(userId);
+    const normalizedUserId = typeof userId === 'string' ? Number(userId) : userId;
+    if (!Number.isFinite(normalizedUserId)) {
+      alert('Invalid user id');
+      return;
+    }
+
+    setBanningId(normalizedUserId);
     try {
       const res = await fetch('/api/admin/ban', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ telegramId: tgId, targetUserId: userId, ban }),
+        body: JSON.stringify({ telegramId: tgId, targetUserId: normalizedUserId, ban }),
       });
 
       if (!res.ok) {
@@ -1672,7 +1678,7 @@ function AdminView({ t, direction, tgUser, navigate, lang }: { t: any; direction
                           {u.is_banned ? (
                             <button
                               onClick={() => handleBan(u.id, false)}
-                              disabled={banningId === u.id}
+                              disabled={banningId === Number(u.id)}
                               className="text-[10px] px-2 py-1 rounded-md bg-green-500/20 text-green-300 border border-green-500/30 hover:bg-green-500/30 disabled:opacity-50"
                             >
                               {t.adminUnban}
@@ -1680,7 +1686,7 @@ function AdminView({ t, direction, tgUser, navigate, lang }: { t: any; direction
                           ) : (
                             <button
                               onClick={() => handleBan(u.id, true)}
-                              disabled={banningId === u.id}
+                              disabled={banningId === Number(u.id)}
                               className="text-[10px] px-2 py-1 rounded-md bg-red-500/20 text-red-300 border border-red-500/30 hover:bg-red-500/30 disabled:opacity-50"
                             >
                               {t.adminBan}

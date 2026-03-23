@@ -3,7 +3,7 @@ import { dbQuery } from '@/lib/db';
 import { isAdmin } from '@/lib/admin';
 
 type AdminUser = {
-  id: number;
+  id: string;
   telegram_id: string;
   username: string | null;
   first_name: string | null;
@@ -52,7 +52,7 @@ export async function GET(req: Request) {
     const result = await dbQuery<AdminUser>(
       `
       SELECT
-        u.id,
+        u.id::text AS id,
         u.telegram_id::text AS telegram_id,
         u.username,
         u.first_name,

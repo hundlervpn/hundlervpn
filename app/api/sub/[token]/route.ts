@@ -82,13 +82,13 @@ export async function GET(
       ? Math.floor(new Date(latestExpiry).getTime() / 1000)
       : 0;
 
-    const profileTitle = 'HundlerVPN';
+    const profileTitle = 'Hundler VPN';
 
     const headers = new Headers({
       'Content-Type': 'text/plain; charset=utf-8',
       'subscription-userinfo': `upload=0; download=0; total=0; expire=${expireTs}`,
       'profile-update-interval': '12',
-      'profile-title': Buffer.from(profileTitle).toString('base64'),
+      'profile-title': profileTitle,
       'Cache-Control': 'no-store',
     });
 
