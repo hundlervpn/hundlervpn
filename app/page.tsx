@@ -112,7 +112,10 @@ const translations = {
     adminPromoCreate: 'Создать',
     adminBackToProfile: 'Назад в профиль',
     adminNoUsers: 'Пользователей не найдено',
-    adminNoPromos: 'Промокодов пока нет'
+    adminNoPromos: 'Промокодов пока нет',
+    promoPlaceholder: 'Введите промокод',
+    promoApply: 'Активировать',
+    promoApplySuccess: 'Промокод применён'
   },
   en: {
     navVpn: 'Home', navPremium: 'Payment', navProfile: 'Profile',
@@ -191,7 +194,10 @@ const translations = {
     adminPromoCreate: 'Create',
     adminBackToProfile: 'Back to profile',
     adminNoUsers: 'No users found',
-    adminNoPromos: 'No promo codes yet'
+    adminNoPromos: 'No promo codes yet',
+    promoPlaceholder: 'Enter promo code',
+    promoApply: 'Activate',
+    promoApplySuccess: 'Promo code applied'
   }
 };
 
@@ -237,6 +243,16 @@ export default function App() {
   const [tgUser, setTgUser] = useState<{ id: number; name: string; photo: string; username?: string } | null>(null);
   const [subscriptionState, setSubscriptionState] = useState<{ endDate: string | null; daysLeft: number; status: string } | null>(null);
 
+  const refreshSubscriptionState = async (telegramId: number) => {
+    const stateResponse = await fetch(`/api/users/state?telegramId=${encodeURIComponent(String(telegramId))}`);
+    if (stateResponse.ok) {
+      const statePayload = await stateResponse.json();
+      setSubscriptionState(statePayload.profile ?? { endDate: null, daysLeft: 0, status: 'none' });
+      return;
+    }
+    setSubscriptionState({ endDate: null, daysLeft: 0, status: 'none' });
+  };
+
   // Get Telegram user data on mount
   useEffect(() => {
     const initTg = async () => {
@@ -265,7 +281,7 @@ export default function App() {
             : null;
 
           try {
-            await fetch('/api/users/sync', {
+            const syncResponse = await fetch('/api/users/sync', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -278,13 +294,12 @@ export default function App() {
               }),
             });
 
-            const stateResponse = await fetch(`/api/users/state?telegramId=${encodeURIComponent(String(user.id))}`);
-            if (stateResponse.ok) {
-              const statePayload = await stateResponse.json();
-              setSubscriptionState(statePayload.profile ?? { endDate: null, daysLeft: 0, status: 'none' });
-            } else {
-              setSubscriptionState({ endDate: null, daysLeft: 0, status: 'none' });
+            if (!syncResponse.ok) {
+              const syncPayload = await syncResponse.json().catch(() => ({ error: 'Sync failed' }));
+              throw new Error(syncPayload.error || 'Sync failed');
             }
+
+            await refreshSubscriptionState(user.id);
           } catch (error) {
             setSubscriptionState({ endDate: null, daysLeft: 0, status: 'none' });
             console.error('Failed to sync telegram user:', error);
@@ -381,7 +396,7 @@ export default function App() {
           <div className="w-full max-w-6xl mx-auto lg:flex-1 lg:flex lg:flex-col lg:items-center lg:justify-start">
             <AnimatePresence mode="wait" custom={direction}>
               {activeTab === 'home' && <HomeView key="home" t={t} direction={direction} subscriptionEndDateLabel={subscriptionEndDateLabel} tgUser={tgUser} />}
-              {activeTab === 'payment' && <PaymentView key="payment" t={t} direction={direction} />}
+              {activeTab === 'payment' && <PaymentView key="payment" t={t} direction={direction} tgUser={tgUser} onSubscriptionChange={refreshSubscriptionState} />}
               {activeTab === 'profile' && <ProfileView key="profile" t={t} lang={lang} setLang={setLang} direction={direction} tgUser={tgUser} subscriptionDaysLabel={subscriptionDaysLabel} navigate={navigate} />}
               {activeTab === 'payments' && <PaymentsHistoryView key="payments" t={t} direction={direction} tgUser={tgUser} navigate={navigate} lang={lang} />}
               {activeTab === 'admin' && <AdminView key="admin" t={t} direction={direction} tgUser={tgUser} navigate={navigate} lang={lang} />}
@@ -668,7 +683,7 @@ function HomeView({ t, direction, subscriptionEndDateLabel, tgUser }: { t: any, 
 
                     <button
                       onClick={() => setShowDevicePicker((prev) => !prev)}
-                      className="w-full border border-white/20 text-white font-medium py-3 sm:py-3.5 rounded-full flex items-center justify-center gap-2 active:scale-95 text-sm sm:text-base"
+                      className="w-full border border-white/20 text-white font-medium py-3 sm:py-3.5 rounded-full flex items-center justify-center gap-2 active:scale-95 transition-colors hover:text-white hover:border-white/25"
                     >
                       <MonitorSmartphone size={14} className="sm:w-4 sm:h-4" /> {t.setupOtherDevice}
                     </button>
@@ -907,15 +922,47 @@ function HomeView({ t, direction, subscriptionEndDateLabel, tgUser }: { t: any, 
   );
 }
 
-function PaymentView({ t, direction }: { t: any, direction: number }) {
+function PaymentView({ t, direction, tgUser, onSubscriptionChange }: { t: any, direction: number; tgUser: { id: number; name: string; photo: string; username?: string } | null; onSubscriptionChange: (telegramId: number) => Promise<void> }) {
   const [months, setMonths] = useState(1);
   const [payMethod, setPayMethod] = useState<'tg' | 'crypto' | 'sbp'>('tg');
   const [isLoading, setIsLoading] = useState(false);
+  const [promoCode, setPromoCode] = useState('');
+  const [promoLoading, setPromoLoading] = useState(false);
 
   const basePrice = 1; 
   const discountPerMonth = 0; 
   const pricePerMonth = Math.max(1, basePrice - (months - 1) * discountPerMonth);
   const totalPrice = pricePerMonth * months;
+
+  const handleApplyPromo = async () => {
+    if (!tgUser?.id || !promoCode.trim()) return;
+    setPromoLoading(true);
+    try {
+      const response = await fetch('/api/promos/apply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          telegramId: tgUser.id,
+          username: tgUser.username,
+          photoUrl: tgUser.photo,
+          code: promoCode.trim(),
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        alert(data.error || 'Ошибка применения промокода');
+        return;
+      }
+      setPromoCode('');
+      await onSubscriptionChange(tgUser.id);
+      alert(t.promoApplySuccess);
+    } catch (error) {
+      console.error('Promo apply error:', error);
+      alert('Ошибка применения промокода');
+    } finally {
+      setPromoLoading(false);
+    }
+  };
 
   const handleSubscribe = async () => {
     setIsLoading(true);
@@ -924,7 +971,10 @@ function PaymentView({ t, direction }: { t: any, direction: number }) {
         const response = await fetch('/api/invoice', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ months, amount: 1 }),
+          body: JSON.stringify({
+            months,
+            amount: 1,
+          }),
         });
         const data = await response.json();
         if (data.invoiceLink) {
@@ -932,6 +982,11 @@ function PaymentView({ t, direction }: { t: any, direction: number }) {
             try {
               const result = await window.Telegram.WebApp.openInvoice(data.invoiceLink);
               if (result.status === 'paid') {
+                if (tgUser?.id) {
+                  setTimeout(() => {
+                    void onSubscriptionChange(tgUser.id);
+                  }, 1500);
+                }
                 alert('Оплата прошла успешно!');
               } else if (result.status === 'cancelled') {
                 alert('Оплата отменена');
@@ -952,7 +1007,10 @@ function PaymentView({ t, direction }: { t: any, direction: number }) {
         const response = await fetch('/api/crypto-invoice', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ months, amount: 0.5 }),
+          body: JSON.stringify({
+            months,
+            amount: 0.5,
+          }),
         });
         const data = await response.json();
         if (data.paymentUrl) {
@@ -989,7 +1047,31 @@ function PaymentView({ t, direction }: { t: any, direction: number }) {
         <motion.div 
           initial={{ y: 10, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.1, duration: 0.25 }}
+          transition={{ delay: 0.12, duration: 0.25 }}
+          className="bg-zinc-900/40 border border-white/10 rounded-xl p-3 mb-3 lg:p-6"
+        >
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={promoCode}
+              onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+              placeholder={t.promoPlaceholder}
+              className="flex-1 bg-zinc-800/60 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-zinc-500 outline-none focus:border-white/25"
+            />
+            <button
+              onClick={handleApplyPromo}
+              disabled={promoLoading || !promoCode.trim() || !tgUser?.id}
+              className="px-3 py-2.5 rounded-lg bg-white/10 border border-white/15 text-white text-sm hover:bg-white/15 disabled:opacity-50"
+            >
+              {promoLoading ? '...' : t.promoApply}
+            </button>
+          </div>
+        </motion.div>
+
+        <motion.div 
+          initial={{ y: 10, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.15, duration: 0.25 }}
           className="bg-zinc-900/40 border border-white/10 rounded-xl p-3 mb-3 lg:p-6"
         >
           <div className="flex justify-between items-end mb-3">

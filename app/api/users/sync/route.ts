@@ -1,7 +1,12 @@
-import { randomUUID } from 'crypto';
 import { NextResponse } from 'next/server';
 import { getDbPool } from '@/lib/db';
-import { buildVlessLink, getSubscriptionUrl } from '@/lib/sub-token';
+import { getSubscriptionUrl } from '@/lib/sub-token';
+import {
+  deactivateExpiredAccess,
+  issueTrialAccess,
+  upsertTelegramUser,
+  userNeedsInitialTrial,
+} from '@/lib/access';
 
 type SyncBody = {
   telegramId?: number;
@@ -11,7 +16,6 @@ type SyncBody = {
   photoUrl?: string;
   startParam?: string;
 };
-
 
 function parseReferralCode(startParam?: string | null) {
   const raw = (startParam ?? '').trim();
@@ -53,121 +57,33 @@ export async function POST(req: Request) {
         : { rows: [] as { id: number }[] };
       const inviterId = inviterResult.rows[0]?.id ?? null;
 
-      const result = await client.query<{ id: number; inserted: boolean; referral_code: string | null; referred_by_user_id: number | null }>(
-        `
-        INSERT INTO users (
-          telegram_id,
-          username,
-          first_name,
-          last_name,
-          photo_url,
-          status,
-          is_banned,
-          auto_renew,
-          last_seen_at,
-          referral_code,
-          referred_by_user_id
-        )
-        VALUES (
-          $1,
-          $2,
-          $3,
-          $4,
-          $5,
-          'active',
-          false,
-          false,
-          NOW(),
-          $6,
-          CASE WHEN $7 IS NOT NULL THEN $7 ELSE NULL END
-        )
-        ON CONFLICT (telegram_id)
-        DO UPDATE SET
-          username = COALESCE(EXCLUDED.username, users.username),
-          first_name = COALESCE(EXCLUDED.first_name, users.first_name),
-          last_name = COALESCE(EXCLUDED.last_name, users.last_name),
-          photo_url = COALESCE(EXCLUDED.photo_url, users.photo_url),
-          last_seen_at = NOW(),
-          referral_code = COALESCE(users.referral_code, EXCLUDED.referral_code),
-          updated_at = NOW()
-        RETURNING id, (xmax = 0) AS inserted, referral_code, referred_by_user_id;
-        `,
-        [telegramId, username, firstName, lastName, photoUrl, ownReferralCode, inviterId]
-      );
+      const syncedUser = await upsertTelegramUser(client, {
+        telegramId,
+        username,
+        firstName,
+        lastName,
+        photoUrl,
+        referralCode: ownReferralCode,
+        referredByUserId: inviterId,
+      });
 
-      const row = result.rows[0];
-      const userId = row?.id ?? null;
+      const userId = syncedUser.userId;
 
       if (!userId) {
         throw new Error('Failed to sync user');
       }
 
-      if (row.inserted) {
-        const trialPlanName = 'Free Trial 3d';
-        await client.query(
-          `
-          INSERT INTO plans (name, duration_days, price, max_devices, traffic_limit, is_active)
-          VALUES ($1, 3, 0, 1, NULL, TRUE)
-          ON CONFLICT DO NOTHING;
-          `,
-          [trialPlanName]
-        );
-
-        const planResult = await client.query<{ id: number }>(
-          'SELECT id FROM plans WHERE name = $1 ORDER BY id DESC LIMIT 1;',
-          [trialPlanName]
-        );
-        const trialPlanId = planResult.rows[0]?.id;
-
-        if (trialPlanId) {
-          const trialSub = await client.query<{ id: number; end_date: Date }>(
-            `
-            INSERT INTO subscriptions (user_id, plan_id, start_date, end_date, status)
-            VALUES ($1, $2, NOW(), NOW() + INTERVAL '3 days', 'active')
-            RETURNING id, end_date;
-            `,
-            [userId, trialPlanId]
-          );
-
-          const subId = trialSub.rows[0]?.id;
-          const endDate = trialSub.rows[0]?.end_date;
-          if (subId && endDate) {
-            const clientUuid = randomUUID();
-            const vlessKey = buildVlessLink(clientUuid);
-
-            await client.query(
-              `
-              INSERT INTO vpn_keys (user_id, subscription_id, server_id, key_uri, key_hash, device_name, created_at, expires_at, is_active)
-              VALUES ($1, $2, NULL, $3, $4, $5, NOW(), $6, TRUE);
-              `,
-              [
-                userId,
-                subId,
-                vlessKey ?? `pending://xray-config-required/${clientUuid}`,
-                clientUuid,
-                'Free Trial Device',
-                endDate,
-              ]
-            );
-          }
-        }
+      const shouldCreateTrial = syncedUser.inserted || await userNeedsInitialTrial(client, userId);
+      if (shouldCreateTrial) {
+        await issueTrialAccess(client, userId, telegramId);
       }
 
-      await client.query(
-        `
-        UPDATE vpn_keys
-        SET is_active = FALSE
-        WHERE user_id = $1
-          AND expires_at IS NOT NULL
-          AND expires_at <= NOW();
-        `,
-        [userId]
-      );
+      await deactivateExpiredAccess(client, userId);
 
       await client.query('COMMIT');
 
       const subUrl = getSubscriptionUrl(telegramId);
-      return NextResponse.json({ ok: true, userId, referralCode: row.referral_code ?? ownReferralCode, subscriptionUrl: subUrl });
+      return NextResponse.json({ ok: true, userId, referralCode: syncedUser.referralCode ?? ownReferralCode, subscriptionUrl: subUrl });
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
