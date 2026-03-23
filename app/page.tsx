@@ -217,7 +217,7 @@ const translations = {
 
 const ADMIN_TELEGRAM_IDS = [2029065770, 1483598839];
 
-const tabs = ['home', 'payment', 'profile', 'payments', 'admin'] as const;
+const tabs = ['home', 'payment', 'profile', 'payments', 'admin', 'servers'] as const;
 type Tab = typeof tabs[number];
 
 const pageVariants = {
@@ -500,6 +500,7 @@ export default function App() {
               {activeTab === 'profile' && <ProfileView key="profile" t={t} lang={lang} setLang={setLang} direction={direction} tgUser={tgUser} subscriptionDaysLabel={subscriptionDaysLabel} navigate={navigate} authMode={authMode} onLogout={handleEmailLogout} />}
               {activeTab === 'payments' && <PaymentsHistoryView key="payments" t={t} direction={direction} tgUser={tgUser} navigate={navigate} lang={lang} />}
               {activeTab === 'admin' && <AdminView key="admin" t={t} direction={direction} tgUser={tgUser} navigate={navigate} lang={lang} />}
+              {activeTab === 'servers' && <ServersView key="servers" t={t} direction={direction} navigate={navigate} />}
             </AnimatePresence>
           </div>
         </main>
@@ -1321,29 +1322,6 @@ function FeatureItem({ text }: { text: string }) {
 }
 
 function ProfileView({ t, lang, setLang, direction, tgUser, subscriptionDaysLabel, navigate, authMode, onLogout }: { t: any; lang: string; setLang: (l: 'ru' | 'en') => void; direction: number; tgUser: { id: number; name: string; photo: string; username?: string } | null; subscriptionDaysLabel: string; navigate: (tab: Tab) => void; authMode?: AuthMode; onLogout?: () => void }) {
-  const [servers, setServers] = useState<{ id: number; name: string; host: string; port: number; country: string; is_active: boolean }[]>([]);
-  const [serversLoading, setServersLoading] = useState(false);
-  const [showServers, setShowServers] = useState(false);
-
-  const fetchServers = async () => {
-    setServersLoading(true);
-    try {
-      const res = await fetch('/api/servers');
-      if (res.ok) {
-        const data = await res.json();
-        setServers(data.servers ?? []);
-      }
-    } catch { /* ignore */ } finally { setServersLoading(false); }
-  };
-
-  const handleServersClick = () => {
-    setShowServers(!showServers);
-    if (!showServers && servers.length === 0) fetchServers();
-  };
-
-  const countryFlags: Record<string, string> = { NL: '\u{1F1F3}\u{1F1F1}', DE: '\u{1F1E9}\u{1F1EA}', US: '\u{1F1FA}\u{1F1F8}', FI: '\u{1F1EB}\u{1F1EE}', RU: '\u{1F1F7}\u{1F1FA}', GB: '\u{1F1EC}\u{1F1E7}', FR: '\u{1F1EB}\u{1F1F7}', SE: '\u{1F1F8}\u{1F1EA}' };
-  const getFlag = (country: string) => countryFlags[country.toUpperCase()] || '\u{1F310}';
-
   const handleReferralClick = async () => {
     if (!tgUser?.id) return;
 
@@ -1444,41 +1422,13 @@ function ProfileView({ t, lang, setLang, direction, tgUser, subscriptionDaysLabe
           <div>
             <h3 className="text-[10px] font-medium text-zinc-500 uppercase tracking-widest mb-2 px-2">{t.serversTitle}</h3>
             <div className="bg-zinc-900/40 border border-white/5 rounded-xl overflow-hidden">
-              <button onClick={handleServersClick} className="w-full flex items-center justify-between p-3 hover:bg-white/5 transition-colors active:scale-[0.98]">
+              <button onClick={() => navigate('servers')} className="w-full flex items-center justify-between p-3 hover:bg-white/5 transition-colors active:scale-[0.98]">
                 <div className="flex items-center gap-2">
                   <Globe size={18} strokeWidth={1.5} className="text-zinc-400" />
                   <span className="text-zinc-200 font-medium text-sm">{t.serversTitle}</span>
                 </div>
-                <ChevronRight size={14} strokeWidth={1.5} className={`text-zinc-600 transition-transform ${showServers ? 'rotate-90' : ''}`} />
+                <ChevronRight size={14} strokeWidth={1.5} className="text-zinc-600" />
               </button>
-
-              {showServers && (
-                <div className="border-t border-white/5">
-                  {serversLoading ? (
-                    <div className="text-center py-4 text-zinc-400 text-xs">...</div>
-                  ) : servers.length === 0 ? (
-                    <div className="text-center py-4 text-zinc-500 text-xs">{t.noServers}</div>
-                  ) : (
-                    <div className="p-2 space-y-1.5">
-                      {servers.map((srv) => (
-                        <div key={srv.id} className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg bg-zinc-800/40 border border-white/5">
-                          <span className="text-base">{getFlag(srv.country)}</span>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-zinc-200 text-xs font-medium truncate">{srv.name}</p>
-                            <p className="text-zinc-500 text-[10px]">{srv.country}</p>
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            <div className={`w-1.5 h-1.5 rounded-full ${srv.is_active ? 'bg-green-400 shadow-[0_0_4px_rgba(74,222,128,0.5)]' : 'bg-red-400'}`} />
-                            <span className={`text-[9px] uppercase tracking-wider font-medium ${srv.is_active ? 'text-green-400' : 'text-red-400'}`}>
-                              {srv.is_active ? t.serverActive : t.serverInactive}
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
           </div>
 
@@ -2011,6 +1961,93 @@ function AdminView({ t, direction, tgUser, navigate, lang }: { t: any; direction
             </div>
           )}
         </div>
+      </div>
+    </motion.div>
+  );
+}
+
+function ServersView({ t, direction, navigate }: { t: any; direction: number; navigate: (tab: Tab) => void }) {
+  const [servers, setServers] = useState<{ id: number; name: string; host: string; port: number; country: string; is_active: boolean; created_at: string }[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const countryFlags: Record<string, string> = { NL: '\u{1F1F3}\u{1F1F1}', DE: '\u{1F1E9}\u{1F1EA}', US: '\u{1F1FA}\u{1F1F8}', FI: '\u{1F1EB}\u{1F1EE}', RU: '\u{1F1F7}\u{1F1FA}', GB: '\u{1F1EC}\u{1F1E7}', FR: '\u{1F1EB}\u{1F1F7}', SE: '\u{1F1F8}\u{1F1EA}', CA: '\u{1F1E8}\u{1F1E6}', JP: '\u{1F1EF}\u{1F1F5}', AU: '\u{1F1E6}\u{1F1FA}', SG: '\u{1F1F8}\u{1F1EC}' };
+  const getFlag = (country: string) => countryFlags[country.toUpperCase()] || '\u{1F310}';
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch('/api/servers');
+        if (res.ok) {
+          const data = await res.json();
+          setServers(data.servers ?? []);
+        }
+      } catch { /* ignore */ } finally { setLoading(false); }
+    })();
+  }, []);
+
+  const activeCount = servers.filter(s => s.is_active).length;
+
+  return (
+    <motion.div
+      custom={direction}
+      variants={pageVariants}
+      initial="initial"
+      animate="animate"
+      exit="exit"
+      transition={{ duration: 0.25 }}
+      className="w-full max-w-md mx-auto"
+    >
+      <div className="px-4 pb-28 space-y-4">
+        <div className="flex items-center gap-3 mb-2">
+          <button onClick={() => navigate('profile')} className="text-zinc-500 hover:text-white transition-colors p-1 -ml-1">
+            <ChevronRight size={20} strokeWidth={1.5} className="rotate-180" />
+          </button>
+          <h2 className="text-white font-semibold text-lg">{t.serversTitle}</h2>
+        </div>
+
+        {!loading && servers.length > 0 && (
+          <div className="flex items-center gap-3 px-1">
+            <div className="flex items-center gap-1.5">
+              <div className="w-2 h-2 rounded-full bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.5)]" />
+              <span className="text-green-400 text-xs font-medium">{activeCount} {t.serverActive.toLowerCase()}</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-2 h-2 rounded-full bg-red-400" />
+              <span className="text-red-400 text-xs font-medium">{servers.length - activeCount} {t.serverInactive.toLowerCase()}</span>
+            </div>
+          </div>
+        )}
+
+        {loading ? (
+          <div className="text-center py-16 text-zinc-500 text-sm">...</div>
+        ) : servers.length === 0 ? (
+          <div className="text-center py-16">
+            <Globe size={40} strokeWidth={1} className="text-zinc-700 mx-auto mb-3" />
+            <p className="text-zinc-500 text-sm">{t.noServers}</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {servers.map((srv) => (
+              <div key={srv.id} className="bg-gradient-to-b from-zinc-900/60 to-zinc-900/30 border border-white/8 rounded-xl p-4 hover:border-white/15 transition-colors">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-zinc-800/80 border border-white/10 flex items-center justify-center text-xl">
+                    {getFlag(srv.country)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-white text-sm font-semibold truncate">{srv.name}</p>
+                      <div className={`w-2 h-2 rounded-full shrink-0 ${srv.is_active ? 'bg-green-400 shadow-[0_0_6px_rgba(74,222,128,0.5)]' : 'bg-red-400 shadow-[0_0_6px_rgba(248,113,113,0.3)]'}`} />
+                    </div>
+                    <p className="text-zinc-500 text-xs mt-0.5">{srv.country} · {srv.host}</p>
+                  </div>
+                  <div className={`text-[10px] uppercase tracking-wider font-bold px-2.5 py-1 rounded-lg ${srv.is_active ? 'text-green-400 bg-green-400/10 border border-green-400/20' : 'text-red-400 bg-red-400/10 border border-red-400/20'}`}>
+                    {srv.is_active ? t.serverActive : t.serverInactive}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </motion.div>
   );
