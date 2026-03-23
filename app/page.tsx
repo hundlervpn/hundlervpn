@@ -241,16 +241,16 @@ export default function App() {
   const [direction, setDirection] = useState(0);
   const [lang, setLang] = useState<'ru' | 'en'>('ru');
   const [tgUser, setTgUser] = useState<{ id: number; name: string; photo: string; username?: string } | null>(null);
-  const [subscriptionState, setSubscriptionState] = useState<{ endDate: string | null; daysLeft: number; status: string } | null>(null);
+  const [subscriptionState, setSubscriptionState] = useState<{ endDate: string | null; daysLeft: number; status: string; subscriptionUrl: string | null } | null>(null);
 
   const refreshSubscriptionState = async (telegramId: number) => {
     const stateResponse = await fetch(`/api/users/state?telegramId=${encodeURIComponent(String(telegramId))}`);
     if (stateResponse.ok) {
       const statePayload = await stateResponse.json();
-      setSubscriptionState(statePayload.profile ?? { endDate: null, daysLeft: 0, status: 'none' });
+      setSubscriptionState(statePayload.profile ?? { endDate: null, daysLeft: 0, status: 'none', subscriptionUrl: null });
       return;
     }
-    setSubscriptionState({ endDate: null, daysLeft: 0, status: 'none' });
+    setSubscriptionState({ endDate: null, daysLeft: 0, status: 'none', subscriptionUrl: null });
   };
 
   // Get Telegram user data on mount
@@ -301,7 +301,7 @@ export default function App() {
 
             await refreshSubscriptionState(user.id);
           } catch (error) {
-            setSubscriptionState({ endDate: null, daysLeft: 0, status: 'none' });
+            setSubscriptionState({ endDate: null, daysLeft: 0, status: 'none', subscriptionUrl: null });
             console.error('Failed to sync telegram user:', error);
           }
         }
@@ -314,12 +314,15 @@ export default function App() {
   }, []);
 
   const t = translations[lang];
+  const hasActiveSubscription = subscriptionState?.status === 'active';
   const subscriptionEndDateLabel = subscriptionState?.endDate
     ? new Date(subscriptionState.endDate).toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'en-GB')
     : (lang === 'ru' ? 'Нет подписки' : 'No subscription');
-  const subscriptionDaysLabel = lang === 'ru'
-    ? `Осталось ${subscriptionState?.daysLeft ?? 0} дн.`
-    : `${subscriptionState?.daysLeft ?? 0} days left`;
+  const subscriptionDaysLabel = hasActiveSubscription
+    ? (lang === 'ru'
+        ? `Осталось ${subscriptionState?.daysLeft ?? 0} дн.`
+        : `${subscriptionState?.daysLeft ?? 0} days left`)
+    : (lang === 'ru' ? 'Нет активной подписки' : 'No active subscription');
 
   const navigate = (newTab: Tab) => {
     if (newTab === activeTab) return;
@@ -395,7 +398,7 @@ export default function App() {
 
           <div className="w-full max-w-6xl mx-auto lg:flex-1 lg:flex lg:flex-col lg:items-center lg:justify-start">
             <AnimatePresence mode="wait" custom={direction}>
-              {activeTab === 'home' && <HomeView key="home" t={t} direction={direction} subscriptionEndDateLabel={subscriptionEndDateLabel} tgUser={tgUser} onSubscriptionChange={refreshSubscriptionState} />}
+              {activeTab === 'home' && <HomeView key="home" t={t} direction={direction} subscriptionEndDateLabel={subscriptionEndDateLabel} subscriptionDaysLabel={subscriptionDaysLabel} subscriptionUrl={subscriptionState?.subscriptionUrl ?? null} tgUser={tgUser} onSubscriptionChange={refreshSubscriptionState} />}
               {activeTab === 'payment' && <PaymentView key="payment" t={t} direction={direction} tgUser={tgUser} onSubscriptionChange={refreshSubscriptionState} />}
               {activeTab === 'profile' && <ProfileView key="profile" t={t} lang={lang} setLang={setLang} direction={direction} tgUser={tgUser} subscriptionDaysLabel={subscriptionDaysLabel} navigate={navigate} />}
               {activeTab === 'payments' && <PaymentsHistoryView key="payments" t={t} direction={direction} tgUser={tgUser} navigate={navigate} lang={lang} />}
@@ -470,7 +473,7 @@ function DesktopSidebar({ t, activeTab, navigate }: { t: any; activeTab: Tab; na
   );
 }
 
-function HomeView({ t, direction, subscriptionEndDateLabel, tgUser, onSubscriptionChange }: { t: any, direction: number; subscriptionEndDateLabel: string; tgUser: { id: number; name: string; photo: string; username?: string } | null; onSubscriptionChange: (telegramId: number) => Promise<void> }) {
+function HomeView({ t, direction, subscriptionEndDateLabel, subscriptionDaysLabel, subscriptionUrl, tgUser, onSubscriptionChange }: { t: any, direction: number; subscriptionEndDateLabel: string; subscriptionDaysLabel: string; subscriptionUrl: string | null; tgUser: { id: number; name: string; photo: string; username?: string } | null; onSubscriptionChange: (telegramId: number) => Promise<void> }) {
   const [showSetupModal, setShowSetupModal] = useState(false);
   const [showDevicesModal, setShowDevicesModal] = useState(false);
   const [showPromoModal, setShowPromoModal] = useState(false);
@@ -550,6 +553,11 @@ function HomeView({ t, direction, subscriptionEndDateLabel, tgUser, onSubscripti
     setVpnKeyLoading(true);
     setKeyCopied(false);
     try {
+      if (subscriptionUrl) {
+        setVpnKey(subscriptionUrl);
+        return;
+      }
+
       const res = await fetch(`/api/users/devices?telegramId=${encodeURIComponent(String(tgUser.id))}`);
       if (res.ok) {
         const data = await res.json();
@@ -761,7 +769,7 @@ function HomeView({ t, direction, subscriptionEndDateLabel, tgUser, onSubscripti
                               onClick={copyKey}
                               className={`w-full font-medium py-2.5 rounded-lg flex items-center justify-center gap-2 text-sm active:scale-95 transition-all ${keyCopied ? 'bg-green-500/20 border border-green-500/30 text-green-300' : 'border border-white/15 text-white hover:bg-white/5'}`}
                             >
-                              {keyCopied ? <><ClipboardCheck size={14} /> {t.setupKeyCopied}</> : <><Copy size={14} /> {t.setupCopyForOther}</>}
+                              {keyCopied ? <><ClipboardCheck size={14} /> {subscriptionUrl ? t.setupLinkCopied : t.setupKeyCopied}</> : <><Copy size={14} /> {subscriptionUrl ? t.setupCopyLink : t.setupCopyForOther}</>}
                             </button>
                           </>
                         ) : (
@@ -817,21 +825,21 @@ function HomeView({ t, direction, subscriptionEndDateLabel, tgUser, onSubscripti
               {setupStep === 3 && (
                 <>
                   <h3 className="text-lg sm:text-2xl font-bold text-center text-white mb-1.5 sm:mb-2">{t.setupAddTitle}</h3>
-                  <p className="text-zinc-400 text-center text-xs sm:text-sm mb-3 sm:mb-4">{t.setupAddDesc}</p>
+                  <p className="text-zinc-400 text-center text-xs sm:text-sm mb-3 sm:mb-4">{subscriptionUrl ? 'Скопируйте ссылку подписки и вставьте её в приложение Happ.' : t.setupAddDesc}</p>
 
                   {vpnKeyLoading ? (
                     <div className="text-center py-4 text-zinc-400 text-sm">{t.setupKeyLoading}</div>
                   ) : vpnKey ? (
                     <div className="mb-4">
                       <div className="rounded-xl border border-white/10 bg-zinc-900/60 p-3 mb-3">
-                        <p className="text-zinc-500 text-[9px] uppercase tracking-wider mb-1.5">VLESS Key</p>
+                        <p className="text-zinc-500 text-[9px] uppercase tracking-wider mb-1.5">{subscriptionUrl ? 'Subscription URL' : 'VLESS Key'}</p>
                         <p className="text-zinc-300 text-[11px] font-mono break-all leading-relaxed select-all">{vpnKey}</p>
                       </div>
                       <button
                         onClick={copyKey}
                         className={`w-full font-semibold py-3 rounded-full flex items-center justify-center gap-2 active:scale-95 transition-all ${keyCopied ? 'bg-green-500/20 border border-green-500/30 text-green-300' : 'border border-white/20 text-white hover:bg-white/5'}`}
                       >
-                        {keyCopied ? <><ClipboardCheck size={16} /> {t.setupKeyCopied}</> : <><Copy size={16} /> {t.setupAddButton}</>}
+                        {keyCopied ? <><ClipboardCheck size={16} /> {subscriptionUrl ? t.setupLinkCopied : t.setupKeyCopied}</> : <><Copy size={16} /> {subscriptionUrl ? t.setupCopyLink : t.setupAddButton}</>}
                       </button>
                     </div>
                   ) : (
@@ -885,6 +893,9 @@ function HomeView({ t, direction, subscriptionEndDateLabel, tgUser, onSubscripti
               <span className="text-zinc-500 text-[8px] uppercase tracking-widest mb-0.5">{t.until}</span>
               <div className="text-white/60 text-[11px] font-medium flex items-center gap-1 bg-white/5 px-1.5 py-0.5 rounded border border-white/5">
                 {subscriptionEndDateLabel} <Calendar size={10} className="text-zinc-500"/>
+              </div>
+              <div className="mt-1 text-white/60 text-[10px] font-medium bg-white/5 px-1.5 py-0.5 rounded border border-white/5">
+                {subscriptionDaysLabel}
               </div>
             </div>
           </div>
@@ -1480,11 +1491,18 @@ function AdminView({ t, direction, tgUser, navigate, lang }: { t: any; direction
     if (!tgId) return;
     setBanningId(userId);
     try {
-      await fetch('/api/admin/ban', {
+      const res = await fetch('/api/admin/ban', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ telegramId: tgId, targetUserId: userId, ban }),
       });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: 'Error' }));
+        alert(data.error || 'Error');
+        return;
+      }
+
       await loadUsers(usersPage, usersSearch);
     } catch { /* ignore */ } finally { setBanningId(null); }
   };

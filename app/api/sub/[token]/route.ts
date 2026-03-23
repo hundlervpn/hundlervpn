@@ -69,11 +69,13 @@ export async function GET(
       }
     }
 
-    if (allLinks.length === 0) {
+    const uniqueLinks = [...new Set(allLinks)];
+
+    if (uniqueLinks.length === 0) {
       return new Response('Server configuration incomplete', { status: 500 });
     }
 
-    const encoded = Buffer.from(allLinks.join('\n')).toString('base64');
+    const encoded = Buffer.from(uniqueLinks.join('\n')).toString('base64');
 
     const latestExpiry = keysResult.rows[0]?.expires_at;
     const expireTs = latestExpiry

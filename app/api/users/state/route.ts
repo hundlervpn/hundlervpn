@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { dbQuery } from '@/lib/db';
+import { getSubscriptionUrl } from '@/lib/sub-token';
 
 type UserState = {
   userId: number;
@@ -8,6 +9,7 @@ type UserState = {
   endDate: string | null;
   daysLeft: number;
   hasActiveKey: boolean;
+  subscriptionUrl?: string | null;
 };
 
 export async function GET(req: Request) {
@@ -85,7 +87,13 @@ export async function GET(req: Request) {
       });
     }
 
-    return NextResponse.json({ ok: true, profile: result.rows[0] });
+    return NextResponse.json({
+      ok: true,
+      profile: {
+        ...result.rows[0],
+        subscriptionUrl: result.rows[0].status === 'active' ? getSubscriptionUrl(telegramId) : null,
+      },
+    });
   } catch (error) {
     console.error('User state error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
