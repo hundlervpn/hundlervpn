@@ -55,7 +55,7 @@ export async function upsertTelegramUser(client: PoolClient, input: UpsertTelegr
       referred_by_user_id
     )
     VALUES (
-      $1,
+      $1::bigint,
       $2,
       $3,
       $4,
@@ -65,7 +65,7 @@ export async function upsertTelegramUser(client: PoolClient, input: UpsertTelegr
       FALSE,
       NOW(),
       $6,
-      CASE WHEN $7 IS NOT NULL THEN $7 ELSE NULL END
+      $7::bigint
     )
     ON CONFLICT (telegram_id)
     DO UPDATE SET

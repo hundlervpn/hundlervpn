@@ -395,7 +395,7 @@ export default function App() {
 
           <div className="w-full max-w-6xl mx-auto lg:flex-1 lg:flex lg:flex-col lg:items-center lg:justify-start">
             <AnimatePresence mode="wait" custom={direction}>
-              {activeTab === 'home' && <HomeView key="home" t={t} direction={direction} subscriptionEndDateLabel={subscriptionEndDateLabel} tgUser={tgUser} />}
+              {activeTab === 'home' && <HomeView key="home" t={t} direction={direction} subscriptionEndDateLabel={subscriptionEndDateLabel} tgUser={tgUser} onSubscriptionChange={refreshSubscriptionState} />}
               {activeTab === 'payment' && <PaymentView key="payment" t={t} direction={direction} tgUser={tgUser} onSubscriptionChange={refreshSubscriptionState} />}
               {activeTab === 'profile' && <ProfileView key="profile" t={t} lang={lang} setLang={setLang} direction={direction} tgUser={tgUser} subscriptionDaysLabel={subscriptionDaysLabel} navigate={navigate} />}
               {activeTab === 'payments' && <PaymentsHistoryView key="payments" t={t} direction={direction} tgUser={tgUser} navigate={navigate} lang={lang} />}
@@ -470,9 +470,10 @@ function DesktopSidebar({ t, activeTab, navigate }: { t: any; activeTab: Tab; na
   );
 }
 
-function HomeView({ t, direction, subscriptionEndDateLabel, tgUser }: { t: any, direction: number; subscriptionEndDateLabel: string; tgUser: { id: number; name: string; photo: string; username?: string } | null }) {
+function HomeView({ t, direction, subscriptionEndDateLabel, tgUser, onSubscriptionChange }: { t: any, direction: number; subscriptionEndDateLabel: string; tgUser: { id: number; name: string; photo: string; username?: string } | null; onSubscriptionChange: (telegramId: number) => Promise<void> }) {
   const [showSetupModal, setShowSetupModal] = useState(false);
   const [showDevicesModal, setShowDevicesModal] = useState(false);
+  const [showPromoModal, setShowPromoModal] = useState(false);
   const [devices, setDevices] = useState<{ id: number; device_name: string | null; key_uri: string; is_active: boolean; created_at: string }[]>([]);
   const [devicesLoading, setDevicesLoading] = useState(false);
   const [deviceOS, setDeviceOS] = useState<'windows' | 'macos' | 'linux' | 'android' | 'ios' | 'unknown'>('unknown');
@@ -482,6 +483,9 @@ function HomeView({ t, direction, subscriptionEndDateLabel, tgUser }: { t: any, 
   const [vpnKey, setVpnKey] = useState<string | null>(null);
   const [vpnKeyLoading, setVpnKeyLoading] = useState(false);
   const [keyCopied, setKeyCopied] = useState(false);
+  const [promoCode, setPromoCode] = useState('');
+  const [promoLoading, setPromoLoading] = useState(false);
+  const [promoError, setPromoError] = useState<string | null>(null);
 
   const fetchDevices = async () => {
     if (!tgUser?.id) return;
@@ -625,6 +629,50 @@ function HomeView({ t, direction, subscriptionEndDateLabel, tgUser }: { t: any, 
 
     if (typeof window !== 'undefined') {
       window.open(link, '_blank', 'noopener,noreferrer');
+    }
+  };
+
+  const handlePromoClick = () => {
+    setPromoCode('');
+    setPromoError(null);
+    setShowPromoModal(true);
+  };
+
+  const closePromoModal = () => {
+    setShowPromoModal(false);
+    setPromoError(null);
+    setPromoLoading(false);
+  };
+
+  const handleApplyPromo = async () => {
+    if (!tgUser?.id || !promoCode.trim()) return;
+    setPromoLoading(true);
+    setPromoError(null);
+    try {
+      const response = await fetch('/api/promos/apply', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          telegramId: tgUser.id,
+          username: tgUser.username,
+          photoUrl: tgUser.photo,
+          code: promoCode.trim(),
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        setPromoError(data.error || 'Ошибка применения промокода');
+        return;
+      }
+      setPromoCode('');
+      await onSubscriptionChange(tgUser.id);
+      setShowPromoModal(false);
+      alert(t.promoApplySuccess);
+    } catch (error) {
+      console.error('Promo apply error:', error);
+      setPromoError('Ошибка применения промокода');
+    } finally {
+      setPromoLoading(false);
     }
   };
 
@@ -802,70 +850,116 @@ function HomeView({ t, direction, subscriptionEndDateLabel, tgUser }: { t: any, 
           </motion.div>
         )}
       </AnimatePresence>
-    <motion.div 
-      custom={direction}
-      variants={pageVariants}
-      initial="initial"
-      animate="animate"
-      exit="exit"
-      className="flex flex-col items-center gap-6 flex-1 lg:pt-6 w-full"
-    >
-      {/* Logo */}
-      <motion.div
-        className="relative w-40 h-40 lg:w-[260px] lg:h-[260px]"
+      <motion.div 
+        custom={direction}
+        variants={pageVariants}
+        initial="initial"
+        animate="animate"
+        exit="exit"
+        className="flex flex-col items-center gap-6 flex-1 lg:pt-6 w-full"
       >
-        <div className="absolute inset-0 rounded-full bg-white/10 blur-xl" />
-        <div className="w-full h-full relative z-10">
-          <Image 
-            src="/logo.png" 
-            alt="Hundler VPN Logo" 
-            fill 
-            className="object-contain"
-            referrerPolicy="no-referrer"
-            priority
-          />
-        </div>
-      </motion.div>
+        {/* Logo */}
+        <motion.div
+          className="relative w-40 h-40 lg:w-[260px] lg:h-[260px]"
+        >
+          <div className="absolute inset-0 rounded-full bg-white/10 blur-xl" />
+          <div className="w-full h-full relative z-10">
+            <Image 
+              src="/logo.png" 
+              alt="Hundler VPN Logo" 
+              fill 
+              className="object-contain"
+              referrerPolicy="no-referrer"
+              priority
+            />
+          </div>
+        </motion.div>
 
-      {/* Info Card */}
-      <div className="w-full max-w-[320px] lg:max-w-[540px] bg-gradient-to-b from-[#161616]/95 via-[#0b0b0b]/95 to-[#020202]/95 border border-white/15 rounded-2xl p-3 lg:p-5 shadow-lg relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-white/5 pointer-events-none rounded-2xl" />
-        
-        <div className="flex justify-between items-start mb-3 relative z-10">
-          <h3 className="text-lg font-bold text-white">{t.planName}</h3>
-          <div className="text-right flex flex-col items-end">
-            <span className="text-zinc-500 text-[8px] uppercase tracking-widest mb-0.5">{t.until}</span>
-            <div className="text-white/60 text-[11px] font-medium flex items-center gap-1 bg-white/5 px-1.5 py-0.5 rounded border border-white/5">
-              {subscriptionEndDateLabel} <Calendar size={10} className="text-zinc-500"/>
+        {/* Info Card */}
+        <div className="w-full max-w-[320px] lg:max-w-[540px] bg-gradient-to-b from-[#161616]/95 via-[#0b0b0b]/95 to-[#020202]/95 border border-white/15 rounded-2xl p-3 lg:p-5 shadow-lg relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-white/10 via-transparent to-white/5 pointer-events-none rounded-2xl" />
+          
+          <div className="flex justify-between items-start mb-3 relative z-10">
+            <h3 className="text-lg font-bold text-white">{t.planName}</h3>
+            <div className="text-right flex flex-col items-end">
+              <span className="text-zinc-500 text-[8px] uppercase tracking-widest mb-0.5">{t.until}</span>
+              <div className="text-white/60 text-[11px] font-medium flex items-center gap-1 bg-white/5 px-1.5 py-0.5 rounded border border-white/5">
+                {subscriptionEndDateLabel} <Calendar size={10} className="text-zinc-500"/>
+              </div>
+            </div>
+          </div>
+
+          <div className="inline-flex items-center gap-1 bg-white/10 border border-white/20 px-2 py-0.5 rounded-md mb-4 relative z-10">
+            <Smartphone size={10} className="text-white" />
+            <span className="text-white text-[10px] font-medium">{t.devices}</span>
+          </div>
+
+          <div className="space-y-2 relative z-10">
+            <button className="w-full bg-gradient-to-r from-white/20 via-white/15 to-white/10 border border-white/25 text-white font-medium py-2.5 rounded-xl flex items-center justify-center gap-1.5 active:scale-95 text-sm transition-transform hover:-translate-y-0.5">
+              <Zap size={14} /> <span>{t.extend}</span>
+            </button>
+            
+            <button onClick={handleInstallClick} className="w-full bg-zinc-800/50 border border-white/10 text-white font-medium py-2 rounded-xl flex items-center justify-center gap-1.5 active:scale-95 text-[13px] transition-colors hover:border-white/30 hover:bg-zinc-800/70 lg:py-2.5 lg:text-sm">
+              <Settings size={14} className="text-zinc-400" /> {t.install}
+            </button>
+
+            <div className="grid grid-cols-2 gap-1.5">
+              <button onClick={handlePromoClick} className="bg-zinc-900/80 border border-white/5 text-zinc-300 text-xs font-medium py-2.5 rounded-xl flex items-center justify-center gap-1 active:scale-95 transition-colors hover:text-white hover:border-white/25">
+                <Gift size={12} className="text-zinc-500" /> {t.promo}
+              </button>
+              <button onClick={handleDevicesClick} className="bg-zinc-900/80 border border-white/5 text-zinc-300 text-xs font-medium py-2.5 rounded-xl flex items-center justify-center gap-1 active:scale-95 transition-colors hover:text-white hover:border-white/25">
+                <MonitorSmartphone size={12} className="text-zinc-500" /> {t.myDevices}
+              </button>
             </div>
           </div>
         </div>
+      </motion.div>
 
-        <div className="inline-flex items-center gap-1 bg-white/10 border border-white/20 px-2 py-0.5 rounded-md mb-4 relative z-10">
-          <Smartphone size={10} className="text-white" />
-          <span className="text-white text-[10px] font-medium">{t.devices}</span>
-        </div>
+      {/* Promo Modal */}
+      <AnimatePresence>
+        {showPromoModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+            onClick={closePromoModal}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-md rounded-3xl border border-white/15 bg-gradient-to-b from-[#151515] via-[#0b0b0b] to-[#020202] p-6 shadow-2xl"
+            >
+              <div className="flex items-center justify-between mb-5">
+                <h3 className="text-lg font-bold text-white">{t.promo}</h3>
+                <button onClick={closePromoModal} className="text-zinc-400 hover:text-white transition-colors"><X size={20} /></button>
+              </div>
 
-        <div className="space-y-2 relative z-10">
-          <button className="w-full bg-gradient-to-r from-white/20 via-white/15 to-white/10 border border-white/25 text-white font-medium py-2.5 rounded-xl flex items-center justify-center gap-1.5 active:scale-95 text-sm transition-transform hover:-translate-y-0.5">
-            <Zap size={14} /> <span>{t.extend}</span>
-          </button>
-          
-          <button onClick={handleInstallClick} className="w-full bg-zinc-800/50 border border-white/10 text-white font-medium py-2 rounded-xl flex items-center justify-center gap-1.5 active:scale-95 text-[13px] transition-colors hover:border-white/30 hover:bg-zinc-800/70 lg:py-2.5 lg:text-sm">
-            <Settings size={14} className="text-zinc-400" /> {t.install}
-          </button>
+              <div className="space-y-3">
+                <input
+                  type="text"
+                  value={promoCode}
+                  onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                  placeholder={t.promoPlaceholder}
+                  className="w-full bg-zinc-800/60 border border-white/10 rounded-xl px-3 py-3 text-sm text-white placeholder:text-zinc-500 outline-none focus:border-white/25"
+                />
 
-          <div className="grid grid-cols-2 gap-1.5">
-            <button className="bg-zinc-900/80 border border-white/5 text-zinc-300 text-xs font-medium py-2.5 rounded-xl flex items-center justify-center gap-1 active:scale-95 transition-colors hover:text-white hover:border-white/25">
-              <Gift size={12} className="text-zinc-500" /> {t.promo}
-            </button>
-            <button onClick={handleDevicesClick} className="bg-zinc-900/80 border border-white/5 text-zinc-300 text-xs font-medium py-2.5 rounded-xl flex items-center justify-center gap-1 active:scale-95 transition-colors hover:text-white hover:border-white/25">
-              <MonitorSmartphone size={12} className="text-zinc-500" /> {t.myDevices}
-            </button>
-          </div>
-        </div>
-      </div>
-    </motion.div>
+                {promoError && <p className="text-red-300 text-xs">{promoError}</p>}
+
+                <button
+                  onClick={handleApplyPromo}
+                  disabled={promoLoading || !promoCode.trim() || !tgUser?.id}
+                  className="w-full px-3 py-3 rounded-xl bg-white/10 border border-white/15 text-white text-sm hover:bg-white/15 disabled:opacity-50"
+                >
+                  {promoLoading ? '...' : t.promoApply}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Devices Modal */}
       <AnimatePresence>
@@ -926,43 +1020,11 @@ function PaymentView({ t, direction, tgUser, onSubscriptionChange }: { t: any, d
   const [months, setMonths] = useState(1);
   const [payMethod, setPayMethod] = useState<'tg' | 'crypto' | 'sbp'>('tg');
   const [isLoading, setIsLoading] = useState(false);
-  const [promoCode, setPromoCode] = useState('');
-  const [promoLoading, setPromoLoading] = useState(false);
 
   const basePrice = 1; 
   const discountPerMonth = 0; 
   const pricePerMonth = Math.max(1, basePrice - (months - 1) * discountPerMonth);
   const totalPrice = pricePerMonth * months;
-
-  const handleApplyPromo = async () => {
-    if (!tgUser?.id || !promoCode.trim()) return;
-    setPromoLoading(true);
-    try {
-      const response = await fetch('/api/promos/apply', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          telegramId: tgUser.id,
-          username: tgUser.username,
-          photoUrl: tgUser.photo,
-          code: promoCode.trim(),
-        }),
-      });
-      const data = await response.json();
-      if (!response.ok) {
-        alert(data.error || 'Ошибка применения промокода');
-        return;
-      }
-      setPromoCode('');
-      await onSubscriptionChange(tgUser.id);
-      alert(t.promoApplySuccess);
-    } catch (error) {
-      console.error('Promo apply error:', error);
-      alert('Ошибка применения промокода');
-    } finally {
-      setPromoLoading(false);
-    }
-  };
 
   const handleSubscribe = async () => {
     setIsLoading(true);
@@ -1044,30 +1106,6 @@ function PaymentView({ t, direction, tgUser, onSubscriptionChange }: { t: any, d
       className="flex flex-col gap-3 flex-1 lg:items-center"
     >
       <div className="w-full max-w-xs mx-auto flex flex-col lg:max-w-[720px]">
-        <motion.div 
-          initial={{ y: 10, opacity: 0 }}
-          animate={{ y: 0, opacity: 1 }}
-          transition={{ delay: 0.12, duration: 0.25 }}
-          className="bg-zinc-900/40 border border-white/10 rounded-xl p-3 mb-3 lg:p-6"
-        >
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={promoCode}
-              onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
-              placeholder={t.promoPlaceholder}
-              className="flex-1 bg-zinc-800/60 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder:text-zinc-500 outline-none focus:border-white/25"
-            />
-            <button
-              onClick={handleApplyPromo}
-              disabled={promoLoading || !promoCode.trim() || !tgUser?.id}
-              className="px-3 py-2.5 rounded-lg bg-white/10 border border-white/15 text-white text-sm hover:bg-white/15 disabled:opacity-50"
-            >
-              {promoLoading ? '...' : t.promoApply}
-            </button>
-          </div>
-        </motion.div>
-
         <motion.div 
           initial={{ y: 10, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
