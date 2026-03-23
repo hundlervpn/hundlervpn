@@ -42,18 +42,29 @@ export async function GET(req: Request) {
 
     const result = await dbQuery<XrayClientRow>(
       `
-      SELECT
-        vk.key_hash AS uuid,
-        CONCAT('tg-', u.telegram_id::text) AS email,
-        vk.expires_at AS "expiresAt"
-      FROM vpn_keys vk
-      JOIN users u ON u.id = vk.user_id
-      LEFT JOIN subscriptions s ON s.id = vk.subscription_id
-      WHERE vk.is_active = TRUE
-        AND vk.key_hash IS NOT NULL
-        AND (vk.expires_at IS NULL OR vk.expires_at > NOW())
-        AND (s.id IS NULL OR (s.status = 'active' AND s.end_date > NOW()))
-      ORDER BY vk.created_at DESC;
+      WITH ranked_keys AS (
+        SELECT
+          vk.key_hash AS uuid,
+          CONCAT('tg-', u.telegram_id::text) AS email,
+          vk.expires_at AS "expiresAt",
+          ROW_NUMBER() OVER (
+            PARTITION BY vk.user_id
+            ORDER BY CASE WHEN vk.is_active = TRUE THEN 0 ELSE 1 END, vk.created_at DESC
+          ) AS rank_index
+        FROM vpn_keys vk
+        JOIN users u ON u.id = vk.user_id
+        LEFT JOIN subscriptions s ON s.id = vk.subscription_id
+        WHERE vk.key_hash IS NOT NULL
+          AND (vk.expires_at IS NULL OR vk.expires_at > NOW())
+          AND (
+            (s.id IS NOT NULL AND s.status = 'active' AND s.end_date > NOW())
+            OR (s.id IS NULL AND vk.is_active = TRUE)
+          )
+      )
+      SELECT uuid, email, "expiresAt"
+      FROM ranked_keys
+      WHERE rank_index = 1
+      ORDER BY email ASC;
       `
     );
 

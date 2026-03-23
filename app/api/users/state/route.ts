@@ -28,15 +28,30 @@ export async function GET(req: Request) {
 
     await dbQuery(
       `
-      UPDATE vpn_keys
-      SET is_active = FALSE
-      WHERE (expires_at IS NOT NULL AND expires_at <= NOW())
-         OR user_id IN (
-           SELECT s.user_id
-           FROM subscriptions s
-           WHERE s.status <> 'active' OR s.end_date <= NOW()
-         );
-      `
+      WITH target_user AS (
+        SELECT id
+        FROM users
+        WHERE telegram_id = $1
+        LIMIT 1
+      ),
+      candidate AS (
+        SELECT vk.id
+        FROM vpn_keys vk
+        JOIN target_user tu ON tu.id = vk.user_id
+        LEFT JOIN subscriptions s ON s.id = vk.subscription_id
+        WHERE (vk.expires_at IS NULL OR vk.expires_at > NOW())
+          AND (
+            (s.id IS NOT NULL AND s.status = 'active' AND s.end_date > NOW())
+            OR (s.id IS NULL AND vk.is_active = TRUE)
+          )
+        ORDER BY vk.created_at DESC
+        LIMIT 1
+      )
+      UPDATE vpn_keys vk
+      SET is_active = CASE WHEN vk.id = (SELECT id FROM candidate) THEN TRUE ELSE FALSE END
+      WHERE vk.user_id IN (SELECT id FROM target_user);
+      `,
+      [telegramId]
     );
 
     const result = await dbQuery<UserState>(
@@ -62,9 +77,11 @@ export async function GET(req: Request) {
         EXISTS (
           SELECT 1
           FROM vpn_keys vk
+          LEFT JOIN subscriptions sk ON sk.id = vk.subscription_id
           WHERE vk.user_id = u.id
             AND vk.is_active = TRUE
             AND (vk.expires_at IS NULL OR vk.expires_at > NOW())
+            AND (sk.id IS NULL OR (sk.status = 'active' AND sk.end_date > NOW()))
         ) AS "hasActiveKey"
       FROM users u
       LEFT JOIN LATERAL (
@@ -91,7 +108,7 @@ export async function GET(req: Request) {
       ok: true,
       profile: {
         ...result.rows[0],
-        subscriptionUrl: result.rows[0].status === 'active' ? getSubscriptionUrl(telegramId) : null,
+        subscriptionUrl: result.rows[0].status === 'active' && result.rows[0].hasActiveKey ? getSubscriptionUrl(telegramId) : null,
       },
     });
   } catch (error) {

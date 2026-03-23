@@ -37,3 +37,40 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
+
+export async function DELETE(req: Request) {
+  try {
+    const url = new URL(req.url);
+    const telegramIdRaw = url.searchParams.get('telegramId');
+    const deviceIdRaw = url.searchParams.get('deviceId');
+
+    if (!telegramIdRaw || !deviceIdRaw) {
+      return NextResponse.json({ error: 'telegramId and deviceId are required' }, { status: 400 });
+    }
+
+    const telegramId = Number(telegramIdRaw);
+    const deviceId = Number(deviceIdRaw);
+    if (!Number.isFinite(telegramId) || !Number.isFinite(deviceId)) {
+      return NextResponse.json({ error: 'Invalid parameters' }, { status: 400 });
+    }
+
+    const result = await dbQuery(
+      `
+      DELETE FROM vpn_keys
+      WHERE id = $1
+        AND user_id = (SELECT id FROM users WHERE telegram_id = $2 LIMIT 1)
+      RETURNING id;
+      `,
+      [deviceId, telegramId]
+    );
+
+    if (result.rowCount === 0) {
+      return NextResponse.json({ error: 'Device not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({ ok: true, deletedId: result.rows[0].id });
+  } catch (error) {
+    console.error('Device delete error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}

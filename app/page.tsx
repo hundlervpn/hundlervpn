@@ -115,7 +115,14 @@ const translations = {
     adminNoPromos: 'Промокодов пока нет',
     promoPlaceholder: 'Введите промокод',
     promoApply: 'Активировать',
-    promoApplySuccess: 'Промокод применён'
+    promoApplySuccess: 'Промокод применён',
+    deleteDevice: 'Удалить',
+    deleteDeviceConfirm: 'Удалить это устройство? VPN на нём перестанет работать.',
+    deviceDeleted: 'Устройство удалено',
+    serversTitle: 'Серверы',
+    serverActive: 'Активен',
+    serverInactive: 'Неактивен',
+    noServers: 'Серверов пока нет'
   },
   en: {
     navVpn: 'Home', navPremium: 'Payment', navProfile: 'Profile',
@@ -197,7 +204,14 @@ const translations = {
     adminNoPromos: 'No promo codes yet',
     promoPlaceholder: 'Enter promo code',
     promoApply: 'Activate',
-    promoApplySuccess: 'Promo code applied'
+    promoApplySuccess: 'Promo code applied',
+    deleteDevice: 'Delete',
+    deleteDeviceConfirm: 'Delete this device? VPN will stop working on it.',
+    deviceDeleted: 'Device deleted',
+    serversTitle: 'Servers',
+    serverActive: 'Active',
+    serverInactive: 'Inactive',
+    noServers: 'No servers yet'
   }
 };
 
@@ -511,6 +525,17 @@ function HomeView({ t, direction, subscriptionEndDateLabel, subscriptionDaysLabe
   const handleDevicesClick = () => {
     setShowDevicesModal(true);
     fetchDevices();
+  };
+
+  const handleDeleteDevice = async (deviceId: number) => {
+    if (!tgUser?.id) return;
+    if (!confirm(t.deleteDeviceConfirm)) return;
+    try {
+      const res = await fetch(`/api/users/devices?telegramId=${encodeURIComponent(String(tgUser.id))}&deviceId=${deviceId}`, { method: 'DELETE' });
+      if (res.ok) {
+        setDevices((prev) => prev.filter((d) => d.id !== deviceId));
+      }
+    } catch { /* ignore */ }
   };
 
   const detectDevice = (): 'windows' | 'macos' | 'linux' | 'android' | 'ios' | 'unknown' => {
@@ -1012,8 +1037,17 @@ function HomeView({ t, direction, subscriptionEndDateLabel, subscriptionDaysLabe
                         <p className="text-sm font-medium text-white truncate">{device.device_name || 'Устройство'}</p>
                         <p className="text-[10px] text-zinc-500">{new Date(device.created_at).toLocaleDateString('ru-RU')}</p>
                       </div>
-                      <div className={`text-[9px] uppercase tracking-wider font-medium px-2 py-0.5 rounded-full ${device.is_active ? 'text-white bg-white/15' : 'text-zinc-500 bg-zinc-800'}`}>
-                        {device.is_active ? 'Активно' : 'Неактивно'}
+                      <div className="flex items-center gap-1.5">
+                        <div className={`text-[9px] uppercase tracking-wider font-medium px-2 py-0.5 rounded-full ${device.is_active ? 'text-white bg-white/15' : 'text-zinc-500 bg-zinc-800'}`}>
+                          {device.is_active ? 'Активно' : 'Неактивно'}
+                        </div>
+                        <button
+                          onClick={() => handleDeleteDevice(device.id)}
+                          className="text-zinc-500 hover:text-red-400 transition-colors p-1"
+                          title={t.deleteDevice}
+                        >
+                          <Trash2 size={14} />
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -1200,6 +1234,29 @@ function FeatureItem({ text }: { text: string }) {
 }
 
 function ProfileView({ t, lang, setLang, direction, tgUser, subscriptionDaysLabel, navigate }: { t: any; lang: string; setLang: (l: 'ru' | 'en') => void; direction: number; tgUser: { id: number; name: string; photo: string; username?: string } | null; subscriptionDaysLabel: string; navigate: (tab: Tab) => void }) {
+  const [servers, setServers] = useState<{ id: number; name: string; host: string; port: number; country: string; is_active: boolean }[]>([]);
+  const [serversLoading, setServersLoading] = useState(false);
+  const [showServers, setShowServers] = useState(false);
+
+  const fetchServers = async () => {
+    setServersLoading(true);
+    try {
+      const res = await fetch('/api/servers');
+      if (res.ok) {
+        const data = await res.json();
+        setServers(data.servers ?? []);
+      }
+    } catch { /* ignore */ } finally { setServersLoading(false); }
+  };
+
+  const handleServersClick = () => {
+    setShowServers(!showServers);
+    if (!showServers && servers.length === 0) fetchServers();
+  };
+
+  const countryFlags: Record<string, string> = { NL: '\u{1F1F3}\u{1F1F1}', DE: '\u{1F1E9}\u{1F1EA}', US: '\u{1F1FA}\u{1F1F8}', FI: '\u{1F1EB}\u{1F1EE}', RU: '\u{1F1F7}\u{1F1FA}', GB: '\u{1F1EC}\u{1F1E7}', FR: '\u{1F1EB}\u{1F1F7}', SE: '\u{1F1F8}\u{1F1EA}' };
+  const getFlag = (country: string) => countryFlags[country.toUpperCase()] || '\u{1F310}';
+
   const handleReferralClick = async () => {
     if (!tgUser?.id) return;
 
@@ -1294,6 +1351,47 @@ function ProfileView({ t, lang, setLang, direction, tgUser, subscriptionDaysLabe
                 </div>
                 <ChevronRight size={14} strokeWidth={1.5} className="text-zinc-600" />
               </a>
+            </div>
+          </div>
+
+          <div>
+            <h3 className="text-[10px] font-medium text-zinc-500 uppercase tracking-widest mb-2 px-2">{t.serversTitle}</h3>
+            <div className="bg-zinc-900/40 border border-white/5 rounded-xl overflow-hidden">
+              <button onClick={handleServersClick} className="w-full flex items-center justify-between p-3 hover:bg-white/5 transition-colors active:scale-[0.98]">
+                <div className="flex items-center gap-2">
+                  <Globe size={18} strokeWidth={1.5} className="text-zinc-400" />
+                  <span className="text-zinc-200 font-medium text-sm">{t.serversTitle}</span>
+                </div>
+                <ChevronRight size={14} strokeWidth={1.5} className={`text-zinc-600 transition-transform ${showServers ? 'rotate-90' : ''}`} />
+              </button>
+
+              {showServers && (
+                <div className="border-t border-white/5">
+                  {serversLoading ? (
+                    <div className="text-center py-4 text-zinc-400 text-xs">...</div>
+                  ) : servers.length === 0 ? (
+                    <div className="text-center py-4 text-zinc-500 text-xs">{t.noServers}</div>
+                  ) : (
+                    <div className="p-2 space-y-1.5">
+                      {servers.map((srv) => (
+                        <div key={srv.id} className="flex items-center gap-2.5 px-2.5 py-2 rounded-lg bg-zinc-800/40 border border-white/5">
+                          <span className="text-base">{getFlag(srv.country)}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-zinc-200 text-xs font-medium truncate">{srv.name}</p>
+                            <p className="text-zinc-500 text-[10px]">{srv.country}</p>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <div className={`w-1.5 h-1.5 rounded-full ${srv.is_active ? 'bg-green-400 shadow-[0_0_4px_rgba(74,222,128,0.5)]' : 'bg-red-400'}`} />
+                            <span className={`text-[9px] uppercase tracking-wider font-medium ${srv.is_active ? 'text-green-400' : 'text-red-400'}`}>
+                              {srv.is_active ? t.serverActive : t.serverInactive}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
