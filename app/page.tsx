@@ -374,7 +374,7 @@ export default function App() {
   const [direction, setDirection] = useState(0);
   const [lang, setLang] = useState<'ru' | 'en'>('ru');
   const [tgUser, setTgUser] = useState<{ id: number; name: string; photo: string; username?: string } | null>(null);
-  const [subscriptionState, setSubscriptionState] = useState<{ endDate: string | null; daysLeft: number; status: string; subscriptionUrl: string | null } | null>(null);
+  const [subscriptionState, setSubscriptionState] = useState<{ endDate: string | null; daysLeft: number; status: string; subscriptionUrl: string | null; isBanned?: boolean; banReason?: string | null } | null>(null);
   const [authMode, setAuthMode] = useState<AuthMode>('none');
   const [authLoading, setAuthLoading] = useState(true);
   const [userIdentifier, setUserIdentifier] = useState<UserIdentifier | null>(null);
@@ -399,10 +399,10 @@ export default function App() {
     const stateResponse = await fetch(`/api/users/state?${query}`);
     if (stateResponse.ok) {
       const statePayload = await stateResponse.json();
-      setSubscriptionState(statePayload.profile ?? { endDate: null, daysLeft: 0, status: 'none', subscriptionUrl: null });
+      setSubscriptionState(statePayload.profile ?? { endDate: null, daysLeft: 0, status: 'none', subscriptionUrl: null, isBanned: false, banReason: null });
       return;
     }
-    setSubscriptionState({ endDate: null, daysLeft: 0, status: 'none', subscriptionUrl: null });
+    setSubscriptionState({ endDate: null, daysLeft: 0, status: 'none', subscriptionUrl: null, isBanned: false, banReason: null });
   };
 
   const handleEmailLogin = (user: { id: number; email: string; name: string }, sessionToken: string) => {
@@ -473,7 +473,7 @@ export default function App() {
 
             await refreshSubscriptionState(user.id);
           } catch (error) {
-            setSubscriptionState({ endDate: null, daysLeft: 0, status: 'none', subscriptionUrl: null });
+            setSubscriptionState({ endDate: null, daysLeft: 0, status: 'none', subscriptionUrl: null, isBanned: false, banReason: null });
             console.error('Failed to sync telegram user:', error);
           }
           setAuthLoading(false);
@@ -572,6 +572,47 @@ export default function App() {
     return (
       <div className="min-h-screen w-full bg-[#020202] flex items-center justify-center">
         <div className="text-zinc-500 text-sm">...</div>
+      </div>
+    );
+  }
+
+  // Show ban screen if user is banned
+  if (subscriptionState?.isBanned) {
+    return (
+      <div className="min-h-screen w-full bg-[#020202] flex items-center justify-center px-4">
+        <div className="fixed inset-0 z-0 pointer-events-none">
+          <div className="absolute -top-[20%] -left-[10%] w-[40vw] h-[40vw] max-w-[300px] max-h-[300px] rounded-full bg-red-500/10 blur-[55px]" />
+          <div className="absolute top-[40%] -right-[10%] w-[50vw] h-[50vw] max-w-[400px] max-h-[400px] rounded-full bg-red-500/5 blur-[65px]" />
+        </div>
+        <div className="relative z-10 w-full max-w-sm text-center">
+          <div className="bg-zinc-900/60 border border-red-500/20 rounded-2xl p-6 backdrop-blur-xl shadow-[0_0_40px_rgba(239,68,68,0.08)]">
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center">
+              <Ban size={28} className="text-red-400" />
+            </div>
+            <h2 className="text-white text-lg font-bold mb-2">
+              {lang === 'ru' ? 'Аккаунт заблокирован' : 'Account Banned'}
+            </h2>
+            {subscriptionState.banReason && (
+              <p className="text-zinc-400 text-sm mb-3">
+                {lang === 'ru' ? 'Причина:' : 'Reason:'} {subscriptionState.banReason}
+              </p>
+            )}
+            <p className="text-zinc-500 text-xs mb-5">
+              {lang === 'ru'
+                ? 'Ваш аккаунт заблокирован. Если вы считаете, что это ошибка, обратитесь в поддержку.'
+                : 'Your account has been banned. If you believe this is a mistake, please contact support.'}
+            </p>
+            <a
+              href="https://t.me/hundlervpn_support"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 bg-white/10 border border-white/15 text-white px-5 py-2.5 rounded-xl text-sm hover:bg-white/15 transition-colors"
+            >
+              <HelpCircle size={16} />
+              {lang === 'ru' ? 'Написать в поддержку' : 'Contact Support'}
+            </a>
+          </div>
+        </div>
       </div>
     );
   }
@@ -1275,13 +1316,48 @@ function PaymentView({ t, direction, tgUser, onSubscriptionChange, userIdentifie
   const [sbpState, setSbpState] = useState<'idle' | 'creating' | 'waiting' | 'success' | 'failed'>('idle');
   const [sbpPaymentId, setSbpPaymentId] = useState<number | null>(null);
   const [sbpRedirectUrl, setSbpRedirectUrl] = useState<string | null>(null);
+  const [promoInput, setPromoInput] = useState('');
+  const [promoLoading, setPromoLoading] = useState(false);
+  const [appliedPromo, setAppliedPromo] = useState<{ code: string; discountPercent: number } | null>(null);
+  const [promoError, setPromoError] = useState('');
 
   const basePrice = 150; 
   const discountPerMonth = 5; 
   const pricePerMonth = Math.max(100, basePrice - (months - 1) * discountPerMonth);
-  const totalPrice = pricePerMonth * months;
+  const rawTotal = pricePerMonth * months;
+  const discountAmount = appliedPromo ? Math.round(rawTotal * appliedPromo.discountPercent / 100) : 0;
+  const totalPrice = rawTotal - discountAmount;
   const totalUsd = +(totalPrice / 100).toFixed(2);
   const totalStars = Math.max(1, Math.round(totalPrice / 2));
+
+  const handleApplyPromo = async () => {
+    const code = promoInput.trim().toUpperCase();
+    if (!code) return;
+    setPromoLoading(true);
+    setPromoError('');
+    try {
+      const res = await fetch(`/api/promos/validate?code=${encodeURIComponent(code)}`);
+      const data = await res.json();
+      if (res.ok && data.ok && data.discountPercent > 0) {
+        setAppliedPromo({ code: data.code, discountPercent: data.discountPercent });
+        setPromoError('');
+      } else if (res.ok && data.ok && data.days > 0) {
+        setPromoError('Этот промокод даёт бесплатные дни — примените его на главной');
+      } else {
+        setPromoError(data.error || 'Промокод недействителен');
+      }
+    } catch {
+      setPromoError('Ошибка проверки');
+    } finally {
+      setPromoLoading(false);
+    }
+  };
+
+  const handleRemovePromo = () => {
+    setAppliedPromo(null);
+    setPromoInput('');
+    setPromoError('');
+  };
 
   useEffect(() => {
     if (sbpState !== 'waiting' || !sbpPaymentId) return;
@@ -1421,7 +1497,7 @@ function PaymentView({ t, direction, tgUser, onSubscriptionChange, userIdentifie
         exit="exit"
         className="flex flex-col gap-3 flex-1 lg:items-center"
       >
-        <div className="w-full max-w-xs mx-auto flex flex-col items-center lg:max-w-[720px]">
+        <div className="w-full max-w-sm mx-auto flex flex-col items-center lg:max-w-[540px]">
           <div className="bg-zinc-900/40 border border-white/10 rounded-xl p-6 w-full text-center">
             {sbpState === 'waiting' && (
               <>
@@ -1487,12 +1563,12 @@ function PaymentView({ t, direction, tgUser, onSubscriptionChange, userIdentifie
       exit="exit"
       className="flex flex-col gap-3 flex-1 lg:items-center"
     >
-      <div className="w-full max-w-xs mx-auto flex flex-col lg:max-w-[720px]">
+      <div className="w-full max-w-sm mx-auto flex flex-col lg:max-w-[540px]">
         <motion.div 
           initial={{ y: 10, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ delay: 0.15, duration: 0.25 }}
-          className="bg-zinc-900/40 border border-white/10 rounded-xl p-3 mb-3 lg:p-6"
+          className="bg-zinc-900/40 border border-white/10 rounded-xl p-4 mb-3 lg:p-6"
         >
           <div className="flex justify-between items-end mb-3">
             <div>
@@ -1516,8 +1592,57 @@ function PaymentView({ t, direction, tgUser, onSubscriptionChange, userIdentifie
           </div>
           <div className="mt-3 pt-3 border-t border-white/5 flex justify-between items-center">
             <span className="text-zinc-400 text-xs">{t.total}</span>
-            <span className="text-base font-bold text-white">{totalPrice}₽</span>
+            <div className="text-right">
+              {appliedPromo ? (
+                <div className="flex items-center gap-2">
+                  <span className="text-zinc-500 text-xs line-through">{rawTotal}₽</span>
+                  <span className="text-base font-bold text-green-400">{totalPrice}₽</span>
+                </div>
+              ) : (
+                <span className="text-base font-bold text-white">{totalPrice}₽</span>
+              )}
+            </div>
           </div>
+        </motion.div>
+
+        <motion.div
+          initial={{ y: 10, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.12, duration: 0.25 }}
+          className="bg-zinc-900/40 border border-white/10 rounded-xl p-3 mb-3 lg:p-4"
+        >
+          {appliedPromo ? (
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Tag size={14} className="text-green-400" />
+                <span className="text-sm text-green-400 font-medium">{appliedPromo.code} (-{appliedPromo.discountPercent}%)</span>
+              </div>
+              <button onClick={handleRemovePromo} className="text-zinc-500 hover:text-red-400 transition-colors">
+                <X size={14} />
+              </button>
+            </div>
+          ) : (
+            <div>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={promoInput}
+                  onChange={(e) => setPromoInput(e.target.value.toUpperCase())}
+                  placeholder={t.promoPlaceholder}
+                  className="flex-1 bg-zinc-800/60 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-zinc-500 outline-none focus:border-white/25"
+                  onKeyDown={(e) => e.key === 'Enter' && handleApplyPromo()}
+                />
+                <button
+                  onClick={handleApplyPromo}
+                  disabled={promoLoading || !promoInput.trim()}
+                  className="bg-white/10 border border-white/15 text-white px-3 rounded-lg text-xs hover:bg-white/15 disabled:opacity-50 shrink-0"
+                >
+                  {promoLoading ? '...' : t.promoApply}
+                </button>
+              </div>
+              {promoError && <p className="text-red-400 text-[10px] mt-1.5">{promoError}</p>}
+            </div>
+          )}
         </motion.div>
 
         <motion.div 
@@ -1532,7 +1657,7 @@ function PaymentView({ t, direction, tgUser, onSubscriptionChange, userIdentifie
         </motion.div>
       </div>
 
-      <div className="w-full max-w-xs mx-auto flex flex-col lg:max-w-[720px]">
+      <div className="w-full max-w-sm mx-auto flex flex-col lg:max-w-[540px]">
         <h3 className="text-[10px] font-medium text-zinc-500 uppercase tracking-widest mb-2">{t.featTitle}</h3>
         <motion.ul variants={listVariants} initial="hidden" animate="visible" className="space-y-1.5">
           <motion.li variants={itemVariants}><FeatureItem text={t.f1} /></motion.li>
@@ -2271,6 +2396,7 @@ type AdminPromo = {
   id: number;
   code: string;
   days: number;
+  discount_percent: number | null;
   max_uses: number;
   used_count: number;
   is_active: boolean;
@@ -2745,7 +2871,9 @@ function AdminView({ t, direction, tgUser, navigate, lang }: { t: any; direction
   const [promosLoading, setPromosLoading] = useState(false);
   const [showPromoForm, setShowPromoForm] = useState(false);
   const [promoCode, setPromoCode] = useState('');
+  const [promoType, setPromoType] = useState<'days' | 'discount'>('discount');
   const [promoDays, setPromoDays] = useState('7');
+  const [promoDiscount, setPromoDiscount] = useState('50');
   const [promoMaxUses, setPromoMaxUses] = useState('100');
   const [promoCreating, setPromoCreating] = useState(false);
   const [banningId, setBanningId] = useState<number | null>(null);
@@ -2819,22 +2947,30 @@ function AdminView({ t, direction, tgUser, navigate, lang }: { t: any; direction
   };
 
   const handleCreatePromo = async () => {
-    if (!tgId || !promoCode.trim() || !promoDays) return;
+    if (!tgId || !promoCode.trim()) return;
+    if (promoType === 'days' && !promoDays) return;
+    if (promoType === 'discount' && !promoDiscount) return;
     setPromoCreating(true);
     try {
+      const payload: Record<string, unknown> = {
+        telegramId: tgId,
+        code: promoCode.trim(),
+        maxUses: Number(promoMaxUses) || 100,
+      };
+      if (promoType === 'days') {
+        payload.days = Number(promoDays);
+      } else {
+        payload.discountPercent = Number(promoDiscount);
+      }
       const res = await fetch('/api/admin/promos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          telegramId: tgId,
-          code: promoCode.trim(),
-          days: Number(promoDays),
-          maxUses: Number(promoMaxUses) || 100,
-        }),
+        body: JSON.stringify(payload),
       });
       if (res.ok) {
         setPromoCode('');
         setPromoDays('7');
+        setPromoDiscount('50');
         setPromoMaxUses('100');
         setShowPromoForm(false);
         await loadPromos();
@@ -2879,17 +3015,17 @@ function AdminView({ t, direction, tgUser, navigate, lang }: { t: any; direction
           </h3>
 
           {/* Admin Sub-tabs */}
-          <div className="grid grid-cols-4 gap-1.5 mb-4">
-            <button onClick={() => setAdminTab('stats')} className={`text-xs font-medium py-2 rounded-lg border transition-all ${adminTab === 'stats' ? 'bg-white/10 border-white/25 text-white' : 'border-white/5 text-zinc-400 hover:text-white'}`}>
+          <div className="flex gap-1.5 mb-4 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
+            <button onClick={() => setAdminTab('stats')} className={`text-xs font-medium py-2 px-3 rounded-lg border transition-all whitespace-nowrap shrink-0 ${adminTab === 'stats' ? 'bg-white/10 border-white/25 text-white' : 'border-white/5 text-zinc-400 hover:text-white'}`}>
               {t.adminStats}
             </button>
-            <button onClick={() => setAdminTab('users')} className={`text-xs font-medium py-2 rounded-lg border transition-all ${adminTab === 'users' ? 'bg-white/10 border-white/25 text-white' : 'border-white/5 text-zinc-400 hover:text-white'}`}>
+            <button onClick={() => setAdminTab('users')} className={`text-xs font-medium py-2 px-3 rounded-lg border transition-all whitespace-nowrap shrink-0 ${adminTab === 'users' ? 'bg-white/10 border-white/25 text-white' : 'border-white/5 text-zinc-400 hover:text-white'}`}>
               {t.adminUsers}
             </button>
-            <button onClick={() => setAdminTab('promos')} className={`text-xs font-medium py-2 rounded-lg border transition-all ${adminTab === 'promos' ? 'bg-white/10 border-white/25 text-white' : 'border-white/5 text-zinc-400 hover:text-white'}`}>
+            <button onClick={() => setAdminTab('promos')} className={`text-xs font-medium py-2 px-3 rounded-lg border transition-all whitespace-nowrap shrink-0 ${adminTab === 'promos' ? 'bg-white/10 border-white/25 text-white' : 'border-white/5 text-zinc-400 hover:text-white'}`}>
               {t.adminPromos}
             </button>
-            <button onClick={() => setAdminTab('tickets')} className={`text-xs font-medium py-2 rounded-lg border transition-all ${adminTab === 'tickets' ? 'bg-white/10 border-white/25 text-white' : 'border-white/5 text-zinc-400 hover:text-white'}`}>
+            <button onClick={() => setAdminTab('tickets')} className={`text-xs font-medium py-2 px-3 rounded-lg border transition-all whitespace-nowrap shrink-0 ${adminTab === 'tickets' ? 'bg-white/10 border-white/25 text-white' : 'border-white/5 text-zinc-400 hover:text-white'}`}>
               {t.adminTickets}
             </button>
           </div>
@@ -3057,16 +3193,39 @@ function AdminView({ t, direction, tgUser, navigate, lang }: { t: any; direction
                       className="w-full bg-zinc-800/60 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-zinc-500 outline-none focus:border-white/25"
                     />
                   </div>
+                  <div>
+                    <label className="text-zinc-400 text-[10px] uppercase tracking-wider block mb-1">{lang === 'ru' ? 'Тип' : 'Type'}</label>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <button onClick={() => setPromoType('discount')} className={`text-xs py-2 rounded-lg border transition-all ${promoType === 'discount' ? 'bg-white/10 border-white/25 text-white' : 'border-white/5 text-zinc-400'}`}>
+                        {lang === 'ru' ? '% Скидка' : '% Discount'}
+                      </button>
+                      <button onClick={() => setPromoType('days')} className={`text-xs py-2 rounded-lg border transition-all ${promoType === 'days' ? 'bg-white/10 border-white/25 text-white' : 'border-white/5 text-zinc-400'}`}>
+                        {lang === 'ru' ? 'Дни подписки' : 'Free days'}
+                      </button>
+                    </div>
+                  </div>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="text-zinc-400 text-[10px] uppercase tracking-wider block mb-1">{t.adminPromoDays}</label>
-                      <input
-                        type="number"
-                        value={promoDays}
-                        onChange={(e) => setPromoDays(e.target.value)}
-                        min="1"
-                        className="w-full bg-zinc-800/60 border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-white/25"
-                      />
+                      <label className="text-zinc-400 text-[10px] uppercase tracking-wider block mb-1">
+                        {promoType === 'discount' ? (lang === 'ru' ? 'Скидка %' : 'Discount %') : t.adminPromoDays}
+                      </label>
+                      {promoType === 'discount' ? (
+                        <input
+                          type="number"
+                          value={promoDiscount}
+                          onChange={(e) => setPromoDiscount(e.target.value)}
+                          min="1" max="100"
+                          className="w-full bg-zinc-800/60 border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-white/25"
+                        />
+                      ) : (
+                        <input
+                          type="number"
+                          value={promoDays}
+                          onChange={(e) => setPromoDays(e.target.value)}
+                          min="1"
+                          className="w-full bg-zinc-800/60 border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-white/25"
+                        />
+                      )}
                     </div>
                     <div>
                       <label className="text-zinc-400 text-[10px] uppercase tracking-wider block mb-1">{t.adminPromoMaxUses}</label>
@@ -3081,7 +3240,7 @@ function AdminView({ t, direction, tgUser, navigate, lang }: { t: any; direction
                   </div>
                   <button
                     onClick={handleCreatePromo}
-                    disabled={promoCreating || !promoCode.trim() || !promoDays}
+                    disabled={promoCreating || !promoCode.trim() || (promoType === 'days' ? !promoDays : !promoDiscount)}
                     className="w-full bg-white text-black font-medium py-2.5 rounded-lg hover:bg-zinc-200 transition-colors disabled:opacity-50 text-sm"
                   >
                     {promoCreating ? '...' : t.adminPromoCreate}
@@ -3114,7 +3273,11 @@ function AdminView({ t, direction, tgUser, navigate, lang }: { t: any; direction
                         </div>
                       </div>
                       <div className="flex flex-wrap gap-x-3 text-[10px] text-zinc-400">
-                        <span>📅 {p.days} {lang === 'ru' ? 'дн.' : 'days'}</span>
+                        {p.discount_percent ? (
+                          <span>🏷️ -{p.discount_percent}%</span>
+                        ) : (
+                          <span>📅 {p.days} {lang === 'ru' ? 'дн.' : 'days'}</span>
+                        )}
                         <span>👥 {p.used_count}/{p.max_uses}</span>
                         <span>{new Date(p.created_at).toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'en-GB')}</span>
                       </div>

@@ -137,14 +137,21 @@ CREATE INDEX IF NOT EXISTS idx_logs_user_created ON logs(user_id, created_at);
 CREATE TABLE IF NOT EXISTS promo_codes (
   id BIGSERIAL PRIMARY KEY,
   code TEXT NOT NULL UNIQUE,
-  days INTEGER NOT NULL CHECK (days > 0),
+  days INTEGER NOT NULL DEFAULT 0,
+  discount_percent INTEGER,
   max_uses INTEGER NOT NULL DEFAULT 1,
   used_count INTEGER NOT NULL DEFAULT 0,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   created_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  expires_at TIMESTAMPTZ
+  expires_at TIMESTAMPTZ,
+  CONSTRAINT promo_codes_discount_check CHECK (discount_percent IS NULL OR (discount_percent >= 1 AND discount_percent <= 100)),
+  CONSTRAINT promo_codes_has_value CHECK (days > 0 OR discount_percent IS NOT NULL)
 );
+
+ALTER TABLE promo_codes ADD COLUMN IF NOT EXISTS discount_percent INTEGER;
+ALTER TABLE promo_codes DROP CONSTRAINT IF EXISTS promo_codes_days_check;
+ALTER TABLE promo_codes ALTER COLUMN days SET DEFAULT 0;
 
 CREATE TABLE IF NOT EXISTS promo_code_uses (
   id BIGSERIAL PRIMARY KEY,

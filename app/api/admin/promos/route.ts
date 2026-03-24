@@ -15,13 +15,14 @@ export async function GET(req: Request) {
       id: number;
       code: string;
       days: number;
+      discount_percent: number | null;
       max_uses: number;
       used_count: number;
       is_active: boolean;
       created_at: string;
       expires_at: string | null;
     }>(
-      `SELECT id, code, days, max_uses, used_count, is_active, created_at, expires_at
+      `SELECT id, code, days, discount_percent, max_uses, used_count, is_active, created_at, expires_at
        FROM promo_codes
        ORDER BY created_at DESC;`
     );
@@ -36,10 +37,11 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { telegramId, code, days, maxUses, expiresAt } = body as {
+    const { telegramId, code, days, discountPercent, maxUses, expiresAt } = body as {
       telegramId?: number;
       code?: string;
       days?: number;
+      discountPercent?: number;
       maxUses?: number;
       expiresAt?: string;
     };
@@ -52,8 +54,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'code is required' }, { status: 400 });
     }
 
-    if (!days || !Number.isFinite(days) || days < 1) {
-      return NextResponse.json({ error: 'days must be a positive integer' }, { status: 400 });
+    const hasDays = days && Number.isFinite(days) && days >= 1;
+    const hasDiscount = discountPercent && Number.isFinite(discountPercent) && discountPercent >= 1 && discountPercent <= 100;
+
+    if (!hasDays && !hasDiscount) {
+      return NextResponse.json({ error: 'days or discountPercent is required' }, { status: 400 });
     }
 
     const uses = maxUses && Number.isFinite(maxUses) && maxUses > 0 ? maxUses : 1;
@@ -65,12 +70,13 @@ export async function POST(req: Request) {
     const createdBy = adminUser.rows[0]?.id ?? null;
 
     const result = await dbQuery<{ id: number; code: string }>(
-      `INSERT INTO promo_codes (code, days, max_uses, is_active, created_by, expires_at)
-       VALUES ($1, $2, $3, TRUE, $4, $5)
+      `INSERT INTO promo_codes (code, days, discount_percent, max_uses, is_active, created_by, expires_at)
+       VALUES ($1, $2, $3, $4, TRUE, $5, $6)
        RETURNING id, code;`,
       [
         code.trim().toUpperCase(),
-        days,
+        hasDays ? days : 0,
+        hasDiscount ? discountPercent : null,
         uses,
         createdBy,
         expiresAt || null,

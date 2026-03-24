@@ -5,6 +5,8 @@ import { getSubscriptionUrl } from '@/lib/sub-token';
 type UserState = {
   userId: number;
   telegramId: number | null;
+  isBanned: boolean;
+  banReason: string | null;
   status: 'active' | 'expired' | 'canceled' | 'none';
   endDate: string | null;
   daysLeft: number;
@@ -64,6 +66,8 @@ export async function GET(req: Request) {
       SELECT
         u.id AS "userId",
         u.telegram_id AS "telegramId",
+        u.is_banned AS "isBanned",
+        u.ban_reason AS "banReason",
         CASE
           WHEN s.status = 'active' AND s.end_date > NOW() THEN 'active'
           WHEN s.status IS NULL THEN 'none'
