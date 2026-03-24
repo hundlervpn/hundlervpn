@@ -96,6 +96,7 @@ const translations = {
     adminStats: 'Статистика',
     adminUsers: 'Пользователи',
     adminPromos: 'Промокоды',
+    adminTickets: 'Обращения',
     adminTotalUsers: 'Всего',
     adminTodayUsers: 'Сегодня',
     adminBannedUsers: 'Забанено',
@@ -113,6 +114,26 @@ const translations = {
     adminBackToProfile: 'Назад в профиль',
     adminNoUsers: 'Пользователей не найдено',
     adminNoPromos: 'Промокодов пока нет',
+    adminTicketsSearch: 'Поиск по теме, имени или Telegram ID...',
+    adminTicketsOpenOnly: 'Открытые',
+    adminTicketsAll: 'Все',
+    adminNoTickets: 'Обращений пока нет',
+    adminTicketOpen: 'Открыт',
+    adminTicketClosed: 'Закрыт',
+    adminTicketSubjectEmpty: 'Без темы',
+    adminTicketBack: 'Назад к списку',
+    adminTicketMessages: 'Сообщения',
+    adminTicketReplyPlaceholder: 'Введите ответ пользователю...',
+    adminTicketSendReply: 'Отправить ответ',
+    adminTicketSendingReply: 'Отправка...',
+    adminTicketClose: 'Закрыть обращение',
+    adminTicketReopen: 'Переоткрыть',
+    adminTicketLoadError: 'Не удалось загрузить обращения',
+    adminTicketActionError: 'Не удалось выполнить действие',
+    adminTicketNoMessages: 'Сообщений пока нет',
+    adminTicketSenderUser: 'Пользователь',
+    adminTicketSenderAdmin: 'Админ',
+    adminTicketSenderSystem: 'Система',
     promoPlaceholder: 'Введите промокод',
     promoApply: 'Активировать',
     promoApplySuccess: 'Промокод применён',
@@ -208,6 +229,7 @@ const translations = {
     adminStats: 'Statistics',
     adminUsers: 'Users',
     adminPromos: 'Promo Codes',
+    adminTickets: 'Tickets',
     adminTotalUsers: 'Total',
     adminTodayUsers: 'Today',
     adminBannedUsers: 'Banned',
@@ -225,6 +247,26 @@ const translations = {
     adminBackToProfile: 'Back to profile',
     adminNoUsers: 'No users found',
     adminNoPromos: 'No promo codes yet',
+    adminTicketsSearch: 'Search by subject, name, or Telegram ID...',
+    adminTicketsOpenOnly: 'Open',
+    adminTicketsAll: 'All',
+    adminNoTickets: 'No tickets yet',
+    adminTicketOpen: 'Open',
+    adminTicketClosed: 'Closed',
+    adminTicketSubjectEmpty: 'No subject',
+    adminTicketBack: 'Back to list',
+    adminTicketMessages: 'Messages',
+    adminTicketReplyPlaceholder: 'Type your reply to the user...',
+    adminTicketSendReply: 'Send reply',
+    adminTicketSendingReply: 'Sending...',
+    adminTicketClose: 'Close ticket',
+    adminTicketReopen: 'Reopen ticket',
+    adminTicketLoadError: 'Failed to load tickets',
+    adminTicketActionError: 'Failed to complete action',
+    adminTicketNoMessages: 'No messages yet',
+    adminTicketSenderUser: 'User',
+    adminTicketSenderAdmin: 'Admin',
+    adminTicketSenderSystem: 'System',
     promoPlaceholder: 'Enter promo code',
     promoApply: 'Activate',
     promoApplySuccess: 'Promo code applied',
@@ -1506,16 +1548,6 @@ function SupportView({ t, direction, userIdentifier, lang }: { t: any; direction
               <ChevronRight size={14} className="rotate-180" /> {t.supportBackToList}
             </button>
 
-            <div className="rounded-[28px] border border-white/15 bg-gradient-to-br from-[#1d2130]/85 via-[#161a25]/90 to-[#11131b]/90 p-5">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h3 className="text-white font-bold text-xl leading-tight">{t.supportFaqTitle}</h3>
-                  <p className="text-zinc-400 text-sm leading-snug mt-1">{t.supportFaqHint}</p>
-                </div>
-                <ChevronRight size={18} strokeWidth={1.6} className="text-zinc-500 mt-1" />
-              </div>
-            </div>
-
             <form onSubmit={handleCreateTicket} className="rounded-[28px] border border-white/15 bg-zinc-900/55 p-4 md:p-5">
               <div className="flex items-center gap-2 mb-4">
                 <Send size={18} strokeWidth={1.8} className="text-zinc-300" />
@@ -1531,7 +1563,7 @@ function SupportView({ t, direction, userIdentifier, lang }: { t: any; direction
                   onChange={(e) => setSubject(e.target.value)}
                   placeholder={t.supportSubjectPlaceholder}
                   maxLength={120}
-                  className="w-full rounded-2xl border border-white/10 bg-[#0f1320] px-4 py-2.5 text-zinc-200 placeholder:text-zinc-500 outline-none focus:border-[#3E63FF]/70"
+                  className="w-full rounded-2xl border border-white/10 bg-zinc-950/70 px-4 py-2.5 text-zinc-200 placeholder:text-zinc-500 outline-none focus:border-white/25"
                 />
               </div>
 
@@ -1545,7 +1577,7 @@ function SupportView({ t, direction, userIdentifier, lang }: { t: any; direction
                   placeholder={t.supportMessagePlaceholder}
                   rows={6}
                   maxLength={4000}
-                  className="w-full rounded-2xl border border-white/10 bg-[#0f1320] px-4 py-3 text-zinc-200 placeholder:text-zinc-500 outline-none focus:border-[#3E63FF]/70 resize-none min-h-[220px]"
+                  className="w-full rounded-2xl border border-white/10 bg-zinc-950/70 px-4 py-3 text-zinc-200 placeholder:text-zinc-500 outline-none focus:border-white/25 resize-none min-h-[220px]"
                 />
               </div>
 
@@ -1558,7 +1590,7 @@ function SupportView({ t, direction, userIdentifier, lang }: { t: any; direction
               <button
                 type="submit"
                 disabled={submitting}
-                className="w-full rounded-full border border-[#3E63FF]/70 bg-[#1a2237]/70 text-[#4f74ff] font-semibold py-3.5 text-lg leading-none flex items-center justify-center gap-2 active:scale-[0.99] disabled:opacity-60"
+                className="w-full rounded-full border border-white/15 bg-white/[0.04] text-white font-semibold py-3.5 text-lg leading-none flex items-center justify-center gap-2 active:scale-[0.99] hover:bg-white/[0.08] disabled:opacity-60"
               >
                 <Send size={17} strokeWidth={1.8} />
                 <span>{submitting ? t.supportSending : t.supportSend}</span>
@@ -1590,7 +1622,7 @@ function SupportView({ t, direction, userIdentifier, lang }: { t: any; direction
                 <div key={ticket.id} className="rounded-2xl border border-white/10 bg-zinc-900/45 p-4">
                   <div className="flex items-start justify-between gap-3 mb-2">
                     <h3 className="text-white font-semibold text-sm">{ticket.subject || t.supportNoSubject}</h3>
-                    <span className={`px-2 py-1 rounded-full text-[10px] uppercase tracking-wider ${ticket.status === 'closed' ? 'bg-zinc-700/60 text-zinc-300' : 'bg-[#3E63FF]/20 text-[#7f98ff]'}`}>
+                    <span className={`px-2 py-1 rounded-full text-[10px] uppercase tracking-wider ${ticket.status === 'closed' ? 'bg-zinc-700/60 text-zinc-300' : 'bg-white/10 text-zinc-200'}`}>
                       {ticket.status === 'closed' ? t.supportClosedStatus : t.supportOpenStatus}
                     </span>
                   </div>
@@ -1863,8 +1895,389 @@ type AdminPromo = {
   expires_at: string | null;
 };
 
+type AdminTicket = {
+  id: string;
+  user_id: string;
+  telegram_id: string | null;
+  username: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  subject: string | null;
+  status: 'open' | 'closed';
+  created_at: string;
+  updated_at: string;
+  last_message: string | null;
+  last_message_at: string;
+  messages_count: number;
+};
+
+type AdminTicketDetails = {
+  id: string;
+  user_id: string;
+  telegram_id: string | null;
+  username: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  subject: string | null;
+  status: 'open' | 'closed';
+  created_at: string;
+  updated_at: string;
+  closed_at: string | null;
+};
+
+type AdminTicketMessage = {
+  id: string;
+  sender_type: 'user' | 'admin' | 'system';
+  message: string;
+  created_at: string;
+};
+
+function AdminTicketsView({ t, lang, tgId }: { t: any; lang: 'ru' | 'en'; tgId?: number }) {
+  const [tickets, setTickets] = useState<AdminTicket[]>([]);
+  const [ticketsLoading, setTicketsLoading] = useState(false);
+  const [ticketsError, setTicketsError] = useState<string | null>(null);
+  const [ticketsSearch, setTicketsSearch] = useState('');
+  const [ticketsFilter, setTicketsFilter] = useState<'open' | 'all'>('open');
+  const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
+  const [selectedTicket, setSelectedTicket] = useState<AdminTicketDetails | null>(null);
+  const [ticketMessages, setTicketMessages] = useState<AdminTicketMessage[]>([]);
+  const [ticketDetailsLoading, setTicketDetailsLoading] = useState(false);
+  const [replyMessage, setReplyMessage] = useState('');
+  const [replySending, setReplySending] = useState(false);
+  const [statusUpdating, setStatusUpdating] = useState(false);
+
+  const formatDate = (value: string) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '—';
+    return date.toLocaleString(lang === 'ru' ? 'ru-RU' : 'en-GB');
+  };
+
+  const getTicketOwner = (ticket: { first_name: string | null; last_name: string | null; username: string | null; telegram_id: string | null; user_id: string; }) => {
+    return [ticket.first_name, ticket.last_name].filter(Boolean).join(' ') || ticket.username || `TG ${ticket.telegram_id ?? ticket.user_id}`;
+  };
+
+  const loadTickets = async (nextSearch = ticketsSearch, nextFilter = ticketsFilter) => {
+    if (!tgId) {
+      setTickets([]);
+      return;
+    }
+
+    setTicketsLoading(true);
+    setTicketsError(null);
+    try {
+      const params = new URLSearchParams({ telegramId: String(tgId) });
+      if (nextFilter === 'open') params.set('status', 'open');
+      if (nextSearch.trim()) params.set('search', nextSearch.trim());
+
+      const res = await fetch(`/api/admin/tickets?${params}`);
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data.error || t.adminTicketLoadError);
+      }
+
+      setTickets(Array.isArray(data.tickets) ? data.tickets : []);
+    } catch (error) {
+      setTickets([]);
+      setTicketsError(error instanceof Error ? error.message : t.adminTicketLoadError);
+    } finally {
+      setTicketsLoading(false);
+    }
+  };
+
+  const loadTicketDetails = async (ticketId: string) => {
+    if (!tgId) return;
+
+    setTicketDetailsLoading(true);
+    setTicketsError(null);
+    try {
+      const res = await fetch(`/api/admin/tickets/${ticketId}?telegramId=${encodeURIComponent(String(tgId))}`);
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data.error || t.adminTicketLoadError);
+      }
+
+      setSelectedTicket(data.ticket ?? null);
+      setTicketMessages(Array.isArray(data.messages) ? data.messages : []);
+    } catch (error) {
+      setSelectedTicket(null);
+      setTicketMessages([]);
+      setTicketsError(error instanceof Error ? error.message : t.adminTicketLoadError);
+    } finally {
+      setTicketDetailsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!tgId) {
+      setTickets([]);
+      return;
+    }
+    void loadTickets();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tgId, ticketsFilter]);
+
+  const handleTicketSearchSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    void loadTickets(ticketsSearch, ticketsFilter);
+  };
+
+  const handleOpenTicket = (ticketId: string) => {
+    setSelectedTicketId(ticketId);
+    setReplyMessage('');
+    void loadTicketDetails(ticketId);
+  };
+
+  const handleSendReply = async () => {
+    if (!tgId || !selectedTicketId) return;
+
+    const message = replyMessage.trim();
+    if (!message) {
+      setTicketsError(t.supportMessageRequired);
+      return;
+    }
+
+    setReplySending(true);
+    setTicketsError(null);
+    try {
+      const res = await fetch(`/api/admin/tickets/${selectedTicketId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ telegramId: tgId, message }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || t.adminTicketActionError);
+      }
+
+      setReplyMessage('');
+      await Promise.all([
+        loadTicketDetails(selectedTicketId),
+        loadTickets(ticketsSearch, ticketsFilter),
+      ]);
+    } catch (error) {
+      setTicketsError(error instanceof Error ? error.message : t.adminTicketActionError);
+    } finally {
+      setReplySending(false);
+    }
+  };
+
+  const handleTicketStatus = async (status: 'open' | 'closed') => {
+    if (!tgId || !selectedTicketId) return;
+
+    setStatusUpdating(true);
+    setTicketsError(null);
+    try {
+      const res = await fetch(`/api/admin/tickets/${selectedTicketId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ telegramId: tgId, status }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || t.adminTicketActionError);
+      }
+
+      await Promise.all([
+        loadTicketDetails(selectedTicketId),
+        loadTickets(ticketsSearch, ticketsFilter),
+      ]);
+    } catch (error) {
+      setTicketsError(error instanceof Error ? error.message : t.adminTicketActionError);
+    } finally {
+      setStatusUpdating(false);
+    }
+  };
+
+  const senderLabel = (senderType: 'user' | 'admin' | 'system') => {
+    if (senderType === 'admin') return t.adminTicketSenderAdmin;
+    if (senderType === 'system') return t.adminTicketSenderSystem;
+    return t.adminTicketSenderUser;
+  };
+
+  return (
+    <div>
+      {!selectedTicketId ? (
+        <>
+          <div className="flex gap-2 mb-3">
+            <button
+              onClick={() => {
+                setTicketsFilter('open');
+                void loadTickets(ticketsSearch, 'open');
+              }}
+              className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${ticketsFilter === 'open' ? 'bg-white/10 border-white/25 text-white' : 'border-white/10 text-zinc-400 hover:text-white hover:bg-white/5'}`}
+            >
+              {t.adminTicketsOpenOnly}
+            </button>
+            <button
+              onClick={() => {
+                setTicketsFilter('all');
+                void loadTickets(ticketsSearch, 'all');
+              }}
+              className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${ticketsFilter === 'all' ? 'bg-white/10 border-white/25 text-white' : 'border-white/10 text-zinc-400 hover:text-white hover:bg-white/5'}`}
+            >
+              {t.adminTicketsAll}
+            </button>
+          </div>
+
+          <form onSubmit={handleTicketSearchSubmit} className="mb-3 flex gap-2">
+            <div className="relative flex-1">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+              <input
+                type="text"
+                value={ticketsSearch}
+                onChange={(e) => setTicketsSearch(e.target.value)}
+                placeholder={t.adminTicketsSearch}
+                className="w-full bg-zinc-800/60 border border-white/10 rounded-lg pl-9 pr-3 py-2 text-sm text-white placeholder:text-zinc-500 outline-none focus:border-white/25"
+              />
+            </div>
+            <button type="submit" className="bg-white/10 border border-white/15 text-white px-3 rounded-lg text-sm hover:bg-white/15">
+              <Search size={14} />
+            </button>
+          </form>
+
+          {ticketsError && (
+            <div className="mb-3 rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+              {ticketsError}
+            </div>
+          )}
+
+          {ticketsLoading ? (
+            <div className="text-center py-8 text-zinc-400 text-sm">Загрузка...</div>
+          ) : tickets.length === 0 ? (
+            <div className="text-center py-8 text-zinc-400 text-sm">{t.adminNoTickets}</div>
+          ) : (
+            <div className="space-y-2">
+              {tickets.map((ticket) => (
+                <button
+                  key={ticket.id}
+                  onClick={() => handleOpenTicket(ticket.id)}
+                  className="w-full text-left rounded-xl border border-white/10 bg-zinc-900/60 p-3 hover:bg-zinc-900/80 transition-colors"
+                >
+                  <div className="flex items-start justify-between gap-2 mb-1.5">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-white text-sm font-medium truncate">{ticket.subject || t.adminTicketSubjectEmpty}</p>
+                      <p className="text-zinc-500 text-[10px] truncate">
+                        {getTicketOwner(ticket)} · TG: {ticket.telegram_id || '—'}
+                      </p>
+                    </div>
+                    <span className={`text-[9px] uppercase tracking-wider px-2 py-1 rounded-full ${ticket.status === 'closed' ? 'bg-zinc-700/60 text-zinc-300' : 'bg-white/10 text-zinc-200'}`}>
+                      {ticket.status === 'closed' ? t.adminTicketClosed : t.adminTicketOpen}
+                    </span>
+                  </div>
+                  <p className="text-zinc-400 text-xs line-clamp-2 min-h-[2.2rem]">{ticket.last_message || '—'}</p>
+                  <div className="mt-2 flex items-center justify-between text-[10px] text-zinc-500">
+                    <span>{formatDate(ticket.last_message_at)}</span>
+                    <span>{ticket.messages_count} {t.supportMessagesCount}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </>
+      ) : (
+        <div>
+          <button
+            onClick={() => {
+              setSelectedTicketId(null);
+              setSelectedTicket(null);
+              setTicketMessages([]);
+            }}
+            className="mb-3 text-zinc-300 hover:text-white text-sm inline-flex items-center gap-2"
+          >
+            <ChevronRight size={14} className="rotate-180" /> {t.adminTicketBack}
+          </button>
+
+          {ticketsError && (
+            <div className="mb-3 rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+              {ticketsError}
+            </div>
+          )}
+
+          {ticketDetailsLoading || !selectedTicket ? (
+            <div className="text-center py-8 text-zinc-400 text-sm">Загрузка...</div>
+          ) : (
+            <div className="space-y-3">
+              <div className="rounded-xl border border-white/10 bg-zinc-900/60 p-3">
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div className="min-w-0">
+                    <p className="text-white font-medium text-sm">{selectedTicket.subject || t.adminTicketSubjectEmpty}</p>
+                    <p className="text-zinc-500 text-[10px]">
+                      {getTicketOwner(selectedTicket)} · TG: {selectedTicket.telegram_id || '—'}
+                    </p>
+                  </div>
+                  <span className={`text-[9px] uppercase tracking-wider px-2 py-1 rounded-full ${selectedTicket.status === 'closed' ? 'bg-zinc-700/60 text-zinc-300' : 'bg-white/10 text-zinc-200'}`}>
+                    {selectedTicket.status === 'closed' ? t.adminTicketClosed : t.adminTicketOpen}
+                  </span>
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleTicketStatus('closed')}
+                    disabled={statusUpdating || selectedTicket.status === 'closed'}
+                    className="text-xs px-3 py-1.5 rounded-lg border border-red-500/25 bg-red-500/10 text-red-300 hover:bg-red-500/20 disabled:opacity-40"
+                  >
+                    {t.adminTicketClose}
+                  </button>
+                  <button
+                    onClick={() => handleTicketStatus('open')}
+                    disabled={statusUpdating || selectedTicket.status === 'open'}
+                    className="text-xs px-3 py-1.5 rounded-lg border border-emerald-500/25 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20 disabled:opacity-40"
+                  >
+                    {t.adminTicketReopen}
+                  </button>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-white/10 bg-zinc-900/60 p-3">
+                <p className="text-zinc-300 text-xs uppercase tracking-wider mb-2">{t.adminTicketMessages}</p>
+                {ticketMessages.length === 0 ? (
+                  <div className="text-zinc-500 text-sm py-4 text-center">{t.adminTicketNoMessages}</div>
+                ) : (
+                  <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+                    {ticketMessages.map((msg) => (
+                      <div key={msg.id} className={`flex ${msg.sender_type === 'admin' ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`max-w-[92%] rounded-xl border px-3 py-2 ${msg.sender_type === 'admin' ? 'border-white/20 bg-white/10 text-white' : 'border-white/10 bg-zinc-800/70 text-zinc-200'}`}>
+                          <p className="text-sm whitespace-pre-wrap break-words">{msg.message}</p>
+                          <p className="text-[10px] text-zinc-500 mt-1">{senderLabel(msg.sender_type)} · {formatDate(msg.created_at)}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-xl border border-white/10 bg-zinc-900/60 p-3">
+                <textarea
+                  value={replyMessage}
+                  onChange={(e) => setReplyMessage(e.target.value)}
+                  placeholder={t.adminTicketReplyPlaceholder}
+                  rows={4}
+                  maxLength={4000}
+                  className="w-full rounded-xl border border-white/10 bg-zinc-950/70 px-3 py-2 text-sm text-white placeholder:text-zinc-500 outline-none focus:border-white/25 resize-none"
+                />
+                <button
+                  onClick={handleSendReply}
+                  disabled={replySending}
+                  className="mt-2 w-full bg-white text-black font-medium py-2.5 rounded-lg hover:bg-zinc-200 transition-colors disabled:opacity-50 text-sm flex items-center justify-center gap-2"
+                >
+                  <Send size={14} />
+                  <span>{replySending ? t.adminTicketSendingReply : t.adminTicketSendReply}</span>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AdminView({ t, direction, tgUser, navigate, lang }: { t: any; direction: number; tgUser: { id: number; name: string; photo: string; username?: string } | null; navigate: (tab: Tab) => void; lang: 'ru' | 'en' }) {
-  const [adminTab, setAdminTab] = useState<'stats' | 'users' | 'promos'>('stats');
+  const [adminTab, setAdminTab] = useState<'stats' | 'users' | 'promos' | 'tickets'>('stats');
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -2010,7 +2423,7 @@ function AdminView({ t, direction, tgUser, navigate, lang }: { t: any; direction
           </h3>
 
           {/* Admin Sub-tabs */}
-          <div className="grid grid-cols-3 gap-1.5 mb-4">
+          <div className="grid grid-cols-4 gap-1.5 mb-4">
             <button onClick={() => setAdminTab('stats')} className={`text-xs font-medium py-2 rounded-lg border transition-all ${adminTab === 'stats' ? 'bg-white/10 border-white/25 text-white' : 'border-white/5 text-zinc-400 hover:text-white'}`}>
               {t.adminStats}
             </button>
@@ -2019,6 +2432,9 @@ function AdminView({ t, direction, tgUser, navigate, lang }: { t: any; direction
             </button>
             <button onClick={() => setAdminTab('promos')} className={`text-xs font-medium py-2 rounded-lg border transition-all ${adminTab === 'promos' ? 'bg-white/10 border-white/25 text-white' : 'border-white/5 text-zinc-400 hover:text-white'}`}>
               {t.adminPromos}
+            </button>
+            <button onClick={() => setAdminTab('tickets')} className={`text-xs font-medium py-2 rounded-lg border transition-all ${adminTab === 'tickets' ? 'bg-white/10 border-white/25 text-white' : 'border-white/5 text-zinc-400 hover:text-white'}`}>
+              {t.adminTickets}
             </button>
           </div>
 
@@ -2252,6 +2668,8 @@ function AdminView({ t, direction, tgUser, navigate, lang }: { t: any; direction
               )}
             </div>
           )}
+
+          {adminTab === 'tickets' && <AdminTicketsView t={t} lang={lang} tgId={tgId} />}
         </div>
       </div>
     </motion.div>

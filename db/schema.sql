@@ -198,6 +198,7 @@ CREATE TABLE IF NOT EXISTS support_ticket_messages (
 );
 
 CREATE INDEX IF NOT EXISTS idx_support_tickets_user_status ON support_tickets(user_id, status, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_support_tickets_status_updated ON support_tickets(status, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_support_ticket_messages_ticket_created ON support_ticket_messages(ticket_id, created_at DESC);
 
 DROP TRIGGER IF EXISTS trg_users_set_updated_at ON users;
