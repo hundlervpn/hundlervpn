@@ -676,7 +676,6 @@ function DesktopSidebar({ t, activeTab, navigate, authMode }: { t: any; activeTa
         <p className="text-zinc-500 text-[11px] uppercase tracking-[0.16em] mb-2.5">Программы</p>
         <div className="space-y-1 text-sm text-zinc-300">
           <div className="px-3 py-2 rounded-lg hover:bg-white/5 hover:text-white transition-colors">Реферальная система</div>
-          <div className="px-3 py-2 rounded-lg hover:bg-white/5 hover:text-white transition-colors">Партнерская программа</div>
         </div>
       </div>
       )}
