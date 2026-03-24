@@ -613,7 +613,7 @@ export default function App() {
             <AnimatePresence mode="wait" custom={direction}>
               {activeTab === 'home' && <HomeView key="home" t={t} direction={direction} subscriptionEndDateLabel={subscriptionEndDateLabel} subscriptionDaysLabel={subscriptionDaysLabel} subscriptionUrl={subscriptionState?.subscriptionUrl ?? null} tgUser={tgUser} onSubscriptionChange={refreshSubscriptionState} userIdentifier={userIdentifier} navigate={navigate} />}
               {activeTab === 'support' && <SupportView key="support" t={t} direction={direction} userIdentifier={userIdentifier} lang={lang} />}
-              {activeTab === 'payment' && <PaymentView key="payment" t={t} direction={direction} tgUser={tgUser} onSubscriptionChange={refreshSubscriptionState} />}
+              {activeTab === 'payment' && <PaymentView key="payment" t={t} direction={direction} tgUser={tgUser} onSubscriptionChange={refreshSubscriptionState} userIdentifier={userIdentifier} />}
               {activeTab === 'profile' && <ProfileView key="profile" t={t} lang={lang} setLang={setLang} direction={direction} tgUser={tgUser} subscriptionDaysLabel={subscriptionDaysLabel} navigate={navigate} authMode={authMode} onLogout={handleEmailLogout} />}
               {activeTab === 'payments' && <PaymentsHistoryView key="payments" t={t} direction={direction} tgUser={tgUser} navigate={navigate} lang={lang} />}
               {activeTab === 'admin' && <AdminView key="admin" t={t} direction={direction} tgUser={tgUser} navigate={navigate} lang={lang} />}
@@ -1268,10 +1268,13 @@ function HomeView({ t, direction, subscriptionEndDateLabel, subscriptionDaysLabe
   );
 }
 
-function PaymentView({ t, direction, tgUser, onSubscriptionChange }: { t: any, direction: number; tgUser: { id: number; name: string; photo: string; username?: string } | null; onSubscriptionChange: (telegramId: number) => Promise<void> }) {
+function PaymentView({ t, direction, tgUser, onSubscriptionChange, userIdentifier }: { t: any, direction: number; tgUser: { id: number; name: string; photo: string; username?: string } | null; onSubscriptionChange: (id: number | UserIdentifier) => Promise<void>; userIdentifier: UserIdentifier | null }) {
   const [months, setMonths] = useState(1);
   const [payMethod, setPayMethod] = useState<'tg' | 'crypto' | 'sbp'>('tg');
   const [isLoading, setIsLoading] = useState(false);
+  const [sbpState, setSbpState] = useState<'idle' | 'creating' | 'waiting' | 'success' | 'failed'>('idle');
+  const [sbpPaymentId, setSbpPaymentId] = useState<number | null>(null);
+  const [sbpRedirectUrl, setSbpRedirectUrl] = useState<string | null>(null);
 
   const basePrice = 150; 
   const discountPerMonth = 5; 
@@ -1279,6 +1282,36 @@ function PaymentView({ t, direction, tgUser, onSubscriptionChange }: { t: any, d
   const totalPrice = pricePerMonth * months;
   const totalUsd = +(totalPrice / 100).toFixed(2);
   const totalStars = Math.max(1, Math.round(totalPrice / 2));
+
+  useEffect(() => {
+    if (sbpState !== 'waiting' || !sbpPaymentId) return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/payments/sbp/status?paymentId=${sbpPaymentId}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.status === 'paid') {
+          setSbpState('success');
+          clearInterval(interval);
+          if (userIdentifier) {
+            setTimeout(() => { void onSubscriptionChange(userIdentifier); }, 1000);
+          } else if (tgUser?.id) {
+            setTimeout(() => { void onSubscriptionChange(tgUser.id); }, 1000);
+          }
+        } else if (data.status === 'failed') {
+          setSbpState('failed');
+          clearInterval(interval);
+        }
+      } catch { /* ignore polling errors */ }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [sbpState, sbpPaymentId]);
+
+  const handleSbpCancel = () => {
+    setSbpState('idle');
+    setSbpPaymentId(null);
+    setSbpRedirectUrl(null);
+  };
 
   const handleSubscribe = async () => {
     setIsLoading(true);
@@ -1298,10 +1331,10 @@ function PaymentView({ t, direction, tgUser, onSubscriptionChange }: { t: any, d
             try {
               const result = await window.Telegram.WebApp.openInvoice(data.invoiceLink);
               if (result.status === 'paid') {
-                if (tgUser?.id) {
-                  setTimeout(() => {
-                    void onSubscriptionChange(tgUser.id);
-                  }, 1500);
+                if (userIdentifier) {
+                  setTimeout(() => { void onSubscriptionChange(userIdentifier); }, 1500);
+                } else if (tgUser?.id) {
+                  setTimeout(() => { void onSubscriptionChange(tgUser.id); }, 1500);
                 }
                 alert('Оплата прошла успешно!');
               } else if (result.status === 'cancelled') {
@@ -1330,7 +1363,6 @@ function PaymentView({ t, direction, tgUser, onSubscriptionChange }: { t: any, d
         });
         const data = await response.json();
         if (data.paymentUrl) {
-          // Use Telegram WebApp openLink if available, otherwise redirect
           if (typeof window !== 'undefined' && window.Telegram?.WebApp?.openLink) {
             window.Telegram.WebApp.openLink(data.paymentUrl);
           } else {
@@ -1339,16 +1371,112 @@ function PaymentView({ t, direction, tgUser, onSubscriptionChange }: { t: any, d
         } else {
           alert(data.error || 'Ошибка создания крипто-счета');
         }
-      } else {
-        alert('Этот метод оплаты пока не реализован');
+      } else if (payMethod === 'sbp') {
+        setSbpState('creating');
+        const reqBody: Record<string, unknown> = { months, amount: totalPrice };
+        if (userIdentifier?.type === 'telegram') {
+          reqBody.telegramId = userIdentifier.telegramId;
+        } else if (userIdentifier?.type === 'email') {
+          reqBody.userId = userIdentifier.userId;
+        } else if (tgUser?.id) {
+          reqBody.telegramId = tgUser.id;
+        }
+
+        const response = await fetch('/api/payments/sbp/create', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(reqBody),
+        });
+        const data = await response.json();
+        if (data.ok && data.redirect) {
+          setSbpPaymentId(data.paymentId);
+          setSbpRedirectUrl(data.redirect);
+          setSbpState('waiting');
+          if (typeof window !== 'undefined' && window.Telegram?.WebApp?.openLink) {
+            window.Telegram.WebApp.openLink(data.redirect);
+          } else {
+            window.open(data.redirect, '_blank');
+          }
+        } else {
+          setSbpState('idle');
+          alert(data.error || 'Ошибка создания платежа СБП');
+        }
       }
     } catch (error) {
       console.error('Payment error:', error);
+      setSbpState('idle');
       alert('Произошла ошибка');
     } finally {
       setIsLoading(false);
     }
   };
+
+  if (sbpState === 'waiting' || sbpState === 'success' || sbpState === 'failed') {
+    return (
+      <motion.div
+        custom={direction}
+        variants={pageVariants}
+        initial="initial"
+        animate="animate"
+        exit="exit"
+        className="flex flex-col gap-3 flex-1 lg:items-center"
+      >
+        <div className="w-full max-w-xs mx-auto flex flex-col items-center lg:max-w-[720px]">
+          <div className="bg-zinc-900/40 border border-white/10 rounded-xl p-6 w-full text-center">
+            {sbpState === 'waiting' && (
+              <>
+                <div className="flex justify-center mb-4">
+                  <div className="w-10 h-10 border-2 border-white/20 border-t-blue-400 rounded-full animate-spin" />
+                </div>
+                <h3 className="text-white font-medium text-sm mb-2">Ожидание оплаты через СБП</h3>
+                <p className="text-zinc-400 text-xs mb-4">Завершите оплату в открывшемся окне. Статус обновится автоматически.</p>
+                {sbpRedirectUrl && (
+                  <button
+                    onClick={() => {
+                      if (typeof window !== 'undefined' && window.Telegram?.WebApp?.openLink) {
+                        window.Telegram.WebApp.openLink(sbpRedirectUrl);
+                      } else {
+                        window.open(sbpRedirectUrl, '_blank');
+                      }
+                    }}
+                    className="w-full bg-blue-500/20 text-blue-400 border border-blue-500/30 font-medium py-2.5 rounded-lg hover:bg-blue-500/30 transition-colors text-sm mb-2"
+                  >
+                    Открыть страницу оплаты
+                  </button>
+                )}
+                <button
+                  onClick={handleSbpCancel}
+                  className="w-full text-zinc-500 text-xs py-2 hover:text-zinc-300 transition-colors"
+                >
+                  Отмена
+                </button>
+              </>
+            )}
+            {sbpState === 'success' && (
+              <>
+                <div className="text-3xl mb-3">✅</div>
+                <h3 className="text-white font-medium text-sm mb-2">Оплата прошла успешно!</h3>
+                <p className="text-zinc-400 text-xs mb-4">Подписка активирована. Статус обновится через несколько секунд.</p>
+                <button onClick={handleSbpCancel} className="w-full bg-white text-black font-medium py-2.5 rounded-lg hover:bg-zinc-200 transition-colors text-sm">
+                  Готово
+                </button>
+              </>
+            )}
+            {sbpState === 'failed' && (
+              <>
+                <div className="text-3xl mb-3">❌</div>
+                <h3 className="text-white font-medium text-sm mb-2">Оплата не прошла</h3>
+                <p className="text-zinc-400 text-xs mb-4">Платёж был отменён или произошла ошибка. Попробуйте ещё раз.</p>
+                <button onClick={handleSbpCancel} className="w-full bg-white text-black font-medium py-2.5 rounded-lg hover:bg-zinc-200 transition-colors text-sm">
+                  Назад
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div 
@@ -1413,8 +1541,8 @@ function PaymentView({ t, direction, tgUser, onSubscriptionChange }: { t: any, d
         </motion.ul>
 
         <motion.div initial={{ y: 10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.2, duration: 0.25 }} className="mt-3">
-          <button onClick={handleSubscribe} disabled={isLoading} className="w-full bg-white text-black font-medium py-3 rounded-lg hover:bg-zinc-200 transition-colors disabled:opacity-50 text-sm">
-            {isLoading ? 'Загрузка...' : t.subscribe}
+          <button onClick={handleSubscribe} disabled={isLoading || sbpState === 'creating'} className="w-full bg-white text-black font-medium py-3 rounded-lg hover:bg-zinc-200 transition-colors disabled:opacity-50 text-sm">
+            {isLoading || sbpState === 'creating' ? 'Загрузка...' : t.subscribe}
           </button>
         </motion.div>
       </div>

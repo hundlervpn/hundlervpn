@@ -535,6 +535,95 @@ export async function issueTrialAccess(client: PoolClient, userId: number, teleg
   };
 }
 
+export async function applyReferralReward(client: PoolClient, paidUserId: number) {
+  const paidHistory = await client.query<{ count: string }>(
+    `
+    SELECT COUNT(*)::text AS count
+    FROM payments
+    WHERE user_id = $1 AND status = 'paid';
+    `,
+    [paidUserId]
+  );
+
+  if (Number(paidHistory.rows[0]?.count ?? '0') > 0) {
+    return;
+  }
+
+  const inviterResult = await client.query<{ referred_by_user_id: number | null }>(
+    `
+    SELECT referred_by_user_id
+    FROM users
+    WHERE id = $1
+    LIMIT 1;
+    `,
+    [paidUserId]
+  );
+
+  const inviterUserId = inviterResult.rows[0]?.referred_by_user_id;
+  if (!inviterUserId) {
+    return;
+  }
+
+  const bonusPlanName = 'Referral Bonus 7d';
+  const bonusPlanId = await ensureNamedPlan(client, {
+    name: bonusPlanName,
+    durationDays: 7,
+    price: 0,
+    maxDevices: 3,
+    trafficLimit: null,
+  });
+  if (!bonusPlanId) {
+    return;
+  }
+
+  const inviterSub = await client.query<{ id: number; end_date: Date }>(
+    `
+    SELECT id, end_date
+    FROM subscriptions
+    WHERE user_id = $1 AND status = 'active'
+    ORDER BY end_date DESC
+    LIMIT 1
+    FOR UPDATE;
+    `,
+    [inviterUserId]
+  );
+
+  if (inviterSub.rows[0] && new Date(inviterSub.rows[0].end_date) > new Date()) {
+    await client.query(
+      `
+      UPDATE subscriptions
+      SET end_date = end_date + INTERVAL '7 days',
+          updated_at = NOW(),
+          status = 'active'
+      WHERE id = $1;
+      `,
+      [inviterSub.rows[0].id]
+    );
+
+    await client.query(
+      `
+      UPDATE vpn_keys
+      SET expires_at = CASE
+        WHEN expires_at IS NULL THEN NOW() + INTERVAL '7 days'
+        ELSE expires_at + INTERVAL '7 days'
+      END
+      WHERE user_id = $1
+        AND is_active = TRUE
+        AND (expires_at IS NULL OR expires_at > NOW());
+      `,
+      [inviterUserId]
+    );
+  } else {
+    await client.query(
+      `
+      INSERT INTO subscriptions (user_id, plan_id, start_date, end_date, status)
+      VALUES ($1, $2, NOW(), NOW() + INTERVAL '7 days', 'active');
+      `,
+      [inviterUserId, bonusPlanId]
+    );
+  }
+}
+
 export async function applyPromoCode(client: PoolClient, input: { userId: number; telegramId: number; code: string }) {
   const normalizedCode = input.code.trim().toUpperCase();
   if (!normalizedCode) {
