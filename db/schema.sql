@@ -32,6 +32,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_code TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS referred_by_user_id BIGINT REFERENCES users(id) ON DELETE SET NULL;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS email TEXT;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_type TEXT NOT NULL DEFAULT 'telegram' CHECK (auth_type IN ('telegram', 'email'));
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_referral_code ON users(referral_code) WHERE referral_code IS NOT NULL;
 

@@ -48,13 +48,12 @@ export async function POST(req: Request) {
     let isNew = false;
 
     if (userResult.rows.length === 0) {
-      // Create new user
-      const referralCode = `e${Date.now().toString(36)}`;
+      // Create new user (email auth — no referral_code, no trial)
       const insertResult = await dbQuery(
-        `INSERT INTO users (email, email_verified, referral_code, first_name)
-         VALUES ($1, TRUE, $2, $3)
+        `INSERT INTO users (email, email_verified, first_name, auth_type)
+         VALUES ($1, TRUE, $2, 'email')
          RETURNING id;`,
-        [email, referralCode, email.split('@')[0]]
+        [email, email.split('@')[0]]
       );
       userId = insertResult.rows[0].id;
       isNew = true;

@@ -52,7 +52,8 @@ export async function upsertTelegramUser(client: PoolClient, input: UpsertTelegr
       auto_renew,
       last_seen_at,
       referral_code,
-      referred_by_user_id
+      referred_by_user_id,
+      auth_type
     )
     VALUES (
       $1::bigint,
@@ -65,7 +66,8 @@ export async function upsertTelegramUser(client: PoolClient, input: UpsertTelegr
       FALSE,
       NOW(),
       $6,
-      $7::bigint
+      $7::bigint,
+      'telegram'
     )
     ON CONFLICT (telegram_id)
     DO UPDATE SET

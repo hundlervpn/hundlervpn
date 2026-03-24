@@ -590,7 +590,7 @@ export default function App() {
       </div>
 
       <div className="relative z-10 min-h-screen lg:mx-auto lg:max-w-[1320px] lg:flex lg:items-stretch lg:gap-8 lg:px-6 lg:py-4">
-        <DesktopSidebar t={t} activeTab={activeTab} navigate={navigate} />
+        <DesktopSidebar t={t} activeTab={activeTab} navigate={navigate} authMode={authMode} />
 
         <main 
           className="w-full min-h-screen pb-24 px-4 flex flex-col lg:min-h-0 lg:flex-1 lg:pb-6 lg:px-0"
@@ -648,7 +648,7 @@ export default function App() {
   );
 }
 
-function DesktopSidebar({ t, activeTab, navigate }: { t: any; activeTab: Tab; navigate: (tab: Tab) => void }) {
+function DesktopSidebar({ t, activeTab, navigate, authMode }: { t: any; activeTab: Tab; navigate: (tab: Tab) => void; authMode?: AuthMode }) {
   const menuBtnClass = (isActive: boolean) => `group w-full text-left px-3.5 py-2.5 rounded-xl text-sm transition-all ${isActive ? 'bg-gradient-to-r from-white/20 to-white/5 text-white border border-white/30 shadow-[0_0_0_1px_rgba(255,255,255,0.12)]' : 'text-zinc-300 hover:bg-white/5 hover:border-white/10 border border-transparent'}`;
 
   return (
@@ -671,6 +671,7 @@ function DesktopSidebar({ t, activeTab, navigate }: { t: any; activeTab: Tab; na
         </div>
       </div>
 
+      {authMode !== 'email' && (
       <div className="mb-6 rounded-2xl border border-white/10 bg-white/[0.02] p-3">
         <p className="text-zinc-500 text-[11px] uppercase tracking-[0.16em] mb-2.5">Программы</p>
         <div className="space-y-1 text-sm text-zinc-300">
@@ -678,6 +679,7 @@ function DesktopSidebar({ t, activeTab, navigate }: { t: any; activeTab: Tab; na
           <div className="px-3 py-2 rounded-lg hover:bg-white/5 hover:text-white transition-colors">Партнерская программа</div>
         </div>
       </div>
+      )}
 
       <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-3">
         <p className="text-zinc-500 text-[11px] uppercase tracking-[0.16em] mb-2.5">Аккаунт</p>
@@ -1958,6 +1960,8 @@ function ProfileView({ t, lang, setLang, direction, tgUser, subscriptionDaysLabe
                 </div>
                 <ChevronRight size={14} strokeWidth={1.5} className="text-zinc-600" />
               </button>
+              {authMode !== 'email' && (
+              <>
               <div className="h-px bg-white/5 mx-3" />
               <button onClick={handleReferralClick} className="w-full flex items-center justify-between p-3 hover:bg-white/5 transition-colors active:scale-[0.98]">
                 <div className="flex items-center gap-2">
@@ -1966,6 +1970,8 @@ function ProfileView({ t, lang, setLang, direction, tgUser, subscriptionDaysLabe
                 </div>
                 <ChevronRight size={14} strokeWidth={1.5} className="text-zinc-600" />
               </button>
+              </>
+              )}
               <div className="h-px bg-white/5 mx-3" />
               <button onClick={() => navigate('payments')} className="w-full flex items-center justify-between p-3 hover:bg-white/5 transition-colors active:scale-[0.98]">
                 <div className="flex items-center gap-2">
