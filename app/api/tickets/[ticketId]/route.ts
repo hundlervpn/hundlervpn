@@ -1,14 +1,12 @@
 import { NextResponse } from 'next/server';
-import { getDbPool, dbQuery } from '@/lib/db';
-import { isAdmin } from '@/lib/admin';
+import { dbQuery, getDbPool } from '@/lib/db';
+
+type IdentityResolution =
+  | { ok: true; field: 'telegram_id' | 'id'; value: number }
+  | { ok: false; error: string };
 
 type TicketDetailsRow = {
   id: string;
-  user_id: string;
-  telegram_id: string | null;
-  username: string | null;
-  first_name: string | null;
-  last_name: string | null;
   subject: string | null;
   status: 'open' | 'closed';
   created_at: string;
@@ -22,6 +20,36 @@ type TicketMessageRow = {
   message: string;
   created_at: string;
 };
+
+function hasValue(value: unknown) {
+  if (value === null || value === undefined) return false;
+  if (typeof value === 'string') return value.trim().length > 0;
+  return true;
+}
+
+function resolveIdentity(telegramIdRaw: unknown, userIdRaw: unknown): IdentityResolution {
+  const hasTelegramId = hasValue(telegramIdRaw);
+  const hasUserId = hasValue(userIdRaw);
+
+  if (!hasTelegramId && !hasUserId) {
+    return { ok: false, error: 'telegramId or userId is required' };
+  }
+
+  if (hasTelegramId) {
+    const telegramId = Number(telegramIdRaw);
+    if (!Number.isFinite(telegramId)) {
+      return { ok: false, error: 'Invalid telegramId' };
+    }
+    return { ok: true, field: 'telegram_id', value: telegramId };
+  }
+
+  const userId = Number(userIdRaw);
+  if (!Number.isFinite(userId)) {
+    return { ok: false, error: 'Invalid userId' };
+  }
+
+  return { ok: true, field: 'id', value: userId };
+}
 
 function parseTicketId(raw: string) {
   const id = Number(raw);
@@ -42,52 +70,47 @@ export async function GET(
     }
 
     const url = new URL(req.url);
-    const telegramId = url.searchParams.get('telegramId');
+    const identity = resolveIdentity(url.searchParams.get('telegramId'), url.searchParams.get('userId'));
 
-    if (!isAdmin(telegramId)) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    if (!identity.ok) {
+      return NextResponse.json({ error: identity.error }, { status: 400 });
     }
 
-    const [ticketResult, messagesResult] = await Promise.all([
-      dbQuery<TicketDetailsRow>(
-        `
-        SELECT
-          st.id::text AS id,
-          st.user_id::text AS user_id,
-          u.telegram_id::text AS telegram_id,
-          u.username,
-          u.first_name,
-          u.last_name,
-          st.subject,
-          st.status,
-          st.created_at,
-          st.updated_at,
-          st.closed_at
-        FROM support_tickets st
-        JOIN users u ON u.id = st.user_id
-        WHERE st.id = $1
-        LIMIT 1;
-        `,
-        [ticketId]
-      ),
-      dbQuery<TicketMessageRow>(
-        `
-        SELECT
-          id::text AS id,
-          sender_type,
-          message,
-          created_at
-        FROM support_ticket_messages
-        WHERE ticket_id = $1
-        ORDER BY created_at ASC;
-        `,
-        [ticketId]
-      ),
-    ]);
+    const ticketResult = await dbQuery<TicketDetailsRow>(
+      `
+      SELECT
+        st.id::text AS id,
+        st.subject,
+        st.status,
+        st.created_at,
+        st.updated_at,
+        st.closed_at
+      FROM support_tickets st
+      JOIN users u ON u.id = st.user_id
+      WHERE st.id = $1
+        AND u.${identity.field} = $2
+      LIMIT 1;
+      `,
+      [ticketId, identity.value]
+    );
 
     if (ticketResult.rows.length === 0) {
       return NextResponse.json({ error: 'Ticket not found' }, { status: 404 });
     }
+
+    const messagesResult = await dbQuery<TicketMessageRow>(
+      `
+      SELECT
+        id::text AS id,
+        sender_type,
+        message,
+        created_at
+      FROM support_ticket_messages
+      WHERE ticket_id = $1
+      ORDER BY created_at ASC;
+      `,
+      [ticketId]
+    );
 
     return NextResponse.json({
       ok: true,
@@ -95,13 +118,14 @@ export async function GET(
       messages: messagesResult.rows,
     });
   } catch (error) {
-    console.error('Admin ticket details error:', error);
+    console.error('Ticket details error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
-type ReplyBody = {
+type UserReplyBody = {
   telegramId?: number | string;
+  userId?: number | string;
   message?: string;
 };
 
@@ -117,12 +141,14 @@ export async function POST(
       return NextResponse.json({ error: 'Invalid ticketId' }, { status: 400 });
     }
 
-    const body = (await req.json()) as ReplyBody;
-    const message = body.message?.trim() ?? '';
+    const body = (await req.json()) as UserReplyBody;
+    const identity = resolveIdentity(body.telegramId, body.userId);
 
-    if (!isAdmin(body.telegramId)) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    if (!identity.ok) {
+      return NextResponse.json({ error: identity.error }, { status: 400 });
     }
+
+    const message = body.message?.trim() ?? '';
 
     if (!message) {
       return NextResponse.json({ error: 'message is required' }, { status: 400 });
@@ -138,12 +164,20 @@ export async function POST(
     try {
       await client.query('BEGIN');
 
-      const ticketExists = await client.query<{ id: string }>(
-        `SELECT id::text AS id FROM support_tickets WHERE id = $1 FOR UPDATE;`,
-        [ticketId]
+      const ticketResult = await client.query<{ id: string }>(
+        `
+        SELECT st.id::text AS id
+        FROM support_tickets st
+        JOIN users u ON u.id = st.user_id
+        WHERE st.id = $1
+          AND u.${identity.field} = $2
+        LIMIT 1
+        FOR UPDATE OF st;
+        `,
+        [ticketId, identity.value]
       );
 
-      if (ticketExists.rows.length === 0) {
+      if (ticketResult.rows.length === 0) {
         await client.query('ROLLBACK');
         return NextResponse.json({ error: 'Ticket not found' }, { status: 404 });
       }
@@ -151,7 +185,7 @@ export async function POST(
       const messageResult = await client.query<TicketMessageRow>(
         `
         INSERT INTO support_ticket_messages (ticket_id, sender_type, message)
-        VALUES ($1, 'admin', $2)
+        VALUES ($1, 'user', $2)
         RETURNING id::text AS id, sender_type, message, created_at;
         `,
         [ticketId, message]
@@ -178,13 +212,14 @@ export async function POST(
       client.release();
     }
   } catch (error) {
-    console.error('Admin ticket reply error:', error);
+    console.error('Ticket user reply error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
-type UpdateTicketBody = {
+type UserTicketStatusBody = {
   telegramId?: number | string;
+  userId?: number | string;
   status?: 'open' | 'closed';
 };
 
@@ -200,26 +235,36 @@ export async function PATCH(
       return NextResponse.json({ error: 'Invalid ticketId' }, { status: 400 });
     }
 
-    const body = (await req.json()) as UpdateTicketBody;
+    const body = (await req.json()) as UserTicketStatusBody;
+    const identity = resolveIdentity(body.telegramId, body.userId);
 
-    if (!isAdmin(body.telegramId)) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    if (!identity.ok) {
+      return NextResponse.json({ error: identity.error }, { status: 400 });
     }
 
     if (body.status !== 'open' && body.status !== 'closed') {
       return NextResponse.json({ error: 'status must be open or closed' }, { status: 400 });
     }
 
-    const result = await dbQuery<{ id: string; status: 'open' | 'closed'; updated_at: string; closed_at: string | null }>(
+    const result = await dbQuery<TicketDetailsRow>(
       `
-      UPDATE support_tickets
-      SET status = $2,
-          closed_at = CASE WHEN $2 = 'closed' THEN NOW() ELSE NULL END,
+      UPDATE support_tickets st
+      SET status = $3,
+          closed_at = CASE WHEN $3 = 'closed' THEN NOW() ELSE NULL END,
           updated_at = NOW()
-      WHERE id = $1
-      RETURNING id::text AS id, status, updated_at, closed_at;
+      FROM users u
+      WHERE st.user_id = u.id
+        AND st.id = $1
+        AND u.${identity.field} = $2
+      RETURNING
+        st.id::text AS id,
+        st.subject,
+        st.status,
+        st.created_at,
+        st.updated_at,
+        st.closed_at;
       `,
-      [ticketId, body.status]
+      [ticketId, identity.value, body.status]
     );
 
     if (result.rows.length === 0) {
@@ -228,46 +273,7 @@ export async function PATCH(
 
     return NextResponse.json({ ok: true, ticket: result.rows[0] });
   } catch (error) {
-    console.error('Admin ticket update error:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-  }
-}
-
-export async function DELETE(
-  req: Request,
-  { params }: { params: Promise<{ ticketId: string }> }
-) {
-  try {
-    const { ticketId: ticketIdRaw } = await params;
-    const ticketId = parseTicketId(ticketIdRaw);
-
-    if (!ticketId) {
-      return NextResponse.json({ error: 'Invalid ticketId' }, { status: 400 });
-    }
-
-    const url = new URL(req.url);
-    const telegramId = url.searchParams.get('telegramId');
-
-    if (!isAdmin(telegramId)) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
-
-    const result = await dbQuery<{ id: string }>(
-      `
-      DELETE FROM support_tickets
-      WHERE id = $1
-      RETURNING id::text AS id;
-      `,
-      [ticketId]
-    );
-
-    if (result.rows.length === 0) {
-      return NextResponse.json({ error: 'Ticket not found' }, { status: 404 });
-    }
-
-    return NextResponse.json({ ok: true, deletedTicketId: result.rows[0].id });
-  } catch (error) {
-    console.error('Admin ticket delete error:', error);
+    console.error('Ticket status update error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -101,12 +101,25 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: 'promoId is required' }, { status: 400 });
     }
 
-    await dbQuery(
-      `UPDATE promo_codes SET is_active = FALSE WHERE id = $1;`,
-      [Number(promoId)]
+    const normalizedPromoId = Number(promoId);
+    if (!Number.isFinite(normalizedPromoId) || normalizedPromoId < 1) {
+      return NextResponse.json({ error: 'Invalid promoId' }, { status: 400 });
+    }
+
+    const result = await dbQuery<{ id: number }>(
+      `
+      DELETE FROM promo_codes
+      WHERE id = $1
+      RETURNING id;
+      `,
+      [normalizedPromoId]
     );
 
-    return NextResponse.json({ ok: true });
+    if (result.rows.length === 0) {
+      return NextResponse.json({ error: 'Promo code not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({ ok: true, deletedPromoId: result.rows[0].id });
   } catch (error) {
     console.error('Admin delete promo error:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

@@ -134,6 +134,11 @@ const translations = {
     adminTicketSenderUser: 'Пользователь',
     adminTicketSenderAdmin: 'Админ',
     adminTicketSenderSystem: 'Система',
+    adminTicketDeleteTicket: 'Удалить обращение',
+    adminTicketDeleteMessage: 'Удалить сообщение',
+    adminTicketDeleteConfirm: 'Удалить обращение и всю переписку без возможности восстановления?',
+    adminTicketDeleteMessageConfirm: 'Удалить это сообщение без возможности восстановления?',
+    adminTicketDeleting: 'Удаление...',
     promoPlaceholder: 'Введите промокод',
     promoApply: 'Активировать',
     promoApplySuccess: 'Промокод применён',
@@ -166,7 +171,16 @@ const translations = {
     supportCreateError: 'Не удалось создать обращение',
     supportLoadError: 'Не удалось загрузить обращения',
     supportBackToList: 'Назад к обращениям',
-    supportMessageRequired: 'Введите сообщение'
+    supportMessageRequired: 'Введите сообщение',
+    supportTicketMessages: 'Сообщения',
+    supportReplyPlaceholder: 'Введите сообщение...',
+    supportCloseTicket: 'Закрыть обращение',
+    supportReopenTicket: 'Переоткрыть обращение',
+    supportTicketActionError: 'Не удалось выполнить действие',
+    supportTicketNoMessages: 'Сообщений пока нет',
+    supportSenderUser: 'Вы',
+    supportSenderAdmin: 'Поддержка',
+    supportSenderSystem: 'Система'
   },
   en: {
     navVpn: 'Home', navPremium: 'Payment', navSupport: 'Support', navProfile: 'Profile',
@@ -267,6 +281,11 @@ const translations = {
     adminTicketSenderUser: 'User',
     adminTicketSenderAdmin: 'Admin',
     adminTicketSenderSystem: 'System',
+    adminTicketDeleteTicket: 'Delete ticket',
+    adminTicketDeleteMessage: 'Delete message',
+    adminTicketDeleteConfirm: 'Delete this ticket and all messages permanently?',
+    adminTicketDeleteMessageConfirm: 'Delete this message permanently?',
+    adminTicketDeleting: 'Deleting...',
     promoPlaceholder: 'Enter promo code',
     promoApply: 'Activate',
     promoApplySuccess: 'Promo code applied',
@@ -299,7 +318,16 @@ const translations = {
     supportCreateError: 'Failed to create ticket',
     supportLoadError: 'Failed to load tickets',
     supportBackToList: 'Back to tickets',
-    supportMessageRequired: 'Message is required'
+    supportMessageRequired: 'Message is required',
+    supportTicketMessages: 'Messages',
+    supportReplyPlaceholder: 'Type your message...',
+    supportCloseTicket: 'Close ticket',
+    supportReopenTicket: 'Reopen ticket',
+    supportTicketActionError: 'Failed to complete action',
+    supportTicketNoMessages: 'No messages yet',
+    supportSenderUser: 'You',
+    supportSenderAdmin: 'Support',
+    supportSenderSystem: 'System'
   }
 };
 
@@ -1424,11 +1452,34 @@ type SupportTicket = {
   messages_count: number;
 };
 
+type SupportTicketDetails = {
+  id: string;
+  subject: string | null;
+  status: 'open' | 'closed';
+  created_at: string;
+  updated_at: string;
+  closed_at: string | null;
+};
+
+type SupportTicketMessage = {
+  id: string;
+  sender_type: 'user' | 'admin' | 'system';
+  message: string;
+  created_at: string;
+};
+
 function SupportView({ t, direction, userIdentifier, lang }: { t: any; direction: number; userIdentifier: UserIdentifier | null; lang: 'ru' | 'en' }) {
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [ticketsLoading, setTicketsLoading] = useState(false);
   const [ticketsError, setTicketsError] = useState<string | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
+  const [selectedTicket, setSelectedTicket] = useState<SupportTicketDetails | null>(null);
+  const [ticketMessages, setTicketMessages] = useState<SupportTicketMessage[]>([]);
+  const [ticketDetailsLoading, setTicketDetailsLoading] = useState(false);
+  const [replyMessage, setReplyMessage] = useState('');
+  const [replySending, setReplySending] = useState(false);
+  const [statusUpdating, setStatusUpdating] = useState(false);
   const [subject, setSubject] = useState('');
   const [message, setMessage] = useState('');
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -1450,6 +1501,9 @@ function SupportView({ t, direction, userIdentifier, lang }: { t: any; direction
     if (!userQuery) {
       setTickets([]);
       setTicketsError(null);
+      setSelectedTicketId(null);
+      setSelectedTicket(null);
+      setTicketMessages([]);
       return;
     }
 
@@ -1469,6 +1523,30 @@ function SupportView({ t, direction, userIdentifier, lang }: { t: any; direction
       setTicketsError(error instanceof Error ? error.message : t.supportLoadError);
     } finally {
       setTicketsLoading(false);
+    }
+  }, [userQuery, t.supportLoadError]);
+
+  const loadTicketDetails = useCallback(async (ticketId: string) => {
+    if (!userQuery) return;
+
+    setTicketDetailsLoading(true);
+    setTicketsError(null);
+    try {
+      const res = await fetch(`/api/tickets/${ticketId}?${userQuery}`);
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data.error || t.supportLoadError);
+      }
+
+      setSelectedTicket(data.ticket ?? null);
+      setTicketMessages(Array.isArray(data.messages) ? data.messages : []);
+    } catch (error) {
+      setSelectedTicket(null);
+      setTicketMessages([]);
+      setTicketsError(error instanceof Error ? error.message : t.supportLoadError);
+    } finally {
+      setTicketDetailsLoading(false);
     }
   }, [userQuery, t.supportLoadError]);
 
@@ -1512,12 +1590,96 @@ function SupportView({ t, direction, userIdentifier, lang }: { t: any; direction
       setSubject('');
       setMessage('');
       setShowCreateForm(false);
-      await loadTickets();
+
+      const newTicketId = typeof data.ticket?.id === 'string' ? data.ticket.id : null;
+      if (newTicketId) {
+        setSelectedTicketId(newTicketId);
+        await Promise.all([loadTickets(), loadTicketDetails(newTicketId)]);
+      } else {
+        await loadTickets();
+      }
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : t.supportCreateError);
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleOpenTicket = (ticketId: string) => {
+    setSelectedTicketId(ticketId);
+    setReplyMessage('');
+    void loadTicketDetails(ticketId);
+  };
+
+  const handleSendMessage = async () => {
+    if (!requestBody || !selectedTicketId) return;
+
+    const messageValue = replyMessage.trim();
+    if (!messageValue) {
+      setTicketsError(t.supportMessageRequired);
+      return;
+    }
+
+    setReplySending(true);
+    setTicketsError(null);
+
+    try {
+      const res = await fetch(`/api/tickets/${selectedTicketId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...requestBody,
+          message: messageValue,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || t.supportTicketActionError);
+      }
+
+      setReplyMessage('');
+      await Promise.all([loadTicketDetails(selectedTicketId), loadTickets()]);
+    } catch (error) {
+      setTicketsError(error instanceof Error ? error.message : t.supportTicketActionError);
+    } finally {
+      setReplySending(false);
+    }
+  };
+
+  const handleTicketStatus = async (status: 'open' | 'closed') => {
+    if (!requestBody || !selectedTicketId) return;
+
+    setStatusUpdating(true);
+    setTicketsError(null);
+
+    try {
+      const res = await fetch(`/api/tickets/${selectedTicketId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...requestBody,
+          status,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || t.supportTicketActionError);
+      }
+
+      await Promise.all([loadTicketDetails(selectedTicketId), loadTickets()]);
+    } catch (error) {
+      setTicketsError(error instanceof Error ? error.message : t.supportTicketActionError);
+    } finally {
+      setStatusUpdating(false);
+    }
+  };
+
+  const senderLabel = (senderType: 'user' | 'admin' | 'system') => {
+    if (senderType === 'admin') return t.supportSenderAdmin;
+    if (senderType === 'system') return t.supportSenderSystem;
+    return t.supportSenderUser;
   };
 
   const formatDate = (value: string) => {
@@ -1529,7 +1691,7 @@ function SupportView({ t, direction, userIdentifier, lang }: { t: any; direction
   return (
     <motion.div custom={direction} variants={pageVariants} initial="initial" animate="animate" exit="exit" className="flex flex-col flex-1 items-center w-full">
       <div className="w-full max-w-xs lg:max-w-[560px] space-y-3">
-        {!showCreateForm && (
+        {!showCreateForm && !selectedTicketId && (
           <button
             onClick={() => {
               setShowCreateForm(true);
@@ -1597,6 +1759,90 @@ function SupportView({ t, direction, userIdentifier, lang }: { t: any; direction
               </button>
             </form>
           </>
+        ) : selectedTicketId ? (
+          <div className="space-y-3">
+            <button
+              onClick={() => {
+                setSelectedTicketId(null);
+                setSelectedTicket(null);
+                setTicketMessages([]);
+                setReplyMessage('');
+                setTicketsError(null);
+              }}
+              className="text-zinc-300 hover:text-white text-sm inline-flex items-center gap-2"
+            >
+              <ChevronRight size={14} className="rotate-180" /> {t.supportBackToList}
+            </button>
+
+            {ticketsError && (
+              <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+                {ticketsError}
+              </div>
+            )}
+
+            {ticketDetailsLoading || !selectedTicket ? (
+              <div className="rounded-[28px] border border-white/10 bg-zinc-900/40 px-5 py-10 text-center text-zinc-400 text-sm">
+                {t.supportLoading}
+              </div>
+            ) : (
+              <>
+                <div className="rounded-2xl border border-white/10 bg-zinc-900/45 p-4">
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <h3 className="text-white font-semibold text-sm">{selectedTicket.subject || t.supportNoSubject}</h3>
+                    <span className={`px-2 py-1 rounded-full text-[10px] uppercase tracking-wider ${selectedTicket.status === 'closed' ? 'bg-zinc-700/60 text-zinc-300' : 'bg-white/10 text-zinc-200'}`}>
+                      {selectedTicket.status === 'closed' ? t.supportClosedStatus : t.supportOpenStatus}
+                    </span>
+                  </div>
+
+                  <button
+                    onClick={() => handleTicketStatus(selectedTicket.status === 'open' ? 'closed' : 'open')}
+                    disabled={statusUpdating}
+                    className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${selectedTicket.status === 'open' ? 'border-red-500/25 bg-red-500/10 text-red-300 hover:bg-red-500/20' : 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20'} disabled:opacity-40`}
+                  >
+                    {selectedTicket.status === 'open' ? t.supportCloseTicket : t.supportReopenTicket}
+                  </button>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-zinc-900/45 p-4">
+                  <p className="text-zinc-300 text-xs uppercase tracking-wider mb-2">{t.supportTicketMessages}</p>
+
+                  {ticketMessages.length === 0 ? (
+                    <div className="text-zinc-500 text-sm py-4 text-center">{t.supportTicketNoMessages}</div>
+                  ) : (
+                    <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+                      {ticketMessages.map((msg) => (
+                        <div key={msg.id} className={`flex ${msg.sender_type === 'user' ? 'justify-end' : 'justify-start'}`}>
+                          <div className={`max-w-[92%] rounded-xl border px-3 py-2 ${msg.sender_type === 'user' ? 'border-white/20 bg-white/10 text-white' : 'border-white/10 bg-zinc-800/70 text-zinc-200'}`}>
+                            <p className="text-sm whitespace-pre-wrap break-words">{msg.message}</p>
+                            <p className="text-[10px] text-zinc-500 mt-1">{senderLabel(msg.sender_type)} · {formatDate(msg.created_at)}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-zinc-900/45 p-4">
+                  <textarea
+                    value={replyMessage}
+                    onChange={(e) => setReplyMessage(e.target.value)}
+                    placeholder={t.supportReplyPlaceholder}
+                    rows={4}
+                    maxLength={4000}
+                    className="w-full rounded-xl border border-white/10 bg-zinc-950/70 px-3 py-2 text-sm text-white placeholder:text-zinc-500 outline-none focus:border-white/25 resize-none"
+                  />
+                  <button
+                    onClick={handleSendMessage}
+                    disabled={replySending}
+                    className="mt-2 w-full bg-white text-black font-medium py-2.5 rounded-lg hover:bg-zinc-200 transition-colors disabled:opacity-50 text-sm flex items-center justify-center gap-2"
+                  >
+                    <Send size={14} />
+                    <span>{replySending ? t.supportSending : t.supportSend}</span>
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         ) : (
           <div className="space-y-3">
             {ticketsError && (
@@ -1619,7 +1865,11 @@ function SupportView({ t, direction, userIdentifier, lang }: { t: any; direction
               </div>
             ) : (
               tickets.map((ticket) => (
-                <div key={ticket.id} className="rounded-2xl border border-white/10 bg-zinc-900/45 p-4">
+                <button
+                  key={ticket.id}
+                  onClick={() => handleOpenTicket(ticket.id)}
+                  className="w-full text-left rounded-2xl border border-white/10 bg-zinc-900/45 p-4 hover:bg-zinc-900/70 transition-colors"
+                >
                   <div className="flex items-start justify-between gap-3 mb-2">
                     <h3 className="text-white font-semibold text-sm">{ticket.subject || t.supportNoSubject}</h3>
                     <span className={`px-2 py-1 rounded-full text-[10px] uppercase tracking-wider ${ticket.status === 'closed' ? 'bg-zinc-700/60 text-zinc-300' : 'bg-white/10 text-zinc-200'}`}>
@@ -1635,7 +1885,7 @@ function SupportView({ t, direction, userIdentifier, lang }: { t: any; direction
                     <span>{t.supportLastUpdate}: {formatDate(ticket.last_message_at)}</span>
                     <span>{ticket.messages_count} {t.supportMessagesCount}</span>
                   </div>
-                </div>
+                </button>
               ))
             )}
           </div>
@@ -1945,6 +2195,8 @@ function AdminTicketsView({ t, lang, tgId }: { t: any; lang: 'ru' | 'en'; tgId?:
   const [replyMessage, setReplyMessage] = useState('');
   const [replySending, setReplySending] = useState(false);
   const [statusUpdating, setStatusUpdating] = useState(false);
+  const [deletingTicket, setDeletingTicket] = useState(false);
+  const [deletingMessageId, setDeletingMessageId] = useState<string | null>(null);
 
   const formatDate = (value: string) => {
     const date = new Date(value);
@@ -2092,6 +2344,60 @@ function AdminTicketsView({ t, lang, tgId }: { t: any; lang: 'ru' | 'en'; tgId?:
     }
   };
 
+  const handleDeleteTicket = async () => {
+    if (!tgId || !selectedTicketId) return;
+    if (!window.confirm(t.adminTicketDeleteConfirm)) return;
+
+    setDeletingTicket(true);
+    setTicketsError(null);
+    try {
+      const res = await fetch(`/api/admin/tickets/${selectedTicketId}?telegramId=${encodeURIComponent(String(tgId))}`, {
+        method: 'DELETE',
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || t.adminTicketActionError);
+      }
+
+      setSelectedTicketId(null);
+      setSelectedTicket(null);
+      setTicketMessages([]);
+      await loadTickets(ticketsSearch, ticketsFilter);
+    } catch (error) {
+      setTicketsError(error instanceof Error ? error.message : t.adminTicketActionError);
+    } finally {
+      setDeletingTicket(false);
+    }
+  };
+
+  const handleDeleteMessage = async (messageId: string) => {
+    if (!tgId || !selectedTicketId) return;
+    if (!window.confirm(t.adminTicketDeleteMessageConfirm)) return;
+
+    setDeletingMessageId(messageId);
+    setTicketsError(null);
+    try {
+      const res = await fetch(`/api/admin/tickets/${selectedTicketId}/messages/${messageId}?telegramId=${encodeURIComponent(String(tgId))}`, {
+        method: 'DELETE',
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || t.adminTicketActionError);
+      }
+
+      await Promise.all([
+        loadTicketDetails(selectedTicketId),
+        loadTickets(ticketsSearch, ticketsFilter),
+      ]);
+    } catch (error) {
+      setTicketsError(error instanceof Error ? error.message : t.adminTicketActionError);
+    } finally {
+      setDeletingMessageId(null);
+    }
+  };
+
   const senderLabel = (senderType: 'user' | 'admin' | 'system') => {
     if (senderType === 'admin') return t.adminTicketSenderAdmin;
     if (senderType === 'system') return t.adminTicketSenderSystem;
@@ -2229,6 +2535,13 @@ function AdminTicketsView({ t, lang, tgId }: { t: any; lang: 'ru' | 'en'; tgId?:
                   >
                     {t.adminTicketReopen}
                   </button>
+                  <button
+                    onClick={handleDeleteTicket}
+                    disabled={deletingTicket}
+                    className="text-xs px-3 py-1.5 rounded-lg border border-rose-500/25 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 disabled:opacity-40"
+                  >
+                    {deletingTicket ? t.adminTicketDeleting : t.adminTicketDeleteTicket}
+                  </button>
                 </div>
               </div>
 
@@ -2241,7 +2554,17 @@ function AdminTicketsView({ t, lang, tgId }: { t: any; lang: 'ru' | 'en'; tgId?:
                     {ticketMessages.map((msg) => (
                       <div key={msg.id} className={`flex ${msg.sender_type === 'admin' ? 'justify-end' : 'justify-start'}`}>
                         <div className={`max-w-[92%] rounded-xl border px-3 py-2 ${msg.sender_type === 'admin' ? 'border-white/20 bg-white/10 text-white' : 'border-white/10 bg-zinc-800/70 text-zinc-200'}`}>
-                          <p className="text-sm whitespace-pre-wrap break-words">{msg.message}</p>
+                          <div className="flex items-start gap-2">
+                            <p className="text-sm whitespace-pre-wrap break-words flex-1">{msg.message}</p>
+                            <button
+                              onClick={() => handleDeleteMessage(msg.id)}
+                              disabled={deletingMessageId === msg.id}
+                              className="mt-0.5 text-zinc-500 hover:text-red-300 transition-colors disabled:opacity-40"
+                              title={t.adminTicketDeleteMessage}
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
                           <p className="text-[10px] text-zinc-500 mt-1">{senderLabel(msg.sender_type)} · {formatDate(msg.created_at)}</p>
                         </div>
                       </div>
