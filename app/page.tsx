@@ -1154,10 +1154,12 @@ function PaymentView({ t, direction, tgUser, onSubscriptionChange }: { t: any, d
   const [payMethod, setPayMethod] = useState<'tg' | 'crypto' | 'sbp'>('tg');
   const [isLoading, setIsLoading] = useState(false);
 
-  const basePrice = 1; 
-  const discountPerMonth = 0; 
-  const pricePerMonth = Math.max(1, basePrice - (months - 1) * discountPerMonth);
+  const basePrice = 150; 
+  const discountPerMonth = 5; 
+  const pricePerMonth = Math.max(100, basePrice - (months - 1) * discountPerMonth);
   const totalPrice = pricePerMonth * months;
+  const totalUsd = +(totalPrice / 100).toFixed(2);
+  const totalStars = Math.max(1, Math.round(totalPrice / 2));
 
   const handleSubscribe = async () => {
     setIsLoading(true);
@@ -1168,7 +1170,7 @@ function PaymentView({ t, direction, tgUser, onSubscriptionChange }: { t: any, d
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             months,
-            amount: 1,
+            amount: totalStars,
           }),
         });
         const data = await response.json();
@@ -1204,7 +1206,7 @@ function PaymentView({ t, direction, tgUser, onSubscriptionChange }: { t: any, d
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             months,
-            amount: 0.5,
+            amount: totalUsd,
           }),
         });
         const data = await response.json();
