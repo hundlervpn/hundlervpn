@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, memo, useEffect } from 'react';
+import { useState, memo, useEffect, useCallback } from 'react';
 import Image from 'next/image';
-import { Shield, CreditCard, User, Zap, Check, ChevronRight, HelpCircle, Star, Bitcoin, Wallet, Calendar, Smartphone, Settings, Gift, MonitorSmartphone, Globe, X, Monitor, FileText, Lock, Download, ArrowRight, CheckCircle2, Laptop, Smartphone as SmartphoneIcon, ShieldAlert, Users, Ban, Tag, Search, Plus, Trash2, Copy, ClipboardCheck, Key, Mail, LogOut } from 'lucide-react';
+import { Shield, CreditCard, User, Zap, Check, ChevronRight, HelpCircle, Star, Bitcoin, Wallet, Calendar, Smartphone, Settings, Gift, MonitorSmartphone, Globe, X, Monitor, FileText, Lock, Download, ArrowRight, CheckCircle2, Laptop, Smartphone as SmartphoneIcon, ShieldAlert, Users, Ban, Tag, Search, Plus, Trash2, Copy, ClipboardCheck, Key, Mail, Send, LogOut } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 // Telegram WebApp types
@@ -36,7 +36,7 @@ declare global {
 
 const translations = {
   ru: {
-    navVpn: 'Главная', navPremium: 'Оплата', navProfile: 'Профиль',
+    navVpn: 'Главная', navPremium: 'Оплата', navSupport: 'Поддержка', navProfile: 'Профиль',
     mainBadge: 'Основная',
     planName: 'Подписка',
     until: 'до',
@@ -51,7 +51,7 @@ const translations = {
     subscribe: 'Оплатить',
     featTitle: 'Преимущества', f1: 'До 3 устройств', f2: 'Безлимитный трафик', f3: 'Минимальные задержки',
     user: 'Пользователь', daysLeft: 'Осталось 23 дня',
-    app: 'Приложение', lang: 'Язык', support: 'Поддержка (Telegram)', referral: 'Реферальная система', payments: 'Платежи', userAgreement: 'Пользовательское соглашение', privacyPolicy: 'Политика конфиденциальности',
+    app: 'Приложение', lang: 'Язык', support: 'Поддержка', referral: 'Реферальная система', payments: 'Платежи', userAgreement: 'Пользовательское соглашение', privacyPolicy: 'Политика конфиденциальности',
     connected: 'ПОДКЛЮЧЕНО', disconnected: 'ОТКЛЮЧЕНО', location: 'Германия', ping: '120 мс',
     setupTitle: 'Настройка VPN',
     setupCurrent: 'Настроить это устройство',
@@ -122,10 +122,33 @@ const translations = {
     serversTitle: 'Серверы',
     serverActive: 'Активен',
     serverInactive: 'Неактивен',
-    noServers: 'Серверов пока нет'
+    noServers: 'Серверов пока нет',
+    supportNewTicket: 'Новое обращение',
+    supportNoTicketsTitle: 'У вас пока нет обращений в поддержку',
+    supportNoTicketsHint: 'Нажмите "Новое обращение", чтобы связаться с нами',
+    supportFaqTitle: 'Часто задаваемые вопросы',
+    supportFaqHint: 'Возможно, вы найдёте ответ на свой вопрос здесь',
+    supportCreateTitle: 'Создать обращение',
+    supportSubject: 'Тема',
+    supportSubjectHint: 'Необязательно, но поможет быстрее разобраться',
+    supportSubjectPlaceholder: 'Кратко опишите проблему',
+    supportMessage: 'Сообщение',
+    supportMessagePlaceholder: 'Опишите вашу проблему или вопрос подробно...',
+    supportSend: 'Отправить',
+    supportSending: 'Отправка...',
+    supportLoading: 'Загрузка обращений...',
+    supportOpenStatus: 'Открыт',
+    supportClosedStatus: 'Закрыт',
+    supportLastUpdate: 'Обновлено',
+    supportMessagesCount: 'сообщений',
+    supportNoSubject: 'Без темы',
+    supportCreateError: 'Не удалось создать обращение',
+    supportLoadError: 'Не удалось загрузить обращения',
+    supportBackToList: 'Назад к обращениям',
+    supportMessageRequired: 'Введите сообщение'
   },
   en: {
-    navVpn: 'Home', navPremium: 'Payment', navProfile: 'Profile',
+    navVpn: 'Home', navPremium: 'Payment', navSupport: 'Support', navProfile: 'Profile',
     mainBadge: 'Main',
     planName: 'Subscription',
     until: 'until',
@@ -140,7 +163,7 @@ const translations = {
     subscribe: 'Subscribe Now',
     featTitle: 'Premium Features', f1: 'Up to 3 devices', f2: 'Unlimited bandwidth', f3: 'Minimal latency',
     user: 'User', daysLeft: '23 days left',
-    app: 'App', lang: 'Language', support: 'Support (Telegram)', referral: 'Referral system', payments: 'Payments', userAgreement: 'User agreement', privacyPolicy: 'Privacy policy',
+    app: 'App', lang: 'Language', support: 'Support', referral: 'Referral system', payments: 'Payments', userAgreement: 'User agreement', privacyPolicy: 'Privacy policy',
     connected: 'CONNECTED', disconnected: 'DISCONNECTED', location: 'Germany', ping: '120 ms',
     setupTitle: 'VPN Setup',
     setupCurrent: 'Setup this device',
@@ -211,13 +234,36 @@ const translations = {
     serversTitle: 'Servers',
     serverActive: 'Active',
     serverInactive: 'Inactive',
-    noServers: 'No servers yet'
+    noServers: 'No servers yet',
+    supportNewTicket: 'New ticket',
+    supportNoTicketsTitle: 'You do not have support tickets yet',
+    supportNoTicketsHint: 'Tap "New ticket" to contact us',
+    supportFaqTitle: 'Frequently asked questions',
+    supportFaqHint: 'You may find an answer to your question here',
+    supportCreateTitle: 'Create ticket',
+    supportSubject: 'Subject',
+    supportSubjectHint: 'Optional, but helps us resolve faster',
+    supportSubjectPlaceholder: 'Briefly describe the issue',
+    supportMessage: 'Message',
+    supportMessagePlaceholder: 'Describe your issue or question in detail...',
+    supportSend: 'Send',
+    supportSending: 'Sending...',
+    supportLoading: 'Loading tickets...',
+    supportOpenStatus: 'Open',
+    supportClosedStatus: 'Closed',
+    supportLastUpdate: 'Updated',
+    supportMessagesCount: 'messages',
+    supportNoSubject: 'No subject',
+    supportCreateError: 'Failed to create ticket',
+    supportLoadError: 'Failed to load tickets',
+    supportBackToList: 'Back to tickets',
+    supportMessageRequired: 'Message is required'
   }
 };
 
 const ADMIN_TELEGRAM_IDS = [2029065770, 1483598839];
 
-const tabs = ['home', 'payment', 'profile', 'payments', 'admin', 'servers'] as const;
+const tabs = ['home', 'support', 'profile', 'payment', 'payments', 'admin', 'servers'] as const;
 type Tab = typeof tabs[number];
 
 const pageVariants = {
@@ -495,7 +541,8 @@ export default function App() {
 
           <div className="w-full max-w-6xl mx-auto lg:flex-1 lg:flex lg:flex-col lg:items-center lg:justify-start">
             <AnimatePresence mode="wait" custom={direction}>
-              {activeTab === 'home' && <HomeView key="home" t={t} direction={direction} subscriptionEndDateLabel={subscriptionEndDateLabel} subscriptionDaysLabel={subscriptionDaysLabel} subscriptionUrl={subscriptionState?.subscriptionUrl ?? null} tgUser={tgUser} onSubscriptionChange={refreshSubscriptionState} userIdentifier={userIdentifier} />}
+              {activeTab === 'home' && <HomeView key="home" t={t} direction={direction} subscriptionEndDateLabel={subscriptionEndDateLabel} subscriptionDaysLabel={subscriptionDaysLabel} subscriptionUrl={subscriptionState?.subscriptionUrl ?? null} tgUser={tgUser} onSubscriptionChange={refreshSubscriptionState} userIdentifier={userIdentifier} navigate={navigate} />}
+              {activeTab === 'support' && <SupportView key="support" t={t} direction={direction} userIdentifier={userIdentifier} lang={lang} />}
               {activeTab === 'payment' && <PaymentView key="payment" t={t} direction={direction} tgUser={tgUser} onSubscriptionChange={refreshSubscriptionState} />}
               {activeTab === 'profile' && <ProfileView key="profile" t={t} lang={lang} setLang={setLang} direction={direction} tgUser={tgUser} subscriptionDaysLabel={subscriptionDaysLabel} navigate={navigate} authMode={authMode} onLogout={handleEmailLogout} />}
               {activeTab === 'payments' && <PaymentsHistoryView key="payments" t={t} direction={direction} tgUser={tgUser} navigate={navigate} lang={lang} />}
@@ -515,10 +562,10 @@ export default function App() {
           onClick={() => navigate('home')} 
         />
         <NavItem 
-          icon={<CreditCard size={20} strokeWidth={1.5} />} 
-          label={t.navPremium} 
-          isActive={activeTab === 'payment'} 
-          onClick={() => navigate('payment')} 
+          icon={<HelpCircle size={20} strokeWidth={1.5} />} 
+          label={t.navSupport} 
+          isActive={activeTab === 'support'} 
+          onClick={() => navigate('support')} 
         />
         <NavItem 
           icon={<User size={20} strokeWidth={1.5} />} 
@@ -540,6 +587,7 @@ function DesktopSidebar({ t, activeTab, navigate }: { t: any; activeTab: Tab; na
         <p className="text-zinc-400 text-[11px] uppercase tracking-[0.16em] mb-2.5">Главная</p>
         <div className="space-y-1">
           <button onClick={() => navigate('home')} className={menuBtnClass(activeTab === 'home')}>{t.navVpn}</button>
+          <button onClick={() => navigate('support')} className={menuBtnClass(activeTab === 'support')}>{t.navSupport}</button>
           <button onClick={() => navigate('payment')} className={menuBtnClass(activeTab === 'payment')}>{t.navPremium}</button>
           <button onClick={() => navigate('profile')} className={menuBtnClass(activeTab === 'profile')}>{t.navProfile}</button>
         </div>
@@ -571,7 +619,7 @@ function DesktopSidebar({ t, activeTab, navigate }: { t: any; activeTab: Tab; na
   );
 }
 
-function HomeView({ t, direction, subscriptionEndDateLabel, subscriptionDaysLabel, subscriptionUrl, tgUser, onSubscriptionChange, userIdentifier }: { t: any, direction: number; subscriptionEndDateLabel: string; subscriptionDaysLabel: string; subscriptionUrl: string | null; tgUser: { id: number; name: string; photo: string; username?: string } | null; onSubscriptionChange: (telegramId: number) => Promise<void>; userIdentifier: UserIdentifier | null }) {
+function HomeView({ t, direction, subscriptionEndDateLabel, subscriptionDaysLabel, subscriptionUrl, tgUser, onSubscriptionChange, userIdentifier, navigate }: { t: any, direction: number; subscriptionEndDateLabel: string; subscriptionDaysLabel: string; subscriptionUrl: string | null; tgUser: { id: number; name: string; photo: string; username?: string } | null; onSubscriptionChange: (telegramId: number) => Promise<void>; userIdentifier: UserIdentifier | null; navigate: (tab: Tab) => void }) {
   const [showSetupModal, setShowSetupModal] = useState(false);
   const [showDevicesModal, setShowDevicesModal] = useState(false);
   const [showPromoModal, setShowPromoModal] = useState(false);
@@ -1019,7 +1067,7 @@ function HomeView({ t, direction, subscriptionEndDateLabel, subscriptionDaysLabe
           </div>
 
           <div className="space-y-2 relative z-10">
-            <button className="w-full bg-gradient-to-r from-white/20 via-white/15 to-white/10 border border-white/25 text-white font-medium py-2.5 rounded-xl flex items-center justify-center gap-1.5 active:scale-95 text-sm transition-transform hover:-translate-y-0.5">
+            <button onClick={() => navigate('payment')} className="w-full bg-gradient-to-r from-white/20 via-white/15 to-white/10 border border-white/25 text-white font-medium py-2.5 rounded-xl flex items-center justify-center gap-1.5 active:scale-95 text-sm transition-transform hover:-translate-y-0.5">
               <Zap size={14} /> <span>{t.extend}</span>
             </button>
             
@@ -1323,6 +1371,248 @@ function FeatureItem({ text }: { text: string }) {
   );
 }
 
+type SupportTicket = {
+  id: string;
+  subject: string | null;
+  status: 'open' | 'closed';
+  created_at: string;
+  updated_at: string;
+  last_message: string | null;
+  last_message_at: string;
+  messages_count: number;
+};
+
+function SupportView({ t, direction, userIdentifier, lang }: { t: any; direction: number; userIdentifier: UserIdentifier | null; lang: 'ru' | 'en' }) {
+  const [tickets, setTickets] = useState<SupportTicket[]>([]);
+  const [ticketsLoading, setTicketsLoading] = useState(false);
+  const [ticketsError, setTicketsError] = useState<string | null>(null);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [subject, setSubject] = useState('');
+  const [message, setMessage] = useState('');
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const userQuery = userIdentifier
+    ? (userIdentifier.type === 'telegram'
+      ? `telegramId=${encodeURIComponent(String(userIdentifier.telegramId))}`
+      : `userId=${encodeURIComponent(String(userIdentifier.userId))}`)
+    : '';
+
+  const requestBody = userIdentifier
+    ? (userIdentifier.type === 'telegram'
+      ? { telegramId: userIdentifier.telegramId }
+      : { userId: userIdentifier.userId })
+    : null;
+
+  const loadTickets = useCallback(async () => {
+    if (!userQuery) {
+      setTickets([]);
+      setTicketsError(null);
+      return;
+    }
+
+    setTicketsLoading(true);
+    setTicketsError(null);
+    try {
+      const res = await fetch(`/api/tickets?${userQuery}`);
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        throw new Error(data.error || t.supportLoadError);
+      }
+
+      setTickets(Array.isArray(data.tickets) ? data.tickets : []);
+    } catch (error) {
+      setTickets([]);
+      setTicketsError(error instanceof Error ? error.message : t.supportLoadError);
+    } finally {
+      setTicketsLoading(false);
+    }
+  }, [userQuery, t.supportLoadError]);
+
+  useEffect(() => {
+    void loadTickets();
+  }, [loadTickets]);
+
+  const handleCreateTicket = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!requestBody) {
+      setSubmitError(t.supportCreateError);
+      return;
+    }
+
+    const messageValue = message.trim();
+    if (!messageValue) {
+      setSubmitError(t.supportMessageRequired);
+      return;
+    }
+
+    setSubmitting(true);
+    setSubmitError(null);
+
+    try {
+      const res = await fetch('/api/tickets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...requestBody,
+          subject: subject.trim() || undefined,
+          message: messageValue,
+        }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || t.supportCreateError);
+      }
+
+      setSubject('');
+      setMessage('');
+      setShowCreateForm(false);
+      await loadTickets();
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : t.supportCreateError);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const formatDate = (value: string) => {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return '—';
+    return date.toLocaleString(lang === 'ru' ? 'ru-RU' : 'en-GB');
+  };
+
+  return (
+    <motion.div custom={direction} variants={pageVariants} initial="initial" animate="animate" exit="exit" className="flex flex-col flex-1 items-center w-full">
+      <div className="w-full max-w-xs lg:max-w-[560px] space-y-3">
+        {!showCreateForm && (
+          <button
+            onClick={() => {
+              setShowCreateForm(true);
+              setSubmitError(null);
+            }}
+            className="w-full rounded-full border border-white/20 bg-zinc-900/40 px-5 py-3 text-white font-semibold text-base flex items-center justify-center gap-2 active:scale-[0.99]"
+          >
+            <Plus size={18} strokeWidth={2} />
+            <span>{t.supportNewTicket}</span>
+          </button>
+        )}
+
+        {showCreateForm ? (
+          <>
+            <button onClick={() => setShowCreateForm(false)} className="text-zinc-300 hover:text-white text-sm inline-flex items-center gap-2">
+              <ChevronRight size={14} className="rotate-180" /> {t.supportBackToList}
+            </button>
+
+            <div className="rounded-[28px] border border-white/15 bg-gradient-to-br from-[#1d2130]/85 via-[#161a25]/90 to-[#11131b]/90 p-5">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-white font-bold text-xl leading-tight">{t.supportFaqTitle}</h3>
+                  <p className="text-zinc-400 text-sm leading-snug mt-1">{t.supportFaqHint}</p>
+                </div>
+                <ChevronRight size={18} strokeWidth={1.6} className="text-zinc-500 mt-1" />
+              </div>
+            </div>
+
+            <form onSubmit={handleCreateTicket} className="rounded-[28px] border border-white/15 bg-zinc-900/55 p-4 md:p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <Send size={18} strokeWidth={1.8} className="text-zinc-300" />
+                <h3 className="text-white font-bold text-2xl leading-none">{t.supportCreateTitle}</h3>
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-white font-semibold text-base leading-none mb-1.5">{t.supportSubject}</label>
+                <p className="text-zinc-400 text-xs leading-tight mb-2.5">{t.supportSubjectHint}</p>
+                <input
+                  type="text"
+                  value={subject}
+                  onChange={(e) => setSubject(e.target.value)}
+                  placeholder={t.supportSubjectPlaceholder}
+                  maxLength={120}
+                  className="w-full rounded-2xl border border-white/10 bg-[#0f1320] px-4 py-2.5 text-zinc-200 placeholder:text-zinc-500 outline-none focus:border-[#3E63FF]/70"
+                />
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-white font-semibold text-base leading-none mb-2">
+                  {t.supportMessage} <span className="text-[#ef4444]">*</span>
+                </label>
+                <textarea
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  placeholder={t.supportMessagePlaceholder}
+                  rows={6}
+                  maxLength={4000}
+                  className="w-full rounded-2xl border border-white/10 bg-[#0f1320] px-4 py-3 text-zinc-200 placeholder:text-zinc-500 outline-none focus:border-[#3E63FF]/70 resize-none min-h-[220px]"
+                />
+              </div>
+
+              {submitError && (
+                <div className="mb-3 rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+                  {submitError}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={submitting}
+                className="w-full rounded-full border border-[#3E63FF]/70 bg-[#1a2237]/70 text-[#4f74ff] font-semibold py-3.5 text-lg leading-none flex items-center justify-center gap-2 active:scale-[0.99] disabled:opacity-60"
+              >
+                <Send size={17} strokeWidth={1.8} />
+                <span>{submitting ? t.supportSending : t.supportSend}</span>
+              </button>
+            </form>
+          </>
+        ) : (
+          <div className="space-y-3">
+            {ticketsError && (
+              <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+                {ticketsError}
+              </div>
+            )}
+
+            {ticketsLoading ? (
+              <div className="rounded-[28px] border border-white/10 bg-zinc-900/40 px-5 py-10 text-center text-zinc-400 text-sm">
+                {t.supportLoading}
+              </div>
+            ) : tickets.length === 0 ? (
+              <div className="rounded-[28px] border border-white/10 bg-zinc-900/35 px-6 py-14 text-center min-h-[260px] flex flex-col items-center justify-center">
+                <div className="w-16 h-16 rounded-2xl border border-white/15 bg-white/[0.03] flex items-center justify-center mb-5">
+                  <Mail size={30} strokeWidth={1.8} className="text-zinc-300" />
+                </div>
+                <p className="text-zinc-300 text-lg leading-snug mb-2">{t.supportNoTicketsTitle}</p>
+                <p className="text-zinc-500 text-sm leading-snug max-w-[280px]">{t.supportNoTicketsHint}</p>
+              </div>
+            ) : (
+              tickets.map((ticket) => (
+                <div key={ticket.id} className="rounded-2xl border border-white/10 bg-zinc-900/45 p-4">
+                  <div className="flex items-start justify-between gap-3 mb-2">
+                    <h3 className="text-white font-semibold text-sm">{ticket.subject || t.supportNoSubject}</h3>
+                    <span className={`px-2 py-1 rounded-full text-[10px] uppercase tracking-wider ${ticket.status === 'closed' ? 'bg-zinc-700/60 text-zinc-300' : 'bg-[#3E63FF]/20 text-[#7f98ff]'}`}>
+                      {ticket.status === 'closed' ? t.supportClosedStatus : t.supportOpenStatus}
+                    </span>
+                  </div>
+
+                  {ticket.last_message ? (
+                    <p className="text-zinc-300 text-sm leading-relaxed mb-3">{ticket.last_message}</p>
+                  ) : null}
+
+                  <div className="flex items-center justify-between gap-2 text-[11px] text-zinc-500">
+                    <span>{t.supportLastUpdate}: {formatDate(ticket.last_message_at)}</span>
+                    <span>{ticket.messages_count} {t.supportMessagesCount}</span>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+    </motion.div>
+  );
+}
+
 function ProfileView({ t, lang, setLang, direction, tgUser, subscriptionDaysLabel, navigate, authMode, onLogout }: { t: any; lang: string; setLang: (l: 'ru' | 'en') => void; direction: number; tgUser: { id: number; name: string; photo: string; username?: string } | null; subscriptionDaysLabel: string; navigate: (tab: Tab) => void; authMode?: AuthMode; onLogout?: () => void }) {
   const handleReferralClick = async () => {
     if (!tgUser?.id) return;
@@ -1379,13 +1669,13 @@ function ProfileView({ t, lang, setLang, direction, tgUser, subscriptionDaysLabe
                 </div>
               </button>
               <div className="h-px bg-white/5 mx-3" />
-              <a href="https://t.me/hundlervpn" target="_blank" rel="noopener noreferrer" className="w-full flex items-center justify-between p-3 hover:bg-white/5 transition-colors">
+              <button onClick={() => navigate('support')} className="w-full flex items-center justify-between p-3 hover:bg-white/5 transition-colors active:scale-[0.98]">
                 <div className="flex items-center gap-2">
                   <HelpCircle size={18} strokeWidth={1.5} className="text-zinc-400" />
                   <span className="text-zinc-200 font-medium text-sm">{t.support}</span>
                 </div>
                 <ChevronRight size={14} strokeWidth={1.5} className="text-zinc-600" />
-              </a>
+              </button>
               <div className="h-px bg-white/5 mx-3" />
               <button onClick={handleReferralClick} className="w-full flex items-center justify-between p-3 hover:bg-white/5 transition-colors active:scale-[0.98]">
                 <div className="flex items-center gap-2">

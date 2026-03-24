@@ -179,6 +179,27 @@ CREATE TABLE IF NOT EXISTS email_sessions (
 
 CREATE INDEX IF NOT EXISTS idx_email_sessions_token ON email_sessions(token, expires_at);
 
+CREATE TABLE IF NOT EXISTS support_tickets (
+  id BIGSERIAL PRIMARY KEY,
+  user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  subject TEXT,
+  status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'closed')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  closed_at TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS support_ticket_messages (
+  id BIGSERIAL PRIMARY KEY,
+  ticket_id BIGINT NOT NULL REFERENCES support_tickets(id) ON DELETE CASCADE,
+  sender_type TEXT NOT NULL CHECK (sender_type IN ('user', 'admin', 'system')),
+  message TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_support_tickets_user_status ON support_tickets(user_id, status, updated_at DESC);
+CREATE INDEX IF NOT EXISTS idx_support_ticket_messages_ticket_created ON support_ticket_messages(ticket_id, created_at DESC);
+
 DROP TRIGGER IF EXISTS trg_users_set_updated_at ON users;
 CREATE TRIGGER trg_users_set_updated_at
 BEFORE UPDATE ON users
@@ -200,5 +221,11 @@ EXECUTE FUNCTION set_updated_at();
 DROP TRIGGER IF EXISTS trg_subscriptions_set_updated_at ON subscriptions;
 CREATE TRIGGER trg_subscriptions_set_updated_at
 BEFORE UPDATE ON subscriptions
+FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
+
+DROP TRIGGER IF EXISTS trg_support_tickets_set_updated_at ON support_tickets;
+CREATE TRIGGER trg_support_tickets_set_updated_at
+BEFORE UPDATE ON support_tickets
 FOR EACH ROW
 EXECUTE FUNCTION set_updated_at();
