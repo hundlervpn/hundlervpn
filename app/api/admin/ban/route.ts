@@ -1,16 +1,17 @@
 import { NextResponse } from 'next/server';
 import { getDbPool } from '@/lib/db';
 import { isAdmin } from '@/lib/admin';
-import { banUserAccess, reactivatePaidAccessIfEligible } from '@/lib/access';
+import { banUserAccess, banUserSubscription, reactivatePaidAccessIfEligible } from '@/lib/access';
 
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { telegramId, targetUserId, ban, reason } = body as {
+    const { telegramId, targetUserId, ban, reason, banType } = body as {
       telegramId?: number | string;
       targetUserId?: number | string;
       ban?: boolean;
       reason?: string;
+      banType?: 'login' | 'subscription';
     };
     const normalizedTargetUserId = typeof targetUserId === 'string' ? Number(targetUserId) : targetUserId;
 
@@ -23,6 +24,7 @@ export async function POST(req: Request) {
     }
 
     const shouldBan = ban !== false;
+    const effectiveBanType = shouldBan ? (banType || 'login') : null;
 
     const pool = getDbPool();
     const client = await pool.connect();
@@ -51,17 +53,27 @@ export async function POST(req: Request) {
         UPDATE users
         SET is_banned = $2,
             ban_reason = $3,
+            ban_type = $4,
             status = CASE WHEN $2 THEN 'banned' ELSE 'active' END,
             updated_at = NOW()
         WHERE id = $1;
         `,
-        [normalizedTargetUserId, shouldBan, shouldBan ? (reason?.trim() || 'Banned by admin') : null]
+        [
+          normalizedTargetUserId,
+          shouldBan,
+          shouldBan ? (reason?.trim() || 'Banned by admin') : null,
+          effectiveBanType,
+        ]
       );
 
       let restored = null;
 
       if (shouldBan) {
-        await banUserAccess(client, normalizedTargetUserId);
+        if (effectiveBanType === 'subscription') {
+          await banUserSubscription(client, normalizedTargetUserId);
+        } else {
+          await banUserAccess(client, normalizedTargetUserId);
+        }
       } else {
         restored = await reactivatePaidAccessIfEligible(client, normalizedTargetUserId);
       }
@@ -71,6 +83,7 @@ export async function POST(req: Request) {
       return NextResponse.json({
         ok: true,
         banned: shouldBan,
+        banType: effectiveBanType,
         restored: Boolean(restored),
         restoredUntil: restored?.endDate ?? null,
       });

@@ -390,6 +390,29 @@ export async function banUserAccess(client: PoolClient, userId: number) {
   );
 }
 
+export async function banUserSubscription(client: PoolClient, userId: number) {
+  await client.query(
+    `
+    UPDATE subscriptions
+    SET status = 'canceled',
+        updated_at = NOW()
+    WHERE user_id = $1
+      AND status = 'active'
+      AND end_date > NOW();
+    `,
+    [userId]
+  );
+
+  await client.query(
+    `
+    UPDATE vpn_keys
+    SET is_active = FALSE
+    WHERE user_id = $1;
+    `,
+    [userId]
+  );
+}
+
 export async function reactivatePaidAccessIfEligible(client: PoolClient, userId: number) {
   const eligibleSub = await client.query<SubscriptionRow>(
     `

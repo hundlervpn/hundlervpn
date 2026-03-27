@@ -177,6 +177,11 @@ CREATE TABLE IF NOT EXISTS email_codes (
 CREATE INDEX IF NOT EXISTS idx_email_codes_email ON email_codes(email, used, expires_at);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email) WHERE email IS NOT NULL;
 
+ALTER TABLE users ADD COLUMN IF NOT EXISTS ban_type TEXT CHECK (ban_type IN ('login', 'subscription'));
+
+ALTER TABLE vpn_keys ADD COLUMN IF NOT EXISTS device_os TEXT;
+ALTER TABLE vpn_keys ADD COLUMN IF NOT EXISTS device_platform TEXT;
+
 CREATE TABLE IF NOT EXISTS email_sessions (
   id BIGSERIAL PRIMARY KEY,
   user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,

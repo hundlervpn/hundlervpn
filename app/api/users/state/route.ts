@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server';
 import { dbQuery } from '@/lib/db';
-import { getSubscriptionUrl } from '@/lib/sub-token';
+import { getSubscriptionUrl, encryptSubscriptionUrl } from '@/lib/sub-token';
 
 type UserState = {
   userId: number;
   telegramId: number | null;
   isBanned: boolean;
   banReason: string | null;
+  banType: string | null;
   status: 'active' | 'expired' | 'canceled' | 'none';
   endDate: string | null;
   daysLeft: number;
@@ -68,6 +69,7 @@ export async function GET(req: Request) {
         u.telegram_id AS "telegramId",
         u.is_banned AS "isBanned",
         u.ban_reason AS "banReason",
+        u.ban_type AS "banType",
         CASE
           WHEN s.status = 'active' AND s.end_date > NOW() THEN 'active'
           WHEN s.status IS NULL THEN 'none'
@@ -113,11 +115,17 @@ export async function GET(req: Request) {
       });
     }
 
+    const rawSubUrl = result.rows[0].status === 'active' && result.rows[0].hasActiveKey && result.rows[0].telegramId
+      ? getSubscriptionUrl(Number(result.rows[0].telegramId))
+      : null;
+
+    const encryptedSubUrl = rawSubUrl ? await encryptSubscriptionUrl(rawSubUrl) : null;
+
     return NextResponse.json({
       ok: true,
       profile: {
         ...result.rows[0],
-        subscriptionUrl: result.rows[0].status === 'active' && result.rows[0].hasActiveKey && result.rows[0].telegramId ? getSubscriptionUrl(Number(result.rows[0].telegramId)) : null,
+        subscriptionUrl: encryptedSubUrl,
       },
     });
   } catch (error) {

@@ -127,3 +127,20 @@ export function getSubscriptionUrl(telegramId: number): string | null {
   const token = generateSubToken(telegramId);
   return `${appUrl}/api/sub/${token}`;
 }
+
+export async function encryptSubscriptionUrl(url: string): Promise<string> {
+  try {
+    const res = await fetch('https://crypto.happ.su/api-v2.php', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url }),
+    });
+    if (!res.ok) return url;
+    const text = await res.text();
+    const trimmed = text.trim();
+    if (trimmed && trimmed.startsWith('happ://')) return trimmed;
+    return url;
+  } catch {
+    return url;
+  }
+}

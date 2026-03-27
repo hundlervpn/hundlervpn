@@ -105,7 +105,11 @@ const translations = {
     adminPaidPayments: 'Оплаченных',
     adminSearchUsers: 'Поиск по имени или ID...',
     adminBan: 'Бан',
+    adminBanLogin: 'Бан входа',
+    adminBanSubscription: 'Бан подписки',
     adminUnban: 'Разбан',
+    adminBanTypeLogin: 'вход',
+    adminBanTypeSub: 'подписка',
     adminCreatePromo: 'Создать промокод',
     adminPromoCode: 'Код',
     adminPromoDays: 'Дней подписки',
@@ -252,7 +256,11 @@ const translations = {
     adminPaidPayments: 'Paid',
     adminSearchUsers: 'Search by name or ID...',
     adminBan: 'Ban',
+    adminBanLogin: 'Ban login',
+    adminBanSubscription: 'Ban sub',
     adminUnban: 'Unban',
+    adminBanTypeLogin: 'login',
+    adminBanTypeSub: 'subscription',
     adminCreatePromo: 'Create promo code',
     adminPromoCode: 'Code',
     adminPromoDays: 'Subscription days',
@@ -374,7 +382,7 @@ export default function App() {
   const [direction, setDirection] = useState(0);
   const [lang, setLang] = useState<'ru' | 'en'>('ru');
   const [tgUser, setTgUser] = useState<{ id: number; name: string; photo: string; username?: string } | null>(null);
-  const [subscriptionState, setSubscriptionState] = useState<{ endDate: string | null; daysLeft: number; status: string; subscriptionUrl: string | null; isBanned?: boolean; banReason?: string | null } | null>(null);
+  const [subscriptionState, setSubscriptionState] = useState<{ endDate: string | null; daysLeft: number; status: string; subscriptionUrl: string | null; isBanned?: boolean; banReason?: string | null; banType?: string | null } | null>(null);
   const [authMode, setAuthMode] = useState<AuthMode>('none');
   const [authLoading, setAuthLoading] = useState(true);
   const [userIdentifier, setUserIdentifier] = useState<UserIdentifier | null>(null);
@@ -399,10 +407,10 @@ export default function App() {
     const stateResponse = await fetch(`/api/users/state?${query}`);
     if (stateResponse.ok) {
       const statePayload = await stateResponse.json();
-      setSubscriptionState(statePayload.profile ?? { endDate: null, daysLeft: 0, status: 'none', subscriptionUrl: null, isBanned: false, banReason: null });
+      setSubscriptionState(statePayload.profile ?? { endDate: null, daysLeft: 0, status: 'none', subscriptionUrl: null, isBanned: false, banReason: null, banType: null });
       return;
     }
-    setSubscriptionState({ endDate: null, daysLeft: 0, status: 'none', subscriptionUrl: null, isBanned: false, banReason: null });
+    setSubscriptionState({ endDate: null, daysLeft: 0, status: 'none', subscriptionUrl: null, isBanned: false, banReason: null, banType: null });
   };
 
   const handleEmailLogin = (user: { id: number; email: string; name: string }, sessionToken: string) => {
@@ -473,7 +481,7 @@ export default function App() {
 
             await refreshSubscriptionState(user.id);
           } catch (error) {
-            setSubscriptionState({ endDate: null, daysLeft: 0, status: 'none', subscriptionUrl: null, isBanned: false, banReason: null });
+            setSubscriptionState({ endDate: null, daysLeft: 0, status: 'none', subscriptionUrl: null, isBanned: false, banReason: null, banType: null });
             console.error('Failed to sync telegram user:', error);
           }
           setAuthLoading(false);
@@ -523,49 +531,30 @@ export default function App() {
         : `${subscriptionState?.daysLeft ?? 0} days left`)
     : (lang === 'ru' ? 'Нет активной подписки' : 'No active subscription');
 
+  const triggerHaptic = useCallback(() => {
+    try {
+      if (window.Telegram?.WebApp) {
+        const wa = window.Telegram.WebApp as any;
+        if (wa.HapticFeedback?.impactOccurred) {
+          wa.HapticFeedback.impactOccurred('light');
+          return;
+        }
+      }
+      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        navigator.vibrate(10);
+      }
+    } catch { /* ignore */ }
+  }, []);
+
   const navigate = (newTab: Tab) => {
     if (newTab === activeTab) return;
     const currentIndex = tabs.indexOf(activeTab);
     const newIndex = tabs.indexOf(newTab);
     setDirection(newIndex > currentIndex ? 1 : -1);
     setActiveTab(newTab);
+    triggerHaptic();
   };
 
-  const handleSwipeLeft = () => {
-    const currentIndex = tabs.indexOf(activeTab);
-    if (currentIndex < tabs.length - 1) navigate(tabs[currentIndex + 1]);
-  };
-
-  const handleSwipeRight = () => {
-    const currentIndex = tabs.indexOf(activeTab);
-    if (currentIndex > 0) navigate(tabs[currentIndex - 1]);
-  };
-
-  const [touchStartX, setTouchStartX] = useState<number | null>(null);
-  const [touchStartY, setTouchStartY] = useState<number | null>(null);
-
-  const onTouchStart = (e: React.TouchEvent) => {
-    setTouchStartX(e.targetTouches[0].clientX);
-    setTouchStartY(e.targetTouches[0].clientY);
-  };
-
-  const onTouchEnd = (e: React.TouchEvent) => {
-    if (!touchStartX || !touchStartY) return;
-    const touchEndX = e.changedTouches[0].clientX;
-    const touchEndY = e.changedTouches[0].clientY;
-    
-    const distanceX = touchStartX - touchEndX;
-    const distanceY = touchStartY - touchEndY;
-    
-    // Check if swipe is mostly horizontal and long enough
-    if (Math.abs(distanceX) > Math.abs(distanceY) && Math.abs(distanceX) > 40) {
-      if (distanceX > 0) handleSwipeLeft();
-      else handleSwipeRight();
-    }
-    
-    setTouchStartX(null);
-    setTouchStartY(null);
-  };
 
   // Show loading
   if (authLoading) {
@@ -576,8 +565,8 @@ export default function App() {
     );
   }
 
-  // Show ban screen if user is banned
-  if (subscriptionState?.isBanned) {
+  // Show ban screen only if user is banned with login ban (ban_type === 'login')
+  if (subscriptionState?.isBanned && subscriptionState?.banType === 'login') {
     return (
       <div className="min-h-screen w-full bg-[#020202] flex items-center justify-center px-4">
         <div className="fixed inset-0 z-0 pointer-events-none">
@@ -635,8 +624,6 @@ export default function App() {
 
         <main 
           className="w-full min-h-screen pb-24 px-4 flex flex-col lg:min-h-0 lg:flex-1 lg:pb-6 lg:px-0"
-          onTouchStart={onTouchStart}
-          onTouchEnd={onTouchEnd}
         >
           <header className="flex items-center justify-center py-6 shrink-0 lg:justify-start lg:py-4">
             <h1 className="font-syncopate font-bold text-base tracking-[0.12em] text-white flex items-center lg:text-lg">
@@ -2384,6 +2371,7 @@ type AdminUser = {
   status: string;
   is_banned: boolean;
   ban_reason: string | null;
+  ban_type: string | null;
   created_at: string;
   last_seen_at: string;
   total_paid: string;
@@ -2920,7 +2908,7 @@ function AdminView({ t, direction, tgUser, navigate, lang }: { t: any; direction
     } catch { /* ignore */ } finally { setPromosLoading(false); }
   };
 
-  const handleBan = async (userId: number | string, ban: boolean) => {
+  const handleBan = async (userId: number | string, ban: boolean, banType?: 'login' | 'subscription') => {
     if (!tgId) return;
     const normalizedUserId = typeof userId === 'string' ? Number(userId) : userId;
     if (!Number.isFinite(normalizedUserId)) {
@@ -2933,7 +2921,7 @@ function AdminView({ t, direction, tgUser, navigate, lang }: { t: any; direction
       const res = await fetch('/api/admin/ban', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ telegramId: tgId, targetUserId: normalizedUserId, ban }),
+        body: JSON.stringify({ telegramId: tgId, targetUserId: normalizedUserId, ban, banType }),
       });
 
       if (!res.ok) {
@@ -3118,7 +3106,7 @@ function AdminView({ t, direction, tgUser, navigate, lang }: { t: any; direction
                             {u.username ? `@${u.username}` : ''} · TG: {u.telegram_id}
                           </p>
                         </div>
-                        <div className="flex items-center gap-1.5 shrink-0">
+                        <div className="flex items-center gap-1 shrink-0 flex-wrap justify-end">
                           {u.is_banned ? (
                             <button
                               onClick={() => handleBan(u.id, false)}
@@ -3128,20 +3116,29 @@ function AdminView({ t, direction, tgUser, navigate, lang }: { t: any; direction
                               {t.adminUnban}
                             </button>
                           ) : (
-                            <button
-                              onClick={() => handleBan(u.id, true)}
-                              disabled={banningId === Number(u.id)}
-                              className="text-[10px] px-2 py-1 rounded-md bg-red-500/20 text-red-300 border border-red-500/30 hover:bg-red-500/30 disabled:opacity-50"
-                            >
-                              {t.adminBan}
-                            </button>
+                            <>
+                              <button
+                                onClick={() => handleBan(u.id, true, 'login')}
+                                disabled={banningId === Number(u.id)}
+                                className="text-[10px] px-2 py-1 rounded-md bg-red-500/20 text-red-300 border border-red-500/30 hover:bg-red-500/30 disabled:opacity-50"
+                              >
+                                {t.adminBanLogin}
+                              </button>
+                              <button
+                                onClick={() => handleBan(u.id, true, 'subscription')}
+                                disabled={banningId === Number(u.id)}
+                                className="text-[10px] px-2 py-1 rounded-md bg-orange-500/20 text-orange-300 border border-orange-500/30 hover:bg-orange-500/30 disabled:opacity-50"
+                              >
+                                {t.adminBanSubscription}
+                              </button>
+                            </>
                           )}
                         </div>
                       </div>
                       <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-zinc-400">
                         <span>💰 {Number(u.total_paid)}₽ ({u.payments_count} {lang === 'ru' ? 'пл.' : 'pay.'})</span>
                         <span>{u.subscription_status === 'active' && u.subscription_end && new Date(u.subscription_end) > new Date() ? `✅ ${lang === 'ru' ? 'до' : 'until'} ${new Date(u.subscription_end).toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'en-GB')}` : `❌ ${lang === 'ru' ? 'Нет подписки' : 'No sub'}`}</span>
-                        {u.is_banned && <span className="text-red-400">🚫 {lang === 'ru' ? 'Забанен' : 'Banned'}</span>}
+                        {u.is_banned && <span className="text-red-400">🚫 {lang === 'ru' ? 'Забанен' : 'Banned'} ({u.ban_type === 'login' ? t.adminBanTypeLogin : t.adminBanTypeSub})</span>}
                         <span>📅 {new Date(u.created_at).toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'en-GB')}</span>
                       </div>
                     </div>

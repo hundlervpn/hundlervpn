@@ -11,6 +11,7 @@ type AdminUser = {
   status: string;
   is_banned: boolean;
   ban_reason: string | null;
+  ban_type: string | null;
   created_at: string;
   last_seen_at: string;
   total_paid: string;
@@ -60,6 +61,7 @@ export async function GET(req: Request) {
         u.status,
         u.is_banned,
         u.ban_reason,
+        u.ban_type,
         u.created_at,
         u.last_seen_at,
         COALESCE(SUM(p.amount) FILTER (WHERE p.status = 'paid'), 0)::text AS total_paid,
@@ -76,7 +78,7 @@ export async function GET(req: Request) {
         LIMIT 1
       ) s ON TRUE
       ${whereClause}
-      GROUP BY u.id, u.telegram_id, u.username, u.first_name, u.last_name, u.status, u.is_banned, u.ban_reason, u.created_at, u.last_seen_at, s.status, s.end_date
+      GROUP BY u.id, u.telegram_id, u.username, u.first_name, u.last_name, u.status, u.is_banned, u.ban_reason, u.ban_type, u.created_at, u.last_seen_at, s.status, s.end_date
       ORDER BY u.created_at DESC
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1};
       `,
