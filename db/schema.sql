@@ -251,6 +251,7 @@ CREATE TABLE IF NOT EXISTS broadcasts (
   image_url TEXT,
   button_text TEXT,
   button_url TEXT,
+  target_telegram_id BIGINT,
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'sending', 'sent', 'failed')),
   total_users INTEGER NOT NULL DEFAULT 0,
   sent_count INTEGER NOT NULL DEFAULT 0,
@@ -259,5 +260,7 @@ CREATE TABLE IF NOT EXISTS broadcasts (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   sent_at TIMESTAMPTZ
 );
+
+ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS target_telegram_id BIGINT;
 
 CREATE INDEX IF NOT EXISTS idx_broadcasts_status ON broadcasts(status, created_at DESC);

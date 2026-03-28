@@ -44,7 +44,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { telegramId, title, message, imageUrl, buttonText, buttonUrl } = body;
+    const { telegramId, title, message, imageUrl, buttonText, buttonUrl, targetTelegramId } = body;
 
     if (!isAdmin(telegramId)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
@@ -61,16 +61,19 @@ export async function POST(req: Request) {
     );
     const adminUserId = adminResult.rows[0]?.id ? Number(adminResult.rows[0].id) : null;
 
-    // Count users with telegram_id for broadcast
-    const countResult = await dbQuery<{ count: string }>(
-      'SELECT COUNT(*)::text AS count FROM users WHERE telegram_id IS NOT NULL'
-    );
-    const totalUsers = Number(countResult.rows[0]?.count ?? 0);
+    // Count users - 1 if targeted, otherwise all users with telegram_id
+    let totalUsers = 1;
+    if (!targetTelegramId) {
+      const countResult = await dbQuery<{ count: string }>(
+        'SELECT COUNT(*)::text AS count FROM users WHERE telegram_id IS NOT NULL'
+      );
+      totalUsers = Number(countResult.rows[0]?.count ?? 0);
+    }
 
     // Create broadcast record
     const result = await dbQuery<{ id: string }>(
-      `INSERT INTO broadcasts (title, message, image_url, button_text, button_url, total_users, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO broadcasts (title, message, image_url, button_text, button_url, target_telegram_id, total_users, created_by)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING id::text`,
       [
         title?.trim() || null,
@@ -78,6 +81,7 @@ export async function POST(req: Request) {
         imageUrl?.trim() || null,
         buttonText?.trim() || null,
         buttonUrl?.trim() || null,
+        targetTelegramId ? String(targetTelegramId) : null,
         totalUsers,
         adminUserId
       ]
@@ -86,7 +90,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ 
       ok: true, 
       broadcastId: result.rows[0].id,
-      totalUsers 
+      totalUsers,
+      targeted: !!targetTelegramId
     });
   } catch (error) {
     console.error('Admin broadcasts POST error:', error);

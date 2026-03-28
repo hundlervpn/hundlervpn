@@ -102,7 +102,7 @@ async def process_pending_broadcasts():
         
         # Get pending broadcast
         cur.execute("""
-            SELECT id, title, message, image_url, button_text, button_url
+            SELECT id, title, message, image_url, button_text, button_url, target_telegram_id
             FROM broadcasts 
             WHERE status = 'pending' 
             ORDER BY created_at ASC 
@@ -116,16 +116,19 @@ async def process_pending_broadcasts():
             conn.close()
             return
         
-        broadcast_id, title, message, image_url, button_text, button_url = broadcast
-        logger.info(f"Found broadcast {broadcast_id}: {title}")
+        broadcast_id, title, message, image_url, button_text, button_url, target_telegram_id = broadcast
+        logger.info(f"Found broadcast {broadcast_id}: {title} (target: {target_telegram_id or 'all'})")
         
         # Update status to sending
         cur.execute("UPDATE broadcasts SET status = 'sending' WHERE id = %s", (broadcast_id,))
         conn.commit()
         
-        # Get all users with telegram_id
-        cur.execute("SELECT telegram_id FROM users WHERE telegram_id IS NOT NULL")
-        users = cur.fetchall()
+        # Get users - either targeted or all
+        if target_telegram_id:
+            users = [(target_telegram_id,)]
+        else:
+            cur.execute("SELECT telegram_id FROM users WHERE telegram_id IS NOT NULL")
+            users = cur.fetchall()
         
         sent_count = 0
         failed_count = 0
