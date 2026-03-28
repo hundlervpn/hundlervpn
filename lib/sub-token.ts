@@ -170,35 +170,49 @@ export async function getSubscriptionUrlWithLimit(telegramId: number): Promise<s
 }
 
 export async function encryptSubscriptionUrl(url: string): Promise<string> {
-  try {
-    const res = await fetch('https://crypto.happ.su/api-v2.php', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url }),
-    });
-    if (!res.ok) {
-      console.error('Happ encryption API error:', res.status, res.statusText);
-      return url;
-    }
-    const text = await res.text();
-    const trimmed = text.trim();
-    console.log('Happ encryption response:', trimmed.slice(0, 100));
-    if (trimmed && (trimmed.startsWith('happ://crypt4/') || trimmed.startsWith('happ://crypt5/'))) {
-      return trimmed;
-    }
-    // Try parsing as JSON in case API returns JSON
+  // Try multiple happ API formats
+  const endpoints = [
+    { url: 'https://crypto.happ.su/api-v2.php', method: 'POST', body: JSON.stringify({ url }) },
+    { url: 'https://crypto.happ.su/api-v2.php', method: 'POST', body: JSON.stringify({ link: url }) },
+    { url: `https://crypto.happ.su/api-v2.php?url=${encodeURIComponent(url)}`, method: 'GET', body: undefined },
+  ];
+
+  for (const endpoint of endpoints) {
     try {
-      const json = JSON.parse(trimmed);
-      if (json.url && (json.url.startsWith('happ://crypt4/') || json.url.startsWith('happ://crypt5/'))) {
-        return json.url;
+      const res = await fetch(endpoint.url, {
+        method: endpoint.method,
+        headers: endpoint.method === 'POST' ? { 'Content-Type': 'application/json' } : {},
+        body: endpoint.body,
+      });
+      
+      if (!res.ok) {
+        console.error(`Happ API error (${endpoint.url}):`, res.status);
+        continue;
       }
-      if (json.encrypted && (json.encrypted.startsWith('happ://crypt4/') || json.encrypted.startsWith('happ://crypt5/'))) {
-        return json.encrypted;
+      
+      const text = await res.text();
+      const trimmed = text.trim();
+      console.log(`Happ response (${endpoint.method}):`, trimmed.slice(0, 150));
+      
+      // Direct happ:// response
+      if (trimmed.startsWith('happ://')) {
+        return trimmed;
       }
-    } catch { /* not JSON */ }
-    return url;
-  } catch (err) {
-    console.error('Happ encryption error:', err);
-    return url;
+      
+      // Try JSON parsing
+      try {
+        const json = JSON.parse(trimmed);
+        const encrypted = json.url || json.encrypted || json.link || json.result;
+        if (encrypted && encrypted.startsWith('happ://')) {
+          return encrypted;
+        }
+      } catch { /* not JSON */ }
+    } catch (err) {
+      console.error(`Happ encryption error (${endpoint.url}):`, err);
+    }
   }
+  
+  // Fallback: return original URL
+  console.error('All happ encryption attempts failed, returning original URL');
+  return url;
 }
