@@ -115,17 +115,28 @@ export async function GET(req: Request) {
       });
     }
 
-    const rawSubUrl = result.rows[0].status === 'active' && result.rows[0].hasActiveKey && result.rows[0].telegramId
-      ? await getSubscriptionUrlWithLimit(Number(result.rows[0].telegramId))
-      : null;
-
-    const encryptedSubUrl = rawSubUrl ? await encryptSubscriptionUrl(rawSubUrl) : null;
+    const { status, hasActiveKey, telegramId: tgId } = result.rows[0];
+    console.log('User state check:', { status, hasActiveKey, telegramId: tgId });
+    
+    let subscriptionUrl: string | null = null;
+    
+    if (status === 'active' && hasActiveKey && tgId) {
+      const rawSubUrl = await getSubscriptionUrlWithLimit(Number(tgId));
+      console.log('Raw subscription URL:', rawSubUrl);
+      
+      if (rawSubUrl) {
+        subscriptionUrl = await encryptSubscriptionUrl(rawSubUrl);
+        console.log('Encrypted subscription URL:', subscriptionUrl?.slice(0, 80));
+      }
+    } else {
+      console.log('Subscription URL not generated - conditions not met');
+    }
 
     return NextResponse.json({
       ok: true,
       profile: {
         ...result.rows[0],
-        subscriptionUrl: encryptedSubUrl,
+        subscriptionUrl,
       },
     });
   } catch (error) {
