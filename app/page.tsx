@@ -75,7 +75,7 @@ const translations = {
     setupInstallDesc: 'Сначала установите приложение клиента на устройство.',
     setupInstallButton: 'Установить клиент',
     setupAddTitle: 'Добавление подписки',
-    setupAddDesc: 'Скопируйте ключ и вставьте его в приложение Happ.',
+    setupAddDesc: 'Скопируйте ключ и вставьте его в VPN-приложение.',
     setupAddButton: 'Скопировать ключ',
     setupKeyCopied: 'Ключ скопирован!',
     setupNoKey: 'У вас нет активного ключа. Оформите подписку.',
@@ -238,7 +238,7 @@ const translations = {
     setupInstallDesc: 'First, install the client application on your device.',
     setupInstallButton: 'Install client',
     setupAddTitle: 'Add subscription key',
-    setupAddDesc: 'Copy the key and paste it into the Happ app.',
+    setupAddDesc: 'Copy the key and paste it into your VPN app.',
     setupAddButton: 'Copy key',
     setupKeyCopied: 'Key copied!',
     setupNoKey: 'No active key. Please subscribe first.',
@@ -897,14 +897,13 @@ function HomeView({ t, direction, subscriptionEndDateLabel, subscriptionDaysLabe
   };
 
   const getStoreLink = () => {
+    // TODO: Replace with actual VPN client app links
     if (deviceOS === 'android') {
-      return 'https://play.google.com/store/apps/details?id=com.happproxy';
+      return 'https://play.google.com/store/apps/details?id=com.v2ray.ang';
     }
 
     if (deviceOS === 'ios' || deviceOS === 'macos') {
-      return setupRegion === 'russia'
-        ? 'https://apps.apple.com/ru/app/happ-proxy-utility-plus/id6746188973'
-        : 'https://apps.apple.com/us/app/happ-proxy-utility/id6504287215?l=ru';
+      return 'https://apps.apple.com/app/streisand/id6450534064';
     }
 
     return '';
@@ -1109,7 +1108,7 @@ function HomeView({ t, direction, subscriptionEndDateLabel, subscriptionDaysLabe
               {setupStep === 3 && (
                 <>
                   <h3 className="text-lg sm:text-2xl font-bold text-center text-white mb-1.5 sm:mb-2">{t.setupAddTitle}</h3>
-                  <p className="text-zinc-400 text-center text-xs sm:text-sm mb-3 sm:mb-4">{subscriptionUrl ? 'Скопируйте ссылку подписки и вставьте её в приложение Happ.' : t.setupAddDesc}</p>
+                  <p className="text-zinc-400 text-center text-xs sm:text-sm mb-3 sm:mb-4">{subscriptionUrl ? 'Скопируйте ссылку подписки и вставьте её в VPN-приложение.' : t.setupAddDesc}</p>
 
                   {vpnKeyLoading ? (
                     <div className="text-center py-4 text-zinc-400 text-sm">{t.setupKeyLoading}</div>

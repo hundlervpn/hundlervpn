@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { dbQuery } from '@/lib/db';
-import { getSubscriptionUrlWithLimit, encryptSubscriptionUrl } from '@/lib/sub-token';
+import { getSubscriptionUrl } from '@/lib/sub-token';
 
 type UserState = {
   userId: number;
@@ -125,15 +125,8 @@ export async function GET(req: Request) {
     let subscriptionUrl: string | null = null;
     
     if (status === 'active' && hasActiveKey && tgId) {
-      const rawSubUrl = await getSubscriptionUrlWithLimit(Number(tgId));
-      console.log('Raw subscription URL:', rawSubUrl);
-      
-      if (rawSubUrl) {
-        subscriptionUrl = await encryptSubscriptionUrl(rawSubUrl);
-        console.log('Encrypted subscription URL:', subscriptionUrl?.slice(0, 80));
-      }
-    } else {
-      console.log('Subscription URL not generated - conditions not met');
+      subscriptionUrl = getSubscriptionUrl(Number(tgId));
+      console.log('Subscription URL:', subscriptionUrl);
     }
 
     return NextResponse.json({
