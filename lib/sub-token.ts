@@ -128,6 +128,47 @@ export function getSubscriptionUrl(telegramId: number): string | null {
   return `${appUrl}/api/sub/${token}`;
 }
 
+export async function getInstallCode(): Promise<string | null> {
+  const providerCode = process.env.HAPP_PROVIDER_CODE;
+  const authKey = process.env.HAPP_AUTH_KEY;
+  const installLimit = process.env.HAPP_INSTALL_LIMIT || '3';
+  
+  if (!providerCode || !authKey) {
+    return null;
+  }
+  
+  try {
+    const url = `https://api.happ-proxy.com/api/add-install?provider_code=${encodeURIComponent(providerCode)}&auth_key=${encodeURIComponent(authKey)}&install_limit=${installLimit}`;
+    const res = await fetch(url);
+    if (!res.ok) {
+      console.error('Happ install API error:', res.status);
+      return null;
+    }
+    const data = await res.json();
+    if (data.rc === 1 && data.install_code) {
+      return data.install_code;
+    }
+    console.error('Happ install API error:', data.msg);
+    return null;
+  } catch (err) {
+    console.error('Happ install code error:', err);
+    return null;
+  }
+}
+
+export async function getSubscriptionUrlWithLimit(telegramId: number): Promise<string | null> {
+  const baseUrl = getSubscriptionUrl(telegramId);
+  if (!baseUrl) return null;
+  
+  const installCode = await getInstallCode();
+  if (installCode) {
+    // Add InstallID as URL fragment parameter
+    return `${baseUrl}#Hundler_VPN?installid=${installCode}`;
+  }
+  
+  return baseUrl;
+}
+
 export async function encryptSubscriptionUrl(url: string): Promise<string> {
   try {
     const res = await fetch('https://crypto.happ.su/api-v2.php', {
@@ -135,12 +176,29 @@ export async function encryptSubscriptionUrl(url: string): Promise<string> {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url }),
     });
-    if (!res.ok) return url;
+    if (!res.ok) {
+      console.error('Happ encryption API error:', res.status, res.statusText);
+      return url;
+    }
     const text = await res.text();
     const trimmed = text.trim();
-    if (trimmed && trimmed.startsWith('happ://')) return trimmed;
+    console.log('Happ encryption response:', trimmed.slice(0, 100));
+    if (trimmed && (trimmed.startsWith('happ://crypt4/') || trimmed.startsWith('happ://crypt5/'))) {
+      return trimmed;
+    }
+    // Try parsing as JSON in case API returns JSON
+    try {
+      const json = JSON.parse(trimmed);
+      if (json.url && (json.url.startsWith('happ://crypt4/') || json.url.startsWith('happ://crypt5/'))) {
+        return json.url;
+      }
+      if (json.encrypted && (json.encrypted.startsWith('happ://crypt4/') || json.encrypted.startsWith('happ://crypt5/'))) {
+        return json.encrypted;
+      }
+    } catch { /* not JSON */ }
     return url;
-  } catch {
+  } catch (err) {
+    console.error('Happ encryption error:', err);
     return url;
   }
 }

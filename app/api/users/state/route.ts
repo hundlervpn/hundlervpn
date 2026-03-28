@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { dbQuery } from '@/lib/db';
-import { getSubscriptionUrl, encryptSubscriptionUrl } from '@/lib/sub-token';
+import { getSubscriptionUrlWithLimit, encryptSubscriptionUrl } from '@/lib/sub-token';
 
 type UserState = {
   userId: number;
@@ -116,7 +116,7 @@ export async function GET(req: Request) {
     }
 
     const rawSubUrl = result.rows[0].status === 'active' && result.rows[0].hasActiveKey && result.rows[0].telegramId
-      ? getSubscriptionUrl(Number(result.rows[0].telegramId))
+      ? await getSubscriptionUrlWithLimit(Number(result.rows[0].telegramId))
       : null;
 
     const encryptedSubUrl = rawSubUrl ? await encryptSubscriptionUrl(rawSubUrl) : null;

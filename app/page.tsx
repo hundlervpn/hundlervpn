@@ -47,7 +47,7 @@ const translations = {
     promo: 'Промокоды',
     myDevices: 'Мои устройства',
     months: 'мес.', perMonth: 'в мес.', total: 'Итого:',
-    payTg: 'Tg Stars', payCrypto: 'Крипто', paySbp: 'СБП',
+    payCrypto: 'Крипто', paySbp: 'СБП',
     subscribe: 'Оплатить',
     featTitle: 'Преимущества', f1: 'До 3 устройств', f2: 'Безлимитный трафик', f3: 'Минимальные задержки',
     user: 'Пользователь', daysLeft: 'Осталось 23 дня',
@@ -210,7 +210,7 @@ const translations = {
     promo: 'Promo codes',
     myDevices: 'My devices',
     months: 'mo.', perMonth: '/mo', total: 'Total:',
-    payTg: 'Tg Stars', payCrypto: 'Crypto', paySbp: 'SBP',
+    payCrypto: 'Crypto', paySbp: 'SBP',
     subscribe: 'Subscribe Now',
     featTitle: 'Premium Features', f1: 'Up to 3 devices', f2: 'Unlimited bandwidth', f3: 'Minimal latency',
     user: 'User', daysLeft: '23 days left',
@@ -1322,7 +1322,7 @@ function HomeView({ t, direction, subscriptionEndDateLabel, subscriptionDaysLabe
 
 function PaymentView({ t, direction, tgUser, onSubscriptionChange, userIdentifier }: { t: any, direction: number; tgUser: { id: number; name: string; photo: string; username?: string } | null; onSubscriptionChange: (id: number | UserIdentifier) => Promise<void>; userIdentifier: UserIdentifier | null }) {
   const [months, setMonths] = useState(1);
-  const [payMethod, setPayMethod] = useState<'tg' | 'crypto' | 'sbp'>('tg');
+  const [payMethod, setPayMethod] = useState<'crypto' | 'sbp'>('crypto');
   const [isLoading, setIsLoading] = useState(false);
   const [sbpState, setSbpState] = useState<'idle' | 'creating' | 'waiting' | 'success' | 'failed'>('idle');
   const [sbpPaymentId, setSbpPaymentId] = useState<number | null>(null);
@@ -1339,7 +1339,6 @@ function PaymentView({ t, direction, tgUser, onSubscriptionChange, userIdentifie
   const discountAmount = appliedPromo ? Math.round(rawTotal * appliedPromo.discountPercent / 100) : 0;
   const totalPrice = rawTotal - discountAmount;
   const totalUsd = +(totalPrice / 100).toFixed(2);
-  const totalStars = Math.max(1, Math.round(totalPrice / 2));
 
   const handleApplyPromo = async () => {
     const code = promoInput.trim().toUpperCase();
@@ -1403,43 +1402,7 @@ function PaymentView({ t, direction, tgUser, onSubscriptionChange, userIdentifie
   const handleSubscribe = async () => {
     setIsLoading(true);
     try {
-      if (payMethod === 'tg') {
-        const response = await fetch('/api/invoice', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            months,
-            amount: totalStars,
-          }),
-        });
-        const data = await response.json();
-        if (data.invoiceLink) {
-          if (typeof window !== 'undefined' && window.Telegram?.WebApp) {
-            try {
-              const result = await window.Telegram.WebApp.openInvoice(data.invoiceLink);
-              if (result.status === 'paid') {
-                if (userIdentifier) {
-                  setTimeout(() => { void onSubscriptionChange(userIdentifier); }, 1500);
-                } else if (tgUser?.id) {
-                  setTimeout(() => { void onSubscriptionChange(tgUser.id); }, 1500);
-                }
-                alert('Оплата прошла успешно!');
-              } else if (result.status === 'cancelled') {
-                alert('Оплата отменена');
-              } else if (result.status === 'failed') {
-                alert('Ошибка оплаты');
-              }
-            } catch (e) {
-              console.error('Invoice error:', e);
-              alert('Не удалось открыть окно оплаты');
-            }
-          } else {
-            window.location.href = data.invoiceLink;
-          }
-        } else {
-          alert(data.error || 'Ошибка создания счета');
-        }
-      } else if (payMethod === 'crypto') {
+      if (payMethod === 'crypto') {
         const response = await fetch('/api/crypto-invoice', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -1660,9 +1623,8 @@ function PaymentView({ t, direction, tgUser, onSubscriptionChange, userIdentifie
           initial={{ y: 10, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ delay: 0.15, duration: 0.25 }}
-          className="grid grid-cols-3 gap-1.5 mb-3 lg:gap-3"
+          className="grid grid-cols-2 gap-1.5 mb-3 lg:gap-3"
         >
-          <PaymentMethodBtn icon={<Star size={16} className={payMethod === 'tg' ? "text-yellow-400" : "text-zinc-500"} />} label={t.payTg} isActive={payMethod === 'tg'} onClick={() => setPayMethod('tg')} />
           <PaymentMethodBtn icon={<Bitcoin size={16} className={payMethod === 'crypto' ? "text-orange-400" : "text-zinc-500"} />} label={t.payCrypto} isActive={payMethod === 'crypto'} onClick={() => setPayMethod('crypto')} />
           <PaymentMethodBtn icon={<Wallet size={16} className={payMethod === 'sbp' ? "text-blue-400" : "text-zinc-500"} />} label={t.paySbp} isActive={payMethod === 'sbp'} onClick={() => setPayMethod('sbp')} />
         </motion.div>
