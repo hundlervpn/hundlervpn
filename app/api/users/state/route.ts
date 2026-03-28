@@ -34,6 +34,7 @@ export async function GET(req: Request) {
     const userWhereClause = telegramId ? 'telegram_id = $1' : 'id = $1';
     const userParam = telegramId ?? userId;
 
+    // Only update if there's a valid candidate - don't deactivate all keys if no candidate
     await dbQuery(
       `
       WITH target_user AS (
@@ -50,14 +51,17 @@ export async function GET(req: Request) {
         WHERE (vk.expires_at IS NULL OR vk.expires_at > NOW())
           AND (
             (s.id IS NOT NULL AND s.status = 'active' AND s.end_date > NOW())
-            OR (s.id IS NULL AND vk.is_active = TRUE)
+            OR s.id IS NULL
           )
-        ORDER BY vk.created_at DESC
+        ORDER BY 
+          CASE WHEN s.id IS NOT NULL AND s.status = 'active' THEN 0 ELSE 1 END,
+          vk.created_at DESC
         LIMIT 1
       )
       UPDATE vpn_keys vk
-      SET is_active = CASE WHEN vk.id = (SELECT id FROM candidate) THEN TRUE ELSE FALSE END
-      WHERE vk.user_id IN (SELECT id FROM target_user);
+      SET is_active = (vk.id = (SELECT id FROM candidate))
+      WHERE vk.user_id IN (SELECT id FROM target_user)
+        AND EXISTS (SELECT 1 FROM candidate);
       `,
       [userParam]
     );
