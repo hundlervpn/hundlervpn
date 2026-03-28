@@ -202,7 +202,7 @@ export async function encryptSubscriptionUrl(url: string): Promise<string> {
       // Try JSON parsing
       try {
         const json = JSON.parse(trimmed);
-        const encrypted = json.url || json.encrypted || json.link || json.result;
+        const encrypted = json.encrypted_link || json.url || json.encrypted || json.link || json.result;
         if (encrypted && encrypted.startsWith('happ://')) {
           return encrypted;
         }
