@@ -20,7 +20,7 @@ export async function POST(req: Request) {
     // Simplified payload with only required fields
     const payload = {
       amount: amount || 1.5,
-      currency: 'USD',
+      currency: 'RUB',
       lifetime: 30,
       order_id: `vpn_${months}m_${Date.now()}`,
       description: `Hundler VPN Premium ${months} months`
