@@ -96,6 +96,7 @@ async def cmd_start(message: types.Message):
 async def process_pending_broadcasts():
     """Check for pending broadcasts and send them"""
     try:
+        logger.info("Checking for pending broadcasts...")
         conn = get_db_connection()
         cur = conn.cursor()
         
@@ -110,11 +111,13 @@ async def process_pending_broadcasts():
         broadcast = cur.fetchone()
         
         if not broadcast:
+            logger.info("No pending broadcasts found")
             cur.close()
             conn.close()
             return
         
         broadcast_id, title, message, image_url, button_text, button_url = broadcast
+        logger.info(f"Found broadcast {broadcast_id}: {title}")
         
         # Update status to sending
         cur.execute("UPDATE broadcasts SET status = 'sending' WHERE id = %s", (broadcast_id,))
