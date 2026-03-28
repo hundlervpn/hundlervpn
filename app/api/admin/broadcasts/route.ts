@@ -81,7 +81,7 @@ export async function POST(req: Request) {
         imageUrl?.trim() || null,
         buttonText?.trim() || null,
         buttonUrl?.trim() || null,
-        targetTelegramId ? String(targetTelegramId) : null,
+        targetTelegramId ? BigInt(targetTelegramId) : null,
         totalUsers,
         adminUserId
       ]

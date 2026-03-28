@@ -103,6 +103,7 @@ const translations = {
     adminBroadcastImage: 'URL картинки (опционально)',
     adminBroadcastButton: 'Текст кнопки',
     adminBroadcastButtonUrl: 'URL кнопки',
+    adminBroadcastTargetId: 'Telegram ID (пусто = всем)',
     adminBroadcastSend: 'Отправить рассылку',
     adminBroadcastSending: 'Отправка...',
     adminBroadcastSent: 'Отправлено',
@@ -266,6 +267,7 @@ const translations = {
     adminBroadcastImage: 'Image URL (optional)',
     adminBroadcastButton: 'Button text',
     adminBroadcastButtonUrl: 'Button URL',
+    adminBroadcastTargetId: 'Telegram ID (empty = all)',
     adminBroadcastSend: 'Send broadcast',
     adminBroadcastSending: 'Sending...',
     adminBroadcastSent: 'Sent',
@@ -2860,6 +2862,7 @@ function AdminView({ t, direction, tgUser, navigate, lang }: { t: any; direction
   const [broadcastImage, setBroadcastImage] = useState('');
   const [broadcastButtonText, setBroadcastButtonText] = useState('');
   const [broadcastButtonUrl, setBroadcastButtonUrl] = useState('');
+  const [broadcastTargetId, setBroadcastTargetId] = useState('');
   const [broadcastSending, setBroadcastSending] = useState(false);
 
   const tgId = tgUser?.id;
@@ -2930,6 +2933,7 @@ function AdminView({ t, direction, tgUser, navigate, lang }: { t: any; direction
           imageUrl: broadcastImage.trim() || null,
           buttonText: broadcastButtonText.trim() || null,
           buttonUrl: broadcastButtonUrl.trim() || null,
+          targetTelegramId: broadcastTargetId.trim() || null,
         }),
       });
       if (res.ok) {
@@ -2938,6 +2942,7 @@ function AdminView({ t, direction, tgUser, navigate, lang }: { t: any; direction
         setBroadcastImage('');
         setBroadcastButtonText('');
         setBroadcastButtonUrl('');
+        setBroadcastTargetId('');
         setShowBroadcastForm(false);
         await loadBroadcasts();
       } else {
@@ -3380,6 +3385,13 @@ function AdminView({ t, direction, tgUser, navigate, lang }: { t: any; direction
                       className="w-full bg-zinc-800/60 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-zinc-500 outline-none focus:border-white/25"
                     />
                   </div>
+                  <input
+                    type="text"
+                    value={broadcastTargetId}
+                    onChange={(e) => setBroadcastTargetId(e.target.value)}
+                    placeholder={t.adminBroadcastTargetId}
+                    className="w-full bg-zinc-800/60 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-zinc-500 outline-none focus:border-white/25"
+                  />
                   <button
                     onClick={handleCreateBroadcast}
                     disabled={broadcastSending || !broadcastMessage.trim()}
