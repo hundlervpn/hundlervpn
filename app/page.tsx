@@ -97,6 +97,18 @@ const translations = {
     adminUsers: 'Пользователи',
     adminPromos: 'Промокоды',
     adminTickets: 'Обращения',
+    adminBroadcasts: 'Рассылки',
+    adminBroadcastTitle: 'Заголовок (опционально)',
+    adminBroadcastMessage: 'Текст сообщения',
+    adminBroadcastImage: 'URL картинки (опционально)',
+    adminBroadcastButton: 'Текст кнопки',
+    adminBroadcastButtonUrl: 'URL кнопки',
+    adminBroadcastSend: 'Отправить рассылку',
+    adminBroadcastSending: 'Отправка...',
+    adminBroadcastSent: 'Отправлено',
+    adminBroadcastPending: 'Ожидает',
+    adminBroadcastFailed: 'Ошибка',
+    adminNoBroadcasts: 'Рассылок пока нет',
     adminTotalUsers: 'Всего',
     adminTodayUsers: 'Сегодня',
     adminBannedUsers: 'Забанено',
@@ -248,6 +260,18 @@ const translations = {
     adminUsers: 'Users',
     adminPromos: 'Promo Codes',
     adminTickets: 'Tickets',
+    adminBroadcasts: 'Broadcasts',
+    adminBroadcastTitle: 'Title (optional)',
+    adminBroadcastMessage: 'Message text',
+    adminBroadcastImage: 'Image URL (optional)',
+    adminBroadcastButton: 'Button text',
+    adminBroadcastButtonUrl: 'Button URL',
+    adminBroadcastSend: 'Send broadcast',
+    adminBroadcastSending: 'Sending...',
+    adminBroadcastSent: 'Sent',
+    adminBroadcastPending: 'Pending',
+    adminBroadcastFailed: 'Failed',
+    adminNoBroadcasts: 'No broadcasts yet',
     adminTotalUsers: 'Total',
     adminTodayUsers: 'Today',
     adminBannedUsers: 'Banned',
@@ -2847,7 +2871,7 @@ function AdminTicketsView({ t, lang, tgId }: { t: any; lang: 'ru' | 'en'; tgId?:
 }
 
 function AdminView({ t, direction, tgUser, navigate, lang }: { t: any; direction: number; tgUser: { id: number; name: string; photo: string; username?: string } | null; navigate: (tab: Tab) => void; lang: 'ru' | 'en' }) {
-  const [adminTab, setAdminTab] = useState<'stats' | 'users' | 'promos' | 'tickets'>('stats');
+  const [adminTab, setAdminTab] = useState<'stats' | 'users' | 'promos' | 'tickets' | 'broadcasts'>('stats');
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(false);
   const [users, setUsers] = useState<AdminUser[]>([]);
@@ -2865,6 +2889,17 @@ function AdminView({ t, direction, tgUser, navigate, lang }: { t: any; direction
   const [promoMaxUses, setPromoMaxUses] = useState('100');
   const [promoCreating, setPromoCreating] = useState(false);
   const [banningId, setBanningId] = useState<number | null>(null);
+  
+  // Broadcast state
+  const [broadcasts, setBroadcasts] = useState<{ id: string; title: string | null; message: string; status: string; total_users: number; sent_count: number; failed_count: number; created_at: string; sent_at: string | null }[]>([]);
+  const [broadcastsLoading, setBroadcastsLoading] = useState(false);
+  const [showBroadcastForm, setShowBroadcastForm] = useState(false);
+  const [broadcastTitle, setBroadcastTitle] = useState('');
+  const [broadcastMessage, setBroadcastMessage] = useState('');
+  const [broadcastImage, setBroadcastImage] = useState('');
+  const [broadcastButtonText, setBroadcastButtonText] = useState('');
+  const [broadcastButtonUrl, setBroadcastButtonUrl] = useState('');
+  const [broadcastSending, setBroadcastSending] = useState(false);
 
   const tgId = tgUser?.id;
 
@@ -2906,6 +2941,49 @@ function AdminView({ t, direction, tgUser, navigate, lang }: { t: any; direction
         setPromos(data.promos ?? []);
       }
     } catch { /* ignore */ } finally { setPromosLoading(false); }
+  };
+
+  const loadBroadcasts = async () => {
+    if (!tgId) return;
+    setBroadcastsLoading(true);
+    try {
+      const res = await fetch(`/api/admin/broadcasts?telegramId=${tgId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setBroadcasts(data.broadcasts ?? []);
+      }
+    } catch { /* ignore */ } finally { setBroadcastsLoading(false); }
+  };
+
+  const handleCreateBroadcast = async () => {
+    if (!tgId || !broadcastMessage.trim()) return;
+    setBroadcastSending(true);
+    try {
+      const res = await fetch('/api/admin/broadcasts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          telegramId: tgId,
+          title: broadcastTitle.trim() || null,
+          message: broadcastMessage.trim(),
+          imageUrl: broadcastImage.trim() || null,
+          buttonText: broadcastButtonText.trim() || null,
+          buttonUrl: broadcastButtonUrl.trim() || null,
+        }),
+      });
+      if (res.ok) {
+        setBroadcastTitle('');
+        setBroadcastMessage('');
+        setBroadcastImage('');
+        setBroadcastButtonText('');
+        setBroadcastButtonUrl('');
+        setShowBroadcastForm(false);
+        await loadBroadcasts();
+      } else {
+        const data = await res.json().catch(() => ({ error: 'Error' }));
+        alert(data.error || 'Error');
+      }
+    } catch { /* ignore */ } finally { setBroadcastSending(false); }
   };
 
   const handleBan = async (userId: number | string, ban: boolean, banType?: 'login' | 'subscription') => {
@@ -2981,6 +3059,7 @@ function AdminView({ t, direction, tgUser, navigate, lang }: { t: any; direction
     if (adminTab === 'stats') loadStats();
     else if (adminTab === 'users') loadUsers(1, usersSearch);
     else if (adminTab === 'promos') loadPromos();
+    else if (adminTab === 'broadcasts') loadBroadcasts();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [adminTab, tgId]);
 
@@ -3015,6 +3094,9 @@ function AdminView({ t, direction, tgUser, navigate, lang }: { t: any; direction
             </button>
             <button onClick={() => setAdminTab('tickets')} className={`text-xs font-medium py-2 px-3 rounded-lg border transition-all whitespace-nowrap shrink-0 ${adminTab === 'tickets' ? 'bg-white/10 border-white/25 text-white' : 'border-white/5 text-zinc-400 hover:text-white'}`}>
               {t.adminTickets}
+            </button>
+            <button onClick={() => setAdminTab('broadcasts')} className={`text-xs font-medium py-2 px-3 rounded-lg border transition-all whitespace-nowrap shrink-0 ${adminTab === 'broadcasts' ? 'bg-white/10 border-white/25 text-white' : 'border-white/5 text-zinc-400 hover:text-white'}`}>
+              {t.adminBroadcasts}
             </button>
           </div>
 
@@ -3286,6 +3368,100 @@ function AdminView({ t, direction, tgUser, navigate, lang }: { t: any; direction
           )}
 
           {adminTab === 'tickets' && <AdminTicketsView t={t} lang={lang} tgId={tgId} />}
+
+          {/* Broadcasts Tab */}
+          {adminTab === 'broadcasts' && (
+            <div>
+              <button
+                onClick={() => setShowBroadcastForm(!showBroadcastForm)}
+                className="w-full mb-3 bg-white/10 border border-white/15 text-white py-2 rounded-lg text-sm font-medium hover:bg-white/15 transition-colors flex items-center justify-center gap-2"
+              >
+                <Plus size={14} />
+                {t.adminBroadcastSend}
+              </button>
+
+              {showBroadcastForm && (
+                <div className="rounded-xl border border-white/15 bg-zinc-900/80 p-3 mb-3 space-y-3">
+                  <input
+                    type="text"
+                    value={broadcastTitle}
+                    onChange={(e) => setBroadcastTitle(e.target.value)}
+                    placeholder={t.adminBroadcastTitle}
+                    className="w-full bg-zinc-800/60 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-zinc-500 outline-none focus:border-white/25"
+                  />
+                  <textarea
+                    value={broadcastMessage}
+                    onChange={(e) => setBroadcastMessage(e.target.value)}
+                    placeholder={t.adminBroadcastMessage}
+                    rows={4}
+                    className="w-full bg-zinc-800/60 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-zinc-500 outline-none focus:border-white/25 resize-none"
+                  />
+                  <input
+                    type="text"
+                    value={broadcastImage}
+                    onChange={(e) => setBroadcastImage(e.target.value)}
+                    placeholder={t.adminBroadcastImage}
+                    className="w-full bg-zinc-800/60 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-zinc-500 outline-none focus:border-white/25"
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      type="text"
+                      value={broadcastButtonText}
+                      onChange={(e) => setBroadcastButtonText(e.target.value)}
+                      placeholder={t.adminBroadcastButton}
+                      className="w-full bg-zinc-800/60 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-zinc-500 outline-none focus:border-white/25"
+                    />
+                    <input
+                      type="text"
+                      value={broadcastButtonUrl}
+                      onChange={(e) => setBroadcastButtonUrl(e.target.value)}
+                      placeholder={t.adminBroadcastButtonUrl}
+                      className="w-full bg-zinc-800/60 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-zinc-500 outline-none focus:border-white/25"
+                    />
+                  </div>
+                  <button
+                    onClick={handleCreateBroadcast}
+                    disabled={broadcastSending || !broadcastMessage.trim()}
+                    className="w-full bg-white text-black font-medium py-2.5 rounded-lg hover:bg-zinc-200 transition-colors disabled:opacity-50 text-sm"
+                  >
+                    {broadcastSending ? '...' : t.adminBroadcastSend}
+                  </button>
+                </div>
+              )}
+
+              {broadcastsLoading ? (
+                <div className="text-center py-8 text-zinc-400 text-sm">Загрузка...</div>
+              ) : broadcasts.length === 0 ? (
+                <div className="text-center py-8 text-zinc-400 text-sm">{t.adminNoBroadcasts}</div>
+              ) : (
+                <div className="space-y-2">
+                  {broadcasts.map((b) => (
+                    <div key={b.id} className="rounded-xl border border-white/10 bg-zinc-900/60 p-3">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="text-white text-sm font-medium truncate">{b.title || b.message.slice(0, 30)}</span>
+                        <span className={`text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded-full ${
+                          b.status === 'sent' ? 'bg-green-500/20 text-green-300' :
+                          b.status === 'sending' ? 'bg-yellow-500/20 text-yellow-300' :
+                          b.status === 'failed' ? 'bg-red-500/20 text-red-300' :
+                          'bg-zinc-700 text-zinc-400'
+                        }`}>
+                          {b.status === 'sent' ? t.adminBroadcastSent :
+                           b.status === 'sending' ? t.adminBroadcastSending :
+                           b.status === 'failed' ? t.adminBroadcastFailed :
+                           t.adminBroadcastPending}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap gap-x-3 text-[10px] text-zinc-400">
+                        <span>👥 {b.sent_count}/{b.total_users}</span>
+                        {b.failed_count > 0 && <span className="text-red-400">❌ {b.failed_count}</span>}
+                        <span>{new Date(b.created_at).toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'en-GB')}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </motion.div>

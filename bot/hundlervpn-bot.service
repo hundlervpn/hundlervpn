@@ -1,0 +1,21 @@
+[Unit]
+Description=HundlerVPN Telegram Bot
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/hundlervpn/bot
+Environment=TELEGRAM_BOT_TOKEN=your_bot_token_here
+Environment=APP_URL=https://hundlervpn-hundlervpn-f985.twc1.net/
+Environment=POSTGRESQL_HOST=5.42.118.215
+Environment=POSTGRESQL_PORT=5432
+Environment=POSTGRESQL_USER=gen_user
+Environment=POSTGRESQL_PASSWORD=your_password_here
+Environment=POSTGRESQL_DBNAME=default_db
+ExecStart=/root/hundlervpn/bot/venv/bin/python /root/hundlervpn/bot/main.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
