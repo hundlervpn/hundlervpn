@@ -666,7 +666,7 @@ export default function App() {
 
           <div className="w-full max-w-6xl mx-auto lg:flex-1 lg:flex lg:flex-col lg:items-center lg:justify-start">
             <AnimatePresence mode="wait" custom={direction}>
-              {activeTab === 'home' && <HomeView key="home" t={t} direction={direction} subscriptionEndDateLabel={subscriptionEndDateLabel} subscriptionDaysLabel={subscriptionDaysLabel} subscriptionUrl={subscriptionState?.subscriptionUrl ?? null} tgUser={tgUser} onSubscriptionChange={refreshSubscriptionState} userIdentifier={userIdentifier} navigate={navigate} />}
+              {activeTab === 'home' && <HomeView key="home" t={t} direction={direction} subscriptionEndDateLabel={subscriptionEndDateLabel} subscriptionDaysLabel={subscriptionDaysLabel} subscriptionUrl={subscriptionState?.subscriptionUrl ?? null} tgUser={tgUser} onSubscriptionChange={refreshSubscriptionState} userIdentifier={userIdentifier} navigate={navigate} onSetPendingPromo={setPendingPromo} />}
               {activeTab === 'support' && <SupportView key="support" t={t} direction={direction} userIdentifier={userIdentifier} lang={lang} />}
               {activeTab === 'payment' && <PaymentView key="payment" t={t} direction={direction} tgUser={tgUser} onSubscriptionChange={refreshSubscriptionState} userIdentifier={userIdentifier} pendingPromo={pendingPromo} onClearPendingPromo={() => setPendingPromo(null)} />}
               {activeTab === 'profile' && <ProfileView key="profile" t={t} lang={lang} setLang={setLang} direction={direction} tgUser={tgUser} subscriptionDaysLabel={subscriptionDaysLabel} navigate={navigate} authMode={authMode} onLogout={handleEmailLogout} />}
@@ -745,7 +745,7 @@ function DesktopSidebar({ t, activeTab, navigate, authMode }: { t: any; activeTa
   );
 }
 
-function HomeView({ t, direction, subscriptionEndDateLabel, subscriptionDaysLabel, subscriptionUrl, tgUser, onSubscriptionChange, userIdentifier, navigate }: { t: any, direction: number; subscriptionEndDateLabel: string; subscriptionDaysLabel: string; subscriptionUrl: string | null; tgUser: { id: number; name: string; photo: string; username?: string } | null; onSubscriptionChange: (telegramId: number) => Promise<void>; userIdentifier: UserIdentifier | null; navigate: (tab: Tab) => void }) {
+function HomeView({ t, direction, subscriptionEndDateLabel, subscriptionDaysLabel, subscriptionUrl, tgUser, onSubscriptionChange, userIdentifier, navigate, onSetPendingPromo }: { t: any, direction: number; subscriptionEndDateLabel: string; subscriptionDaysLabel: string; subscriptionUrl: string | null; tgUser: { id: number; name: string; photo: string; username?: string } | null; onSubscriptionChange: (telegramId: number) => Promise<void>; userIdentifier: UserIdentifier | null; navigate: (tab: Tab) => void; onSetPendingPromo: (promo: { code: string; discountPercent: number; promoId: number } | null) => void }) {
   const [showSetupModal, setShowSetupModal] = useState(false);
   const [showDevicesModal, setShowDevicesModal] = useState(false);
   const [showPromoModal, setShowPromoModal] = useState(false);
@@ -964,8 +964,8 @@ function HomeView({ t, direction, subscriptionEndDateLabel, subscriptionDaysLabe
         setShowPromoModal(false);
         setPromoCode('');
         // Сохраняем промокод и переходим на страницу оплаты
-        setPendingPromo({ code: data.promoCode, discountPercent: data.discountPercent, promoId: data.promoId });
-        navigate('subscribe');
+        onSetPendingPromo({ code: data.promoCode, discountPercent: data.discountPercent, promoId: data.promoId });
+        navigate('payment');
         return;
       }
       
