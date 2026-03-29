@@ -86,6 +86,7 @@ export async function POST(req: Request) {
       payloadData.months ||
       (payment.metadata as Record<string, unknown>)?.months ||
       1;
+    const promoId = (payment.metadata as Record<string, unknown>)?.promoId as number | null;
     const dbUserId = payment.user_id;
 
     if (status === 'CONFIRMED') {
@@ -132,6 +133,20 @@ export async function POST(req: Request) {
         });
 
         await applyReferralReward(client, dbUserId);
+
+        // Записываем использование промокода если был применён
+        if (promoId) {
+          await client.query(
+            `INSERT INTO promo_code_uses (promo_code_id, user_id)
+             VALUES ($1, $2)
+             ON CONFLICT (promo_code_id, user_id) DO NOTHING`,
+            [promoId, dbUserId]
+          );
+          await client.query(
+            `UPDATE promo_codes SET used_count = used_count + 1 WHERE id = $1`,
+            [promoId]
+          );
+        }
 
         await client.query(
           `UPDATE payments

@@ -5,7 +5,7 @@ import { createSbpTransaction } from '@/lib/platega';
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { months, amount, telegramId, userId } = body;
+    const { months, amount, telegramId, userId, promoId, promoCode } = body;
 
     if (!months || !amount) {
       return NextResponse.json(
@@ -43,7 +43,7 @@ export async function POST(req: Request) {
       [
         dbUserId,
         amount,
-        JSON.stringify({ months, telegramId: telegramId ?? null }),
+        JSON.stringify({ months, telegramId: telegramId ?? null, promoId: promoId ?? null, promoCode: promoCode ?? null }),
       ]
     );
     const paymentId = paymentResult.rows[0].id;

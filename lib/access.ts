@@ -28,6 +28,7 @@ type PromoRow = {
   id: number;
   code: string;
   days: number;
+  discount_percent: number | null;
   max_uses: number;
   used_count: number;
   expires_at: Date | null;
@@ -655,7 +656,7 @@ export async function applyPromoCode(client: PoolClient, input: { userId: number
 
   const promoResult = await client.query<PromoRow>(
     `
-    SELECT id, code, days, max_uses, used_count, expires_at
+    SELECT id, code, days, discount_percent, max_uses, used_count, expires_at
     FROM promo_codes
     WHERE code = $1
       AND is_active = TRUE
@@ -701,6 +702,22 @@ export async function applyPromoCode(client: PoolClient, input: { userId: number
     throw new Error('Забаненному пользователю промокод недоступен');
   }
 
+  // Скидочный промокод - возвращаем информацию о скидке без создания подписки
+  if (promo.discount_percent && promo.discount_percent > 0 && promo.days === 0) {
+    return {
+      type: 'discount' as const,
+      promoCode: promo.code,
+      promoId: promo.id,
+      discountPercent: promo.discount_percent,
+      days: 0,
+      subscriptionId: null,
+      endDate: null,
+      keyUri: null,
+      subscriptionUrl: null,
+    };
+  }
+
+  // Промокод на дни - создаём подписку
   const planId = await ensureNamedPlan(client, {
     name: `Promo ${promo.code} ${promo.days}d`,
     durationDays: promo.days,
@@ -740,7 +757,10 @@ export async function applyPromoCode(client: PoolClient, input: { userId: number
   );
 
   return {
+    type: 'days' as const,
     promoCode: promo.code,
+    promoId: promo.id,
+    discountPercent: 0,
     days: promo.days,
     subscriptionId: subscription.subscriptionId,
     endDate: subscription.endDate,

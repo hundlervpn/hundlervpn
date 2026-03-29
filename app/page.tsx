@@ -412,6 +412,7 @@ export default function App() {
   const [authMode, setAuthMode] = useState<AuthMode>('none');
   const [authLoading, setAuthLoading] = useState(true);
   const [userIdentifier, setUserIdentifier] = useState<UserIdentifier | null>(null);
+  const [pendingPromo, setPendingPromo] = useState<{ code: string; discountPercent: number; promoId: number } | null>(null);
 
   const buildStateQuery = (ident: UserIdentifier | null) => {
     if (!ident) return '';
@@ -667,7 +668,7 @@ export default function App() {
             <AnimatePresence mode="wait" custom={direction}>
               {activeTab === 'home' && <HomeView key="home" t={t} direction={direction} subscriptionEndDateLabel={subscriptionEndDateLabel} subscriptionDaysLabel={subscriptionDaysLabel} subscriptionUrl={subscriptionState?.subscriptionUrl ?? null} tgUser={tgUser} onSubscriptionChange={refreshSubscriptionState} userIdentifier={userIdentifier} navigate={navigate} />}
               {activeTab === 'support' && <SupportView key="support" t={t} direction={direction} userIdentifier={userIdentifier} lang={lang} />}
-              {activeTab === 'payment' && <PaymentView key="payment" t={t} direction={direction} tgUser={tgUser} onSubscriptionChange={refreshSubscriptionState} userIdentifier={userIdentifier} />}
+              {activeTab === 'payment' && <PaymentView key="payment" t={t} direction={direction} tgUser={tgUser} onSubscriptionChange={refreshSubscriptionState} userIdentifier={userIdentifier} pendingPromo={pendingPromo} onClearPendingPromo={() => setPendingPromo(null)} />}
               {activeTab === 'profile' && <ProfileView key="profile" t={t} lang={lang} setLang={setLang} direction={direction} tgUser={tgUser} subscriptionDaysLabel={subscriptionDaysLabel} navigate={navigate} authMode={authMode} onLogout={handleEmailLogout} />}
               {activeTab === 'payments' && <PaymentsHistoryView key="payments" t={t} direction={direction} tgUser={tgUser} navigate={navigate} lang={lang} />}
               {activeTab === 'admin' && <AdminView key="admin" t={t} direction={direction} tgUser={tgUser} navigate={navigate} lang={lang} />}
@@ -957,6 +958,18 @@ function HomeView({ t, direction, subscriptionEndDateLabel, subscriptionDaysLabe
         setPromoError(data.error || 'Ошибка применения промокода');
         return;
       }
+      
+      // Скидочный промокод - переносим на страницу оплаты
+      if (data.type === 'discount' && data.discountPercent > 0) {
+        setShowPromoModal(false);
+        setPromoCode('');
+        // Сохраняем промокод и переходим на страницу оплаты
+        setPendingPromo({ code: data.promoCode, discountPercent: data.discountPercent, promoId: data.promoId });
+        navigate('subscribe');
+        return;
+      }
+      
+      // Промокод на дни - обновляем подписку
       setPromoCode('');
       await onSubscriptionChange(tgUser.id);
       setShowPromoModal(false);
@@ -1321,7 +1334,7 @@ function HomeView({ t, direction, subscriptionEndDateLabel, subscriptionDaysLabe
   );
 }
 
-function PaymentView({ t, direction, tgUser, onSubscriptionChange, userIdentifier }: { t: any, direction: number; tgUser: { id: number; name: string; photo: string; username?: string } | null; onSubscriptionChange: (id: number | UserIdentifier) => Promise<void>; userIdentifier: UserIdentifier | null }) {
+function PaymentView({ t, direction, tgUser, onSubscriptionChange, userIdentifier, pendingPromo, onClearPendingPromo }: { t: any, direction: number; tgUser: { id: number; name: string; photo: string; username?: string } | null; onSubscriptionChange: (id: number | UserIdentifier) => Promise<void>; userIdentifier: UserIdentifier | null; pendingPromo?: { code: string; discountPercent: number; promoId: number } | null; onClearPendingPromo?: () => void }) {
   const [months, setMonths] = useState(1);
   const [payMethod, setPayMethod] = useState<'crypto' | 'sbp'>('crypto');
   const [isLoading, setIsLoading] = useState(false);
@@ -1330,8 +1343,16 @@ function PaymentView({ t, direction, tgUser, onSubscriptionChange, userIdentifie
   const [sbpRedirectUrl, setSbpRedirectUrl] = useState<string | null>(null);
   const [promoInput, setPromoInput] = useState('');
   const [promoLoading, setPromoLoading] = useState(false);
-  const [appliedPromo, setAppliedPromo] = useState<{ code: string; discountPercent: number } | null>(null);
+  const [appliedPromo, setAppliedPromo] = useState<{ code: string; discountPercent: number; promoId?: number } | null>(null);
   const [promoError, setPromoError] = useState('');
+
+  // Автоматически применяем pendingPromo при загрузке
+  useEffect(() => {
+    if (pendingPromo && !appliedPromo) {
+      setAppliedPromo({ code: pendingPromo.code, discountPercent: pendingPromo.discountPercent, promoId: pendingPromo.promoId });
+      onClearPendingPromo?.();
+    }
+  }, [pendingPromo]);
 
   const basePrice = 150; 
   const discountPerMonth = 5; 
@@ -1350,7 +1371,7 @@ function PaymentView({ t, direction, tgUser, onSubscriptionChange, userIdentifie
       const res = await fetch(`/api/promos/validate?code=${encodeURIComponent(code)}`);
       const data = await res.json();
       if (res.ok && data.ok && data.discountPercent > 0) {
-        setAppliedPromo({ code: data.code, discountPercent: data.discountPercent });
+        setAppliedPromo({ code: data.code, discountPercent: data.discountPercent, promoId: data.promoId });
         setPromoError('');
       } else if (res.ok && data.ok && data.days > 0) {
         setPromoError('Этот промокод даёт бесплатные дни — примените его на главной');
@@ -1431,6 +1452,11 @@ function PaymentView({ t, direction, tgUser, onSubscriptionChange, userIdentifie
           reqBody.userId = userIdentifier.userId;
         } else if (tgUser?.id) {
           reqBody.telegramId = tgUser.id;
+        }
+        // Передаём промокод если применён
+        if (appliedPromo?.promoId) {
+          reqBody.promoId = appliedPromo.promoId;
+          reqBody.promoCode = appliedPromo.code;
         }
 
         const response = await fetch('/api/payments/sbp/create', {

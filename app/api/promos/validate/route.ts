@@ -38,6 +38,7 @@ export async function GET(req: Request) {
     const promo = result.rows[0];
     return NextResponse.json({
       ok: true,
+      promoId: promo.id,
       code: promo.code,
       days: promo.days || 0,
       discountPercent: promo.discount_percent || 0,

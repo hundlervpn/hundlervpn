@@ -52,7 +52,10 @@ export async function POST(req: Request) {
 
       return NextResponse.json({
         ok: true,
+        type: result.type,
         promoCode: result.promoCode,
+        promoId: result.promoId,
+        discountPercent: result.discountPercent,
         days: result.days,
         endDate: result.endDate,
         keyUri: result.keyUri,
