@@ -1409,7 +1409,7 @@ function PaymentView({ t, direction, tgUser, onSubscriptionChange, userIdentifie
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             months,
-            amount: totalUsd,
+            amount: totalPrice,
           }),
         });
         const data = await response.json();
