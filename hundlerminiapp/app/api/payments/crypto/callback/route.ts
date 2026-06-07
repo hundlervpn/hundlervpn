@@ -9,6 +9,7 @@ import {
   ensureNamedPlan,
   ensureVpnKey,
 } from '@/lib/access';
+import { applyReferralCashReward } from '@/lib/referral-cash';
 
 // OxaPay требует вернуть просто "ok" с HTTP 200
 function okResponse() {
@@ -153,6 +154,15 @@ export async function POST(req: Request) {
             payment.id,
           ]
         );
+
+        // Accrue 10% RUB cash on the inviter's referral wallet. MUST run
+        // AFTER the UPDATE above flips status='paid' — the helper's SELECT
+        // filters `status='paid'`, so calling it earlier silently no-ops
+        // (credited:false) and the inviter never sees the money. OxaPay
+        // invoices are stored with currency='RUB' (see crypto-invoice
+        // route), so the helper credits; non-RUB rows are skipped. Mirrors
+        // lib/sbp-confirm.ts. Idempotent via UNIQUE(payment_id).
+        await applyReferralCashReward(client, dbUserId, payment.id);
 
         await client.query('COMMIT');
 
