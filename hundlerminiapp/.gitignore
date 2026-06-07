@@ -1,0 +1,33 @@
+node_modules/
+.next/
+coverage/
+.DS_Store
+*.log
+.env*
+.scripts/
+
+# Python build artifacts (bot/ and bot-chat/)
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.venv/
+
+# Hostman env dump — contains production secrets in plaintext, NEVER commit.
+hostman-env.txt
+hostman-env.*.txt
+
+# TypeScript incremental build cache — local-only, no value in git.
+tsconfig.tsbuildinfo
+
+response.json
+headers.txt
+tmp-*.js
+tmp-*.ts
+response.json
+headers.txt
+hdr.txt
+v*.json
+tmp-*.js
+tmp-*.ts
+page.html

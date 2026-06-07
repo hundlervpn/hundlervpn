@@ -1,0 +1,85 @@
+syntax = "proto3";
+
+package xray.app.proxyman.command;
+option csharp_namespace = "Xray.App.Proxyman.Command";
+option go_package = "github.com/xtls/xray-core/app/proxyman/command";
+option java_package = "com.xray.app.proxyman.command";
+option java_multiple_files = true;
+
+import "common/protocol/user.proto";
+import "common/serial/typed_message.proto";
+
+// NOTE: оригинальный command.proto в upstream Xray импортит
+// `core/config.proto` ради InboundHandlerConfig (used by AddInbound /
+// ListInbounds responses). Мы НЕ используем эти RPC — только AlterInbound
+// (AddUserOperation / RemoveUserOperation) и GetInboundUsers. Поэтому
+// типы Add/Remove/List Inbound упрощены до пустых сообщений, а
+// `core.InboundHandlerConfig` заменён на bytes — protobuf-десериализатор
+// положит непрочитанные байты в нашу bytes-поле без ошибок. Это
+// сохраняет wire-совместимость с настоящим Xray сервером (server-side
+// схема не меняется), но избавляет нас от транзитивных импортов
+// (core/config.proto тянет ~30 других .proto файлов).
+
+message AddUserOperation {
+  xray.common.protocol.User user = 1;
+}
+
+message RemoveUserOperation {
+  string email = 1;
+}
+
+message AddInboundRequest {
+  bytes inbound_raw = 1; // was core.InboundHandlerConfig
+}
+
+message AddInboundResponse {}
+
+message RemoveInboundRequest {
+  string tag = 1;
+}
+
+message RemoveInboundResponse {}
+
+message AlterInboundRequest {
+  string tag = 1;
+  xray.common.serial.TypedMessage operation = 2;
+}
+
+message AlterInboundResponse {}
+
+message ListInboundsRequest {
+  bool isOnlyTags = 1;
+}
+
+message ListInboundsResponse {
+  repeated bytes inbounds_raw = 1; // was repeated core.InboundHandlerConfig
+}
+
+message GetInboundUserRequest {
+  string tag = 1;
+  string email = 2;
+}
+
+message GetInboundUserResponse {
+  repeated xray.common.protocol.User users = 1;
+}
+
+message GetInboundUsersCountResponse {
+  int64 count = 1;
+}
+
+service HandlerService {
+  rpc AddInbound(AddInboundRequest) returns (AddInboundResponse) {}
+
+  rpc RemoveInbound(RemoveInboundRequest) returns (RemoveInboundResponse) {}
+
+  rpc AlterInbound(AlterInboundRequest) returns (AlterInboundResponse) {}
+
+  rpc ListInbounds(ListInboundsRequest) returns (ListInboundsResponse) {}
+
+  rpc GetInboundUsers(GetInboundUserRequest) returns (GetInboundUserResponse) {}
+
+  rpc GetInboundUsersCount(GetInboundUserRequest) returns (GetInboundUsersCountResponse) {}
+}
+
+message Config {}

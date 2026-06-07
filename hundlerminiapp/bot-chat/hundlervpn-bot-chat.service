@@ -1,0 +1,25 @@
+[Unit]
+Description=HundlerVPN Chat-only Telegram Bot (parallel to Mini App bot)
+After=network.target hundlervpn-bot.service
+# Soft dependency: start AFTER the Mini App bot service so logs are easier
+# to read in chronological order. The two bots use different tokens, so
+# startup order does not matter for correctness.
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/hundlervpn/bot-chat
+# Env is loaded from /root/hundlervpn/bot-chat/.env at runtime by
+# config.py (python-dotenv). Keeping all secrets in that single file
+# makes rotation a one-line edit + `systemctl restart`. The file MUST
+# be chmod 600 so only root can read it.
+EnvironmentFile=-/root/hundlervpn/bot-chat/.env
+ExecStart=/root/hundlervpn/bot-chat/venv/bin/python /root/hundlervpn/bot-chat/main.py
+Restart=always
+RestartSec=10
+# Logs land in journald — view with:  journalctl -u hundlervpn-bot-chat -f
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

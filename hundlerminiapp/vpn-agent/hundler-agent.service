@@ -1,0 +1,16 @@
+[Unit]
+Description=Hundler VPN Agent
+After=network.target xray.service
+
+[Service]
+Type=simple
+ExecStart=/opt/hundler-agent/hundler-agent.sh
+Restart=always
+RestartSec=10
+Environment="HUNDLER_API_URL=https://hundler.ru/api/vpn/sync"
+Environment="HUNDLER_API_KEY=YOUR_API_KEY_HERE"
+Environment="XRAY_ACCESS_LOG=/var/log/xray/access.log"
+Environment="SYNC_INTERVAL=60"
+
+[Install]
+WantedBy=multi-user.target

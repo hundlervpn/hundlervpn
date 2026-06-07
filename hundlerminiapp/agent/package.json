@@ -1,0 +1,23 @@
+{
+  "name": "hundler-xray-agent",
+  "version": "0.1.0",
+  "description": "Hundler VPN — Xray gRPC sync agent. Drop-in replacement for /opt/xray-sync.sh that talks to the local Xray HandlerService instead of editing config.json + restarting.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "bun build src/index.ts --compile --minify --outfile=dist/xray-sync",
+    "build:linux": "bun build src/index.ts --compile --minify --target=bun-linux-x64 --outfile=dist/xray-sync",
+    "build:linux-arm64": "bun build src/index.ts --compile --minify --target=bun-linux-arm64 --outfile=dist/xray-sync-arm64",
+    "dev": "bun run src/index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@grpc/grpc-js": "1.9.14",
+    "@grpc/proto-loader": "0.7.10",
+    "protobufjs": "7.2.6"
+  },
+  "devDependencies": {
+    "@types/node": "20.11.30",
+    "typescript": "5.4.5"
+  }
+}

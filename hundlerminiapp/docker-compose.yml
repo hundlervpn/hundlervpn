@@ -1,0 +1,70 @@
+version: '3.9'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: hundler-app
+    restart: unless-stopped
+    expose:
+      - '3000'
+    environment:
+      NODE_ENV: production
+      APP_URL: ${APP_URL:-https://hundlervpn.xyz}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      OXAPAY_API_KEY: ${OXAPAY_API_KEY}
+      POSTGRESQL_HOST: ${POSTGRESQL_HOST}
+      POSTGRESQL_PORT: ${POSTGRESQL_PORT:-5432}
+      POSTGRESQL_USER: ${POSTGRESQL_USER}
+      POSTGRESQL_PASSWORD: ${POSTGRESQL_PASSWORD}
+      POSTGRESQL_DBNAME: ${POSTGRESQL_DBNAME}
+      POSTGRESQL_SSL_MODE: ${POSTGRESQL_SSL_MODE:-disable}
+      POSTGRESQL_SSL_CA_PATH: ${POSTGRESQL_SSL_CA_PATH:-}
+      XRAY_VLESS_HOST: ${XRAY_VLESS_HOST:-}
+      XRAY_VLESS_PORT: ${XRAY_VLESS_PORT:-443}
+      XRAY_REALITY_PUBLIC_KEY: ${XRAY_REALITY_PUBLIC_KEY:-}
+      XRAY_REALITY_SNI: ${XRAY_REALITY_SNI:-}
+      XRAY_REALITY_SHORT_ID: ${XRAY_REALITY_SHORT_ID:-}
+      XRAY_REALITY_FINGERPRINT: ${XRAY_REALITY_FINGERPRINT:-chrome}
+      XRAY_VLESS_FLOW: ${XRAY_VLESS_FLOW:-xtls-rprx-vision}
+      XRAY_VLESS_REMARK: ${XRAY_VLESS_REMARK:-HundlerVPN}
+      XRAY_VLESS_COUNTRY: ${XRAY_VLESS_COUNTRY:-}
+      XRAY_SYNC_TOKEN: ${XRAY_SYNC_TOKEN:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      PLATEGA_MERCHANT_ID: ${PLATEGA_MERCHANT_ID:-}
+      PLATEGA_SECRET_KEY: ${PLATEGA_SECRET_KEY:-}
+      VPN_WEBHOOK_SECRET: ${VPN_WEBHOOK_SECRET:-}
+      NEXT_PUBLIC_TELEGRAM_BOT_USERNAME: ${NEXT_PUBLIC_TELEGRAM_BOT_USERNAME:-hundlervpnbot}
+    networks:
+      - web
+
+  nginx:
+    image: nginx:alpine
+    container_name: hundler-nginx
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./certbot/www:/var/www/certbot:ro
+      - ./certbot/conf:/etc/letsencrypt:ro
+    depends_on:
+      - app
+    networks:
+      - web
+
+  certbot:
+    image: certbot/certbot
+    container_name: hundler-certbot
+    volumes:
+      - ./certbot/www:/var/www/certbot
+      - ./certbot/conf:/etc/letsencrypt
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+    networks:
+      - web
+
+networks:
+  web:
+    driver: bridge

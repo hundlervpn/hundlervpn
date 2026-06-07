@@ -1,0 +1,21 @@
+[Unit]
+Description=Xray sync webhook
+After=network.target xray.service
+Wants=xray.service
+
+[Service]
+Type=simple
+Environment=SYNC_TOKEN=hVpN2026sEcReT_xR4y
+Environment=SYNC_SCRIPT=/opt/xray-sync.sh
+Environment=LISTEN_HOST=0.0.0.0
+Environment=LISTEN_PORT=9999
+Environment=LOG_FILE=/var/log/xray-sync.log
+ExecStart=/usr/bin/python3 /opt/xray-webhook.py
+Restart=always
+RestartSec=5
+User=root
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

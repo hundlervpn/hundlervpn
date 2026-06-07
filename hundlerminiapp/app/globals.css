@@ -1,0 +1,40 @@
+@import "tailwindcss";
+
+:root {
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+}
+
+/* Отключаем выделение текста и копирование (особенно для Mini App) */
+* {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Разрешаем выделение только в input полях */
+input,
+textarea {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  user-select: text;
+}
+
+/* Отключаем контекстное меню на изображениях */
+img {
+  pointer-events: none;
+  -webkit-user-drag: none;
+}
+
+/* Отключаем авто-zoom при фокусе на input полях на iOS */
+@media screen and (-webkit-min-device-pixel-ratio: 0) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}

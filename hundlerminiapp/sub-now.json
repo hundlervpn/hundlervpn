@@ -1,0 +1,853 @@
+[
+  {
+    "remarks": "🇩🇪 Германия",
+    "log": {
+      "loglevel": "warning"
+    },
+    "dns": {
+      "queryStrategy": "UseIPv4",
+      "servers": [
+        "https://1.1.1.1/dns-query",
+        "localhost"
+      ],
+      "hosts": {
+        "lkfl2.nalog.ru": "213.24.64.175",
+        "lknpd.nalog.ru": "213.24.64.181"
+      },
+      "tag": "dns-inbound"
+    },
+    "inbounds": [
+      {
+        "listen": "127.0.0.1",
+        "port": 10808,
+        "protocol": "socks",
+        "settings": {
+          "auth": "noauth",
+          "udp": true,
+          "userLevel": 0
+        },
+        "sniffing": {
+          "destOverride": [
+            "http",
+            "tls",
+            "quic"
+          ],
+          "enabled": true,
+          "routeOnly": false
+        },
+        "tag": "socks-in"
+      },
+      {
+        "listen": "127.0.0.1",
+        "port": 10809,
+        "protocol": "http",
+        "sniffing": {
+          "destOverride": [
+            "http",
+            "tls",
+            "quic"
+          ],
+          "enabled": true
+        },
+        "tag": "http-in"
+      }
+    ],
+    "outbounds": [
+      {
+        "mux": {
+          "enabled": false
+        },
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "de.hundlervpn.xyz",
+              "port": 443,
+              "users": [
+                {
+                  "id": "59195720-be76-44ec-9e94-b4f87e459b15",
+                  "encryption": "none",
+                  "level": 0,
+                  "packetEncoding": "xudp"
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "tcp",
+          "security": "reality",
+          "realitySettings": {
+            "fingerprint": "chrome",
+            "publicKey": "qJeA8EaI9mSdRXRW3ZzERyRLGpy3anoX4Au3DtGaVBA",
+            "serverName": "www.cloudflare.com",
+            "shortId": "9a8c25967fa0d196",
+            "show": false,
+            "spiderX": "/"
+          }
+        },
+        "tag": "proxy"
+      },
+      {
+        "protocol": "freedom",
+        "settings": {},
+        "tag": "direct"
+      },
+      {
+        "protocol": "blackhole",
+        "settings": {},
+        "tag": "block"
+      },
+      {
+        "protocol": "dns",
+        "tag": "dns-out"
+      }
+    ],
+    "routing": {
+      "domainStrategy": "IPIfNonMatch",
+      "rules": [
+        {
+          "type": "field",
+          "port": 53,
+          "outboundTag": "dns-out"
+        },
+        {
+          "type": "field",
+          "protocol": [
+            "bittorrent"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "ip": [
+            "77.88.0.0/16",
+            "5.45.192.0/18",
+            "5.255.192.0/18",
+            "87.250.224.0/19",
+            "93.158.128.0/18",
+            "95.108.128.0/17",
+            "100.43.64.0/19",
+            "141.8.128.0/18",
+            "178.154.128.0/17",
+            "213.180.192.0/19",
+            "87.240.128.0/18",
+            "93.186.224.0/21",
+            "95.213.0.0/17",
+            "185.32.248.0/22",
+            "185.16.244.0/22",
+            "185.16.148.0/22",
+            "217.69.128.0/20",
+            "217.20.144.0/20",
+            "5.61.16.0/21",
+            "213.87.0.0/16",
+            "176.114.0.0/16",
+            "185.73.192.0/22",
+            "83.220.0.0/15",
+            "85.140.0.0/14",
+            "10.0.0.0/8",
+            "172.16.0.0/12",
+            "192.168.0.0/16",
+            "127.0.0.0/8",
+            "169.254.0.0/16"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "domain": [
+            "domain:push.apple.com",
+            "domain:api.push.apple.com",
+            "domain:mtalk.google.com"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "domain": [
+            "domain:.ru",
+            "domain:.su",
+            "domain:.xn--p1ai",
+            "keyword:yandex",
+            "keyword:sber",
+            "keyword:tinkoff",
+            "keyword:alfabank",
+            "keyword:vtb",
+            "keyword:gazprom",
+            "keyword:rostelecom",
+            "keyword:gosuslugi",
+            "keyword:nalog",
+            "keyword:wildberries",
+            "keyword:ozon",
+            "keyword:avito",
+            "keyword:2gis",
+            "keyword:kinopoisk",
+            "keyword:rutube",
+            "keyword:dzen",
+            "keyword:rzd",
+            "keyword:megafon",
+            "keyword:beeline",
+            "keyword:lemanapro",
+            "keyword:domclick",
+            "keyword:dodopizza",
+            "keyword:userapi",
+            "keyword:mycdn",
+            "keyword:okcdn",
+            "keyword:vkcdn",
+            "keyword:boosty",
+            "keyword:banki",
+            "keyword:mail.ru",
+            "keyword:vk.com",
+            "keyword:vk.me",
+            "keyword:ok.ru",
+            "keyword:mts.ru",
+            "keyword:tele2.ru",
+            "keyword:mos.ru"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "port": "0-65535",
+          "outboundTag": "proxy"
+        }
+      ]
+    }
+  },
+  {
+    "remarks": "🇩🇪 Германия Hysteria",
+    "log": {
+      "loglevel": "warning"
+    },
+    "dns": {
+      "queryStrategy": "UseIPv4",
+      "servers": [
+        "https://1.1.1.1/dns-query",
+        "localhost"
+      ],
+      "hosts": {
+        "lkfl2.nalog.ru": "213.24.64.175",
+        "lknpd.nalog.ru": "213.24.64.181"
+      },
+      "tag": "dns-inbound"
+    },
+    "inbounds": [
+      {
+        "listen": "127.0.0.1",
+        "port": 10808,
+        "protocol": "socks",
+        "settings": {
+          "auth": "noauth",
+          "udp": true,
+          "userLevel": 0
+        },
+        "sniffing": {
+          "destOverride": [
+            "http",
+            "tls",
+            "quic"
+          ],
+          "enabled": true,
+          "routeOnly": false
+        },
+        "tag": "socks-in"
+      },
+      {
+        "listen": "127.0.0.1",
+        "port": 10809,
+        "protocol": "http",
+        "sniffing": {
+          "destOverride": [
+            "http",
+            "tls",
+            "quic"
+          ],
+          "enabled": true
+        },
+        "tag": "http-in"
+      }
+    ],
+    "outbounds": [
+      {
+        "tag": "proxy",
+        "protocol": "hysteria",
+        "settings": {
+          "version": 2,
+          "address": "de.hundlervpn.xyz",
+          "port": 8443
+        },
+        "streamSettings": {
+          "network": "hysteria",
+          "security": "tls",
+          "tlsSettings": {
+            "serverName": "de.hundlervpn.xyz",
+            "alpn": [
+              "h3"
+            ],
+            "pinnedPeerCertSha256": "281310e402a92ce5f86d7be2d6cbbbc34b883ca5f4b1a62a6c4d9c7683dbb043"
+          },
+          "hysteriaSettings": {
+            "version": 2,
+            "auth": "s11919.RZ_DxqZsSHYb",
+            "up": "50 mbps",
+            "down": "200 mbps"
+          }
+        }
+      },
+      {
+        "protocol": "freedom",
+        "settings": {},
+        "tag": "direct"
+      },
+      {
+        "protocol": "blackhole",
+        "settings": {},
+        "tag": "block"
+      },
+      {
+        "protocol": "dns",
+        "tag": "dns-out"
+      }
+    ],
+    "routing": {
+      "domainStrategy": "IPIfNonMatch",
+      "rules": [
+        {
+          "type": "field",
+          "port": 53,
+          "outboundTag": "dns-out"
+        },
+        {
+          "type": "field",
+          "protocol": [
+            "bittorrent"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "ip": [
+            "77.88.0.0/16",
+            "5.45.192.0/18",
+            "5.255.192.0/18",
+            "87.250.224.0/19",
+            "93.158.128.0/18",
+            "95.108.128.0/17",
+            "100.43.64.0/19",
+            "141.8.128.0/18",
+            "178.154.128.0/17",
+            "213.180.192.0/19",
+            "87.240.128.0/18",
+            "93.186.224.0/21",
+            "95.213.0.0/17",
+            "185.32.248.0/22",
+            "185.16.244.0/22",
+            "185.16.148.0/22",
+            "217.69.128.0/20",
+            "217.20.144.0/20",
+            "5.61.16.0/21",
+            "213.87.0.0/16",
+            "176.114.0.0/16",
+            "185.73.192.0/22",
+            "83.220.0.0/15",
+            "85.140.0.0/14",
+            "10.0.0.0/8",
+            "172.16.0.0/12",
+            "192.168.0.0/16",
+            "127.0.0.0/8",
+            "169.254.0.0/16"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "domain": [
+            "domain:push.apple.com",
+            "domain:api.push.apple.com",
+            "domain:mtalk.google.com"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "domain": [
+            "domain:.ru",
+            "domain:.su",
+            "domain:.xn--p1ai",
+            "keyword:yandex",
+            "keyword:sber",
+            "keyword:tinkoff",
+            "keyword:alfabank",
+            "keyword:vtb",
+            "keyword:gazprom",
+            "keyword:rostelecom",
+            "keyword:gosuslugi",
+            "keyword:nalog",
+            "keyword:wildberries",
+            "keyword:ozon",
+            "keyword:avito",
+            "keyword:2gis",
+            "keyword:kinopoisk",
+            "keyword:rutube",
+            "keyword:dzen",
+            "keyword:rzd",
+            "keyword:megafon",
+            "keyword:beeline",
+            "keyword:lemanapro",
+            "keyword:domclick",
+            "keyword:dodopizza",
+            "keyword:userapi",
+            "keyword:mycdn",
+            "keyword:okcdn",
+            "keyword:vkcdn",
+            "keyword:boosty",
+            "keyword:banki",
+            "keyword:mail.ru",
+            "keyword:vk.com",
+            "keyword:vk.me",
+            "keyword:ok.ru",
+            "keyword:mts.ru",
+            "keyword:tele2.ru",
+            "keyword:mos.ru"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "port": "0-65535",
+          "outboundTag": "proxy"
+        }
+      ]
+    }
+  },
+  {
+    "remarks": "🇳🇱 Нидерланды | Обход Глушилок",
+    "log": {
+      "loglevel": "warning"
+    },
+    "dns": {
+      "queryStrategy": "UseIPv4",
+      "servers": [
+        "1.1.1.1",
+        "1.0.0.1"
+      ],
+      "hosts": {
+        "lkfl2.nalog.ru": "213.24.64.175",
+        "lknpd.nalog.ru": "213.24.64.181"
+      },
+      "tag": "dns-inbound"
+    },
+    "inbounds": [
+      {
+        "listen": "127.0.0.1",
+        "port": 10808,
+        "protocol": "socks",
+        "settings": {
+          "auth": "noauth",
+          "udp": true,
+          "userLevel": 0
+        },
+        "sniffing": {
+          "destOverride": [
+            "http",
+            "tls",
+            "quic"
+          ],
+          "enabled": true,
+          "routeOnly": false
+        },
+        "tag": "socks-in"
+      },
+      {
+        "listen": "127.0.0.1",
+        "port": 10809,
+        "protocol": "http",
+        "sniffing": {
+          "destOverride": [
+            "http",
+            "tls",
+            "quic"
+          ],
+          "enabled": true
+        },
+        "tag": "http-in"
+      }
+    ],
+    "outbounds": [
+      {
+        "mux": {
+          "enabled": false
+        },
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "vpn.hundlervpn.xyz",
+              "port": 443,
+              "users": [
+                {
+                  "id": "59195720-be76-44ec-9e94-b4f87e459b15",
+                  "encryption": "none",
+                  "level": 0,
+                  "packetEncoding": "xudp"
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "tcp",
+          "security": "reality",
+          "realitySettings": {
+            "fingerprint": "chrome",
+            "publicKey": "ZBB5Y77_d2XY80Up-XgxQA-eNnXjw31UlfXAHAXwckc",
+            "serverName": "www.microsoft.com",
+            "shortId": "6814a872070c6941",
+            "show": false,
+            "spiderX": "/"
+          }
+        },
+        "tag": "proxy"
+      },
+      {
+        "protocol": "freedom",
+        "settings": {},
+        "tag": "direct"
+      },
+      {
+        "protocol": "blackhole",
+        "settings": {},
+        "tag": "block"
+      },
+      {
+        "protocol": "dns",
+        "tag": "dns-out"
+      }
+    ],
+    "routing": {
+      "domainStrategy": "IPIfNonMatch",
+      "rules": [
+        {
+          "type": "field",
+          "port": 53,
+          "outboundTag": "dns-out"
+        },
+        {
+          "type": "field",
+          "protocol": [
+            "bittorrent"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "ip": [
+            "77.88.0.0/16",
+            "5.45.192.0/18",
+            "5.255.192.0/18",
+            "87.250.224.0/19",
+            "93.158.128.0/18",
+            "95.108.128.0/17",
+            "100.43.64.0/19",
+            "141.8.128.0/18",
+            "178.154.128.0/17",
+            "213.180.192.0/19",
+            "87.240.128.0/18",
+            "93.186.224.0/21",
+            "95.213.0.0/17",
+            "185.32.248.0/22",
+            "185.16.244.0/22",
+            "185.16.148.0/22",
+            "217.69.128.0/20",
+            "217.20.144.0/20",
+            "5.61.16.0/21",
+            "213.87.0.0/16",
+            "176.114.0.0/16",
+            "185.73.192.0/22",
+            "83.220.0.0/15",
+            "85.140.0.0/14",
+            "10.0.0.0/8",
+            "172.16.0.0/12",
+            "192.168.0.0/16",
+            "127.0.0.0/8",
+            "169.254.0.0/16"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "domain": [
+            "domain:push.apple.com",
+            "domain:api.push.apple.com",
+            "domain:mtalk.google.com"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "domain": [
+            "domain:.ru",
+            "domain:.su",
+            "domain:.xn--p1ai",
+            "keyword:yandex",
+            "keyword:sber",
+            "keyword:tinkoff",
+            "keyword:alfabank",
+            "keyword:vtb",
+            "keyword:gazprom",
+            "keyword:rostelecom",
+            "keyword:gosuslugi",
+            "keyword:nalog",
+            "keyword:wildberries",
+            "keyword:ozon",
+            "keyword:avito",
+            "keyword:2gis",
+            "keyword:kinopoisk",
+            "keyword:rutube",
+            "keyword:dzen",
+            "keyword:rzd",
+            "keyword:megafon",
+            "keyword:beeline",
+            "keyword:lemanapro",
+            "keyword:domclick",
+            "keyword:dodopizza",
+            "keyword:userapi",
+            "keyword:mycdn",
+            "keyword:okcdn",
+            "keyword:vkcdn",
+            "keyword:boosty",
+            "keyword:banki",
+            "keyword:mail.ru",
+            "keyword:vk.com",
+            "keyword:vk.me",
+            "keyword:ok.ru",
+            "keyword:mts.ru",
+            "keyword:tele2.ru",
+            "keyword:mos.ru"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "port": "0-65535",
+          "outboundTag": "proxy"
+        }
+      ]
+    }
+  },
+  {
+    "remarks": "🇷🇺 Россия | YouTube",
+    "log": {
+      "loglevel": "warning"
+    },
+    "dns": {
+      "queryStrategy": "UseIPv4",
+      "servers": [
+        "https://1.1.1.1/dns-query",
+        "localhost"
+      ],
+      "hosts": {
+        "lkfl2.nalog.ru": "213.24.64.175",
+        "lknpd.nalog.ru": "213.24.64.181"
+      },
+      "tag": "dns-inbound"
+    },
+    "inbounds": [
+      {
+        "listen": "127.0.0.1",
+        "port": 10808,
+        "protocol": "socks",
+        "settings": {
+          "auth": "noauth",
+          "udp": true,
+          "userLevel": 0
+        },
+        "sniffing": {
+          "destOverride": [
+            "http",
+            "tls",
+            "quic"
+          ],
+          "enabled": true,
+          "routeOnly": false
+        },
+        "tag": "socks-in"
+      },
+      {
+        "listen": "127.0.0.1",
+        "port": 10809,
+        "protocol": "http",
+        "sniffing": {
+          "destOverride": [
+            "http",
+            "tls",
+            "quic"
+          ],
+          "enabled": true
+        },
+        "tag": "http-in"
+      }
+    ],
+    "outbounds": [
+      {
+        "mux": {
+          "enabled": false
+        },
+        "protocol": "vless",
+        "settings": {
+          "vnext": [
+            {
+              "address": "85.239.53.25",
+              "port": 443,
+              "users": [
+                {
+                  "id": "59195720-be76-44ec-9e94-b4f87e459b15",
+                  "encryption": "none",
+                  "level": 0,
+                  "packetEncoding": "xudp"
+                }
+              ]
+            }
+          ]
+        },
+        "streamSettings": {
+          "network": "tcp",
+          "security": "reality",
+          "realitySettings": {
+            "fingerprint": "chrome",
+            "publicKey": "OUyKsXGoW1sOOsVxZkCB62cW_IbrNVZA-2eEckMFN2Q",
+            "serverName": "www.microsoft.com",
+            "shortId": "3e49295849a4f33b",
+            "show": false,
+            "spiderX": "/"
+          }
+        },
+        "tag": "proxy"
+      },
+      {
+        "protocol": "freedom",
+        "settings": {},
+        "tag": "direct"
+      },
+      {
+        "protocol": "blackhole",
+        "settings": {},
+        "tag": "block"
+      },
+      {
+        "protocol": "dns",
+        "tag": "dns-out"
+      }
+    ],
+    "routing": {
+      "domainStrategy": "IPIfNonMatch",
+      "rules": [
+        {
+          "type": "field",
+          "port": 53,
+          "outboundTag": "dns-out"
+        },
+        {
+          "type": "field",
+          "protocol": [
+            "bittorrent"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "ip": [
+            "77.88.0.0/16",
+            "5.45.192.0/18",
+            "5.255.192.0/18",
+            "87.250.224.0/19",
+            "93.158.128.0/18",
+            "95.108.128.0/17",
+            "100.43.64.0/19",
+            "141.8.128.0/18",
+            "178.154.128.0/17",
+            "213.180.192.0/19",
+            "87.240.128.0/18",
+            "93.186.224.0/21",
+            "95.213.0.0/17",
+            "185.32.248.0/22",
+            "185.16.244.0/22",
+            "185.16.148.0/22",
+            "217.69.128.0/20",
+            "217.20.144.0/20",
+            "5.61.16.0/21",
+            "213.87.0.0/16",
+            "176.114.0.0/16",
+            "185.73.192.0/22",
+            "83.220.0.0/15",
+            "85.140.0.0/14",
+            "10.0.0.0/8",
+            "172.16.0.0/12",
+            "192.168.0.0/16",
+            "127.0.0.0/8",
+            "169.254.0.0/16"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "domain": [
+            "domain:push.apple.com",
+            "domain:api.push.apple.com",
+            "domain:mtalk.google.com"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "domain": [
+            "domain:.ru",
+            "domain:.su",
+            "domain:.xn--p1ai",
+            "keyword:yandex",
+            "keyword:sber",
+            "keyword:tinkoff",
+            "keyword:alfabank",
+            "keyword:vtb",
+            "keyword:gazprom",
+            "keyword:rostelecom",
+            "keyword:gosuslugi",
+            "keyword:nalog",
+            "keyword:wildberries",
+            "keyword:ozon",
+            "keyword:avito",
+            "keyword:2gis",
+            "keyword:kinopoisk",
+            "keyword:rutube",
+            "keyword:dzen",
+            "keyword:rzd",
+            "keyword:megafon",
+            "keyword:beeline",
+            "keyword:lemanapro",
+            "keyword:domclick",
+            "keyword:dodopizza",
+            "keyword:userapi",
+            "keyword:mycdn",
+            "keyword:okcdn",
+            "keyword:vkcdn",
+            "keyword:boosty",
+            "keyword:banki",
+            "keyword:mail.ru",
+            "keyword:vk.com",
+            "keyword:vk.me",
+            "keyword:ok.ru",
+            "keyword:mts.ru",
+            "keyword:tele2.ru",
+            "keyword:mos.ru"
+          ],
+          "outboundTag": "direct"
+        },
+        {
+          "type": "field",
+          "port": "0-65535",
+          "outboundTag": "proxy"
+        }
+      ]
+    }
+  }
+]

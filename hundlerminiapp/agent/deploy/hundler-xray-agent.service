@@ -1,0 +1,48 @@
+[Unit]
+Description=Hundler VPN — Xray gRPC sync agent
+After=network.target xray.service
+Wants=xray.service
+# Если Xray умер — мы не падаем (наш health endpoint и webhook остаются
+# доступны), но gRPC-вызовы будут вернувшать NOT_FOUND. Это нормальное
+# поведение — мы пытаемся durable выжить, а Xray поднимется отдельно.
+PartOf=xray.service
+
+[Service]
+Type=simple
+# Все настройки приходят из ENV. install-on-vps.sh подставит реальные
+# значения из BD.servers[этой ноды] (sync_token, host, flow и т.д.)
+# при initial deploy. После этого править руками.
+EnvironmentFile=/etc/hundler-xray-agent/env
+ExecStart=/opt/hundler-xray-agent
+Restart=on-failure
+RestartSec=5
+
+# Hardening — agent читает только /usr/local/etc/xray/config.json и
+# пишет туда же временный .new.json. Больше никуда. systemd-sandbox.
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/usr/local/etc/xray /var/log
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+# MemoryDenyWriteExecute оставлен в дефолте (false) — bun-compiled binary
+# содержит JIT-runtime который требует rw+x маппинги. С true агент крашится.
+
+User=root
+StandardOutput=journal
+StandardError=journal
+
+# Memory budget. ~1000 clients ≈ 50 KB JSON + Node heap ~30 MB. Кладём
+# хард-лимит 128 MB чтобы memory leak не съел всю VPS.
+MemoryMax=128M
+MemoryHigh=96M
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,207 @@
+{
+  "log": {
+    "level": "warn",
+    "timestamp": true
+  },
+  "dns": {
+    "servers": [
+      {
+        "tag": "dns-direct",
+        "type": "udp",
+        "server": "1.1.1.1",
+        "detour": "direct"
+      },
+      {
+        "tag": "dns-proxy",
+        "type": "udp",
+        "server": "1.1.1.1",
+        "detour": "🇩🇪 Германия"
+      }
+    ],
+    "rules": [
+      {
+        "domain_suffix": [
+          "ru",
+          "su",
+          "рф"
+        ],
+        "server": "dns-direct"
+      },
+      {
+        "domain_keyword": [
+          "yandex",
+          "mail.ru",
+          "vk.com",
+          "ok.ru",
+          "sber",
+          "gosuslugi",
+          "mos.ru"
+        ],
+        "server": "dns-direct"
+      }
+    ],
+    "final": "dns-proxy",
+    "strategy": "prefer_ipv4",
+    "independent_cache": false
+  },
+  "outbounds": [
+    {
+      "type": "vless",
+      "tag": "🇩🇪 Германия",
+      "server": "de.hundlervpn.xyz",
+      "server_port": 443,
+      "uuid": "c7ddb1fa-6a99-4d9e-8829-3102011118f6",
+      "tls": {
+        "enabled": true,
+        "server_name": "www.cloudflare.com",
+        "reality": {
+          "enabled": true,
+          "public_key": "qJeA8EaI9mSdRXRW3ZzERyRLGpy3anoX4Au3DtGaVBA",
+          "short_id": "9a8c25967fa0d196"
+        },
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        }
+      },
+      "packet_encoding": "xudp"
+    },
+    {
+      "type": "hysteria2",
+      "tag": "🇩🇪 Германия (Hy2)",
+      "server": "de.hundlervpn.xyz",
+      "server_port": 8443,
+      "password": "s11880.uL7p3iPZVl6f",
+      "tls": {
+        "enabled": true,
+        "server_name": "de.hundlervpn.xyz",
+        "alpn": [
+          "h3"
+        ],
+        "insecure": true
+      }
+    },
+    {
+      "type": "vless",
+      "tag": "🇳🇱 Нидерланды | Обход Глушилок",
+      "server": "vpn.hundlervpn.xyz",
+      "server_port": 443,
+      "uuid": "c7ddb1fa-6a99-4d9e-8829-3102011118f6",
+      "tls": {
+        "enabled": true,
+        "server_name": "www.cloudflare.com",
+        "reality": {
+          "enabled": true,
+          "public_key": "2QcRx9-kgKxFxdlKqRSR-xguUn6xnHxsnYjTAKCLtAo",
+          "short_id": "e5b1d610feaff014"
+        },
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        }
+      },
+      "packet_encoding": "xudp"
+    },
+    {
+      "type": "vless",
+      "tag": "🇷🇺 Россия | YouTube",
+      "server": "85.239.53.25",
+      "server_port": 443,
+      "uuid": "c7ddb1fa-6a99-4d9e-8829-3102011118f6",
+      "tls": {
+        "enabled": true,
+        "server_name": "www.microsoft.com",
+        "reality": {
+          "enabled": true,
+          "public_key": "OUyKsXGoW1sOOsVxZkCB62cW_IbrNVZA-2eEckMFN2Q",
+          "short_id": "3e49295849a4f33b"
+        },
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        }
+      },
+      "packet_encoding": "xudp"
+    },
+    {
+      "type": "selector",
+      "tag": "proxy",
+      "outbounds": [
+        "🇩🇪 Германия",
+        "🇩🇪 Германия (Hy2)",
+        "🇳🇱 Нидерланды | Обход Глушилок",
+        "🇷🇺 Россия | YouTube"
+      ],
+      "default": "🇩🇪 Германия"
+    },
+    {
+      "type": "direct",
+      "tag": "direct"
+    }
+  ],
+  "route": {
+    "rules": [
+      {
+        "protocol": "dns",
+        "action": "hijack-dns"
+      },
+      {
+        "port": 443,
+        "network": [
+          "udp"
+        ],
+        "action": "reject"
+      },
+      {
+        "domain_suffix": [
+          "ru",
+          "su",
+          "рф"
+        ],
+        "outbound": "direct"
+      },
+      {
+        "domain_keyword": [
+          "yandex",
+          "mail.ru",
+          "vk.com",
+          "vk.me",
+          "ok.ru",
+          "sber",
+          "gosuslugi",
+          "mos.ru",
+          "wildberries",
+          "ozon",
+          "avito",
+          "tinkoff",
+          "gazprom",
+          "rostelecom",
+          "megafon",
+          "beeline",
+          "mts.ru",
+          "rutube",
+          "dzen"
+        ],
+        "outbound": "direct"
+      },
+      {
+        "ip_cidr": [
+          "77.88.0.0/16",
+          "5.45.192.0/18",
+          "5.255.192.0/18",
+          "87.250.224.0/19",
+          "93.158.128.0/18",
+          "95.108.128.0/17",
+          "100.43.64.0/19",
+          "141.8.128.0/18",
+          "178.154.128.0/17",
+          "185.32.186.0/24",
+          "213.180.192.0/19"
+        ],
+        "outbound": "direct"
+      }
+    ],
+    "final": "proxy",
+    "auto_detect_interface": true
+  }
+}

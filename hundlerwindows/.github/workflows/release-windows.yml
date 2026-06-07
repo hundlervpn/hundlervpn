@@ -1,0 +1,174 @@
+name: Release Windows
+
+# Запускается на push git-тега `v*.*.*` (например `v0.2.0`) — собирает
+# Windows-релиз, скачивает sing-box.exe + wintun.dll, кладёт всё в zip,
+# создаёт GitHub Release и аттачит zip-артефакт.
+#
+# Также можно дёрнуть руками через UI → "Actions" → "Release Windows"
+# → "Run workflow" — это полезно для пересборки без перетегирования.
+#
+# После сборки на странице https://github.com/hundlervpn/Hundler-App/releases
+# появляется свежий релиз с public download URL вида
+# https://github.com/hundlervpn/Hundler-App/releases/download/v0.2.0/HundlerVPN-windows-x64-v0.2.0.zip
+# На неё мы линкуем кнопку Download на hundlervpn.xyz/download.
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Версия для ручной сборки (например v0.2.0-test)'
+        required: true
+        default: 'v0.0.0-dev'
+
+permissions:
+  # softprops/action-gh-release требует contents:write чтобы создать релиз
+  # и пушнуть теги. Дефолтный GITHUB_TOKEN автоматически получает это право.
+  contents: write
+
+jobs:
+  build:
+    name: Build Windows x64 release
+    runs-on: windows-latest
+    timeout-minutes: 25
+
+    env:
+      # Версии bundled-бинарей. Меняй явно при апдейте — bumping этих
+      # переменных приведёт к авто-обновлению юзерских клиентов через
+      # /api/clients/windows/latest.json (см. update-баннер в home_screen).
+      SINGBOX_VERSION: '1.13.11'
+      WINTUN_VERSION: '0.14.1'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve release version
+        id: ver
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF -like 'refs/tags/v*') {
+            $version = $env:GITHUB_REF -replace '^refs/tags/', ''
+          } else {
+            $version = '${{ github.event.inputs.version }}'
+            if (-not $version) { $version = 'v0.0.0-dev' }
+          }
+          echo "version=$version" >> $env:GITHUB_OUTPUT
+          echo "Release version: $version"
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          # Без `flutter-version` action ставит latest из канала.
+          # Нужно ≥3.27 потому что `flutter_lints: ^6.0.0` требует
+          # Dart >=3.7. Если когда-нибудь свежий stable сломает сборку —
+          # pin'нем конкретную версию (например `flutter-version: '3.32.x'`)
+          # и обновим pubspec соответственно.
+          channel: stable
+          cache: true
+
+      - name: Flutter version
+        run: flutter --version
+
+      - name: Pub get
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze --no-pub
+
+      - name: Build Windows release
+        run: flutter build windows --release
+
+      - name: Download sing-box ${{ env.SINGBOX_VERSION }}
+        shell: pwsh
+        run: |
+          $ver = "${{ env.SINGBOX_VERSION }}"
+          $url = "https://github.com/SagerNet/sing-box/releases/download/v$ver/sing-box-$ver-windows-amd64.zip"
+          Write-Host "Downloading $url"
+          Invoke-WebRequest $url -OutFile "$env:RUNNER_TEMP\sing-box.zip"
+          Expand-Archive "$env:RUNNER_TEMP\sing-box.zip" "$env:RUNNER_TEMP\sing-box" -Force
+          $exe = Get-ChildItem -Recurse -Filter 'sing-box.exe' "$env:RUNNER_TEMP\sing-box" | Select-Object -First 1
+          if (-not $exe) { throw "sing-box.exe not found in archive" }
+          New-Item -ItemType Directory -Path 'dist\bin' -Force | Out-Null
+          Copy-Item $exe.FullName 'dist\bin\sing-box.exe'
+
+      - name: Download wintun ${{ env.WINTUN_VERSION }}
+        shell: pwsh
+        run: |
+          $ver = "${{ env.WINTUN_VERSION }}"
+          $url = "https://www.wintun.net/builds/wintun-$ver.zip"
+          Write-Host "Downloading $url"
+          Invoke-WebRequest $url -OutFile "$env:RUNNER_TEMP\wintun.zip"
+          Expand-Archive "$env:RUNNER_TEMP\wintun.zip" "$env:RUNNER_TEMP\wintun" -Force
+          # В архиве wintun.dll лежит в wintun/bin/amd64/wintun.dll
+          $dll = Join-Path "$env:RUNNER_TEMP\wintun" 'wintun\bin\amd64\wintun.dll'
+          if (-not (Test-Path $dll)) {
+            # На случай если структура архива изменится — ищем рекурсивно
+            $dll = (Get-ChildItem -Recurse -Filter 'wintun.dll' "$env:RUNNER_TEMP\wintun" |
+                    Where-Object { $_.FullName -match '\\amd64\\' } |
+                    Select-Object -First 1).FullName
+          }
+          if (-not $dll) { throw "wintun.dll (amd64) not found in archive" }
+          Copy-Item $dll 'dist\bin\wintun.dll'
+
+      - name: Assemble release folder
+        shell: pwsh
+        run: |
+          # Содержимое flutter build windows --release лежит в
+          # build/windows/x64/runner/Release/ — это hundler.exe + все
+          # его DLL'ки (flutter, plugin DLLs, data/ папка с assets).
+          # bin\sing-box.exe и bin\wintun.dll уже лежат в dist\bin\ —
+          # их положили предыдущие шаги. Мерджим Flutter-output поверх.
+          Copy-Item -Recurse 'build\windows\x64\runner\Release\*' 'dist\'
+          Get-ChildItem 'dist\' -Recurse | Select-Object FullName, Length
+
+      - name: Build installer (Inno Setup)
+        shell: pwsh
+        run: |
+          # windows-latest runner с 2024 года имеет Inno Setup 6 в PATH
+          # (через ImageBuilder). Если внезапно пропадёт — раскомментим
+          # `choco install innosetup -y` ниже.
+          # choco install innosetup -y --no-progress
+          $version = "${{ steps.ver.outputs.version }}"
+          New-Item -ItemType Directory -Path 'installer\output' -Force | Out-Null
+          # iscc.exe компилирует .iss → installer.exe в installer\output\
+          & iscc.exe "/DAppVersion=$version" 'installer\setup.iss'
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup compilation failed" }
+          $exe = "installer\output\HundlerVPN-Setup-$version.exe"
+          if (-not (Test-Path $exe)) { throw "Installer not found at $exe" }
+          $sizeMB = ((Get-Item $exe).Length / 1MB).ToString('F1')
+          echo "INSTALLER_PATH=$exe" >> $env:GITHUB_ENV
+          echo "INSTALLER_NAME=HundlerVPN-Setup-$version.exe" >> $env:GITHUB_ENV
+          echo "INSTALLER_SIZE=$sizeMB MB" >> $env:GITHUB_ENV
+          echo "Built installer: $exe ($sizeMB MB)"
+
+      - name: Compute SHA256
+        shell: pwsh
+        run: |
+          $h = (Get-FileHash $env:INSTALLER_PATH -Algorithm SHA256).Hash.ToLower()
+          $h | Out-File -FilePath "$env:INSTALLER_PATH.sha256" -Encoding ascii -NoNewline
+          echo "SHA256: $h"
+          echo "INSTALLER_SHA256=$h" >> $env:GITHUB_ENV
+
+      - name: Create / update GitHub Release
+        # softprops/action-gh-release создаёт релиз если его нет под
+        # этот тег, или просто добавляет artifacts к существующему. Это
+        # idempotent — повторный push того же тега не дубликат, а апдейт.
+        #
+        # `generate_release_notes: false` — мы НЕ хотим автогенерируемый
+        # changelog "Full Changelog: v0.x.x...v0.y.y" под основным body.
+        # Юзер видит ровно тот текст что мы написали ниже, без шума.
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.ver.outputs.version }}
+          name: Hundler VPN ${{ steps.ver.outputs.version }}
+          generate_release_notes: false
+          files: |
+            ${{ env.INSTALLER_PATH }}
+            ${{ env.INSTALLER_PATH }}.sha256
+          body: |
+            ## ⬇️ [HundlerVPN-Setup-${{ steps.ver.outputs.version }}.exe](https://github.com/hundlervpn/Hundler-App/releases/download/${{ steps.ver.outputs.version }}/HundlerVPN-Setup-${{ steps.ver.outputs.version }}.exe) — ${{ env.INSTALLER_SIZE }}
+            
+            Скачать и запустить. Windows 10/11 x64.

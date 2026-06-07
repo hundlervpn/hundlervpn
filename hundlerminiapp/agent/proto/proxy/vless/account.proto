@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package xray.proxy.vless;
+option csharp_namespace = "Xray.Proxy.Vless";
+option go_package = "github.com/xtls/xray-core/proxy/vless";
+option java_package = "com.xray.proxy.vless";
+option java_multiple_files = true;
+
+// NOTE: трогать только поля id + flow. Остальные относятся к новым
+// post-Reality experimental транспортам и не нужны для нашего add-user
+// flow (см. agent/src/xray-grpc-client.ts buildVlessAccount).
+
+message Account {
+  // ID of the account, in the form of a UUID, e.g., "66ad4540-b58c-4ad2-9926-ea63445a9b57".
+  string id = 1;
+  // Flow settings. May be "xtls-rprx-vision".
+  string flow = 2;
+
+  string encryption = 3;
+  uint32 xorMode = 4;
+  uint32 seconds = 5;
+  string padding = 6;
+
+  // Reverse-tunnel settings — мы их не используем (это не VLESS+Reverse,
+  // а отдельная experimental subprotocol). Поле оставлено для wire-
+  // совместимости с upstream Xray proto: при unmarshal пустое значение
+  // декодируется в дефолт без ошибок.
+  // ВАЖНО: импортить app/proxyman/config.proto ради `Reverse` тяжело
+  // (потянет пол-Xray transitive deps) — поэтому объявляем поле как
+  // bytes-only через index 7. Сам agent никогда его не пишет.
+  bytes reverse_raw = 7;
+
+  uint32 testpre = 8;
+  repeated uint32 testseed = 9;
+}
