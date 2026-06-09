@@ -11,7 +11,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const [usersResult, paymentsResult, subsResult] = await Promise.all([
+    const [usersResult, paymentsResult, subsResult, monthlyResult] = await Promise.all([
       dbQuery<{ total: string; today: string; banned: string }>(`
         SELECT
           COUNT(*)::text AS total,
@@ -19,16 +19,33 @@ export async function GET(req: Request) {
           COUNT(*) FILTER (WHERE is_banned = TRUE)::text AS banned
         FROM users;
       `),
-      dbQuery<{ total_amount: string; total_count: string; paid_count: string }>(`
+      dbQuery<{ total_amount: string; total_count: string; paid_count: string; current_month: string }>(`
         SELECT
           COALESCE(SUM(amount) FILTER (WHERE status = 'paid'), 0)::text AS total_amount,
           COUNT(*)::text AS total_count,
-          COUNT(*) FILTER (WHERE status = 'paid')::text AS paid_count
+          COUNT(*) FILTER (WHERE status = 'paid')::text AS paid_count,
+          COALESCE(SUM(amount) FILTER (
+            WHERE status = 'paid'
+              AND date_trunc('month', COALESCE(paid_at, created_at)) = date_trunc('month', NOW())
+          ), 0)::text AS current_month
         FROM payments;
       `),
       dbQuery<{ active: string }>(`
         SELECT COUNT(*) FILTER (WHERE status = 'active' AND end_date > NOW())::text AS active
         FROM subscriptions;
+      `),
+      // Monthly revenue breakdown — attributed to the month a payment was paid
+      // (falls back to created_at on the rare row without paid_at). Last 24 months.
+      dbQuery<{ month: string; revenue: string; paid_count: string }>(`
+        SELECT
+          to_char(date_trunc('month', COALESCE(paid_at, created_at)), 'YYYY-MM') AS month,
+          COALESCE(SUM(amount), 0)::text AS revenue,
+          COUNT(*)::text AS paid_count
+        FROM payments
+        WHERE status = 'paid'
+        GROUP BY date_trunc('month', COALESCE(paid_at, created_at))
+        ORDER BY date_trunc('month', COALESCE(paid_at, created_at)) DESC
+        LIMIT 24;
       `),
     ]);
 
@@ -39,9 +56,15 @@ export async function GET(req: Request) {
         todayUsers: Number(usersResult.rows[0]?.today ?? 0),
         bannedUsers: Number(usersResult.rows[0]?.banned ?? 0),
         totalRevenue: Number(paymentsResult.rows[0]?.total_amount ?? 0),
+        currentMonthRevenue: Number(paymentsResult.rows[0]?.current_month ?? 0),
         totalPayments: Number(paymentsResult.rows[0]?.total_count ?? 0),
         paidPayments: Number(paymentsResult.rows[0]?.paid_count ?? 0),
         activeSubscriptions: Number(subsResult.rows[0]?.active ?? 0),
+        monthlyRevenue: monthlyResult.rows.map((r) => ({
+          month: r.month,
+          revenue: Number(r.revenue ?? 0),
+          paidCount: Number(r.paid_count ?? 0),
+        })),
       },
     });
   } catch (error) {
