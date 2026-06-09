@@ -205,6 +205,9 @@ const translations = {
     adminPromoDays: 'Дней подписки',
     adminPromoMaxUses: 'Макс. использований',
     adminPromoCreate: 'Создать',
+    adminPromoFilterAll: 'Все',
+    adminPromoFilterMine: 'Мои',
+    adminPromoFilterBoxes: 'Из боксов',
     adminBackToProfile: 'Назад в профиль',
     adminNoUsers: 'Пользователей не найдено',
     adminNoPromos: 'Промокодов пока нет',
@@ -566,6 +569,9 @@ const translations = {
     adminPromoDays: 'Subscription days',
     adminPromoMaxUses: 'Max uses',
     adminPromoCreate: 'Create',
+    adminPromoFilterAll: 'All',
+    adminPromoFilterMine: 'Mine',
+    adminPromoFilterBoxes: 'From boxes',
     adminBackToProfile: 'Back to profile',
     adminNoUsers: 'No users found',
     adminNoPromos: 'No promo codes yet',
@@ -5092,6 +5098,11 @@ type AdminPromo = {
   expires_at: string | null;
 };
 
+// Box-won coupons are auto-issued with the reserved `BOX` code prefix
+// (COUPON_CODE_PREFIX in lib/boxes.ts). Everything else was created by an
+// admin by hand in the promo panel.
+const isBoxPromo = (p: AdminPromo) => p.code.toUpperCase().startsWith('BOX');
+
 type AdminTicket = {
   id: string;
   user_id: string;
@@ -5876,6 +5887,11 @@ function AdminView({ t, direction, tgUser, navigate, lang, onHideNav, onLockAdmi
   const [promos, setPromos] = useState<AdminPromo[]>([]);
   const [promosLoading, setPromosLoading] = useState(false);
   const [showPromoForm, setShowPromoForm] = useState(false);
+  // Promo source filter: separate codes the admin created by hand from
+  // coupons users won by opening daily/super boxes. Box coupons are always
+  // issued with the reserved `BOX` code prefix (see COUPON_CODE_PREFIX in
+  // lib/boxes.ts), so the prefix is a reliable discriminator.
+  const [promoFilter, setPromoFilter] = useState<'all' | 'mine' | 'boxes'>('all');
 
   // Promo activations — list of every user who applied a promo, with the
   // promo code, when, and what kind (days vs discount). Visible only to
@@ -7119,6 +7135,23 @@ function AdminView({ t, direction, tgUser, navigate, lang, onHideNav, onLockAdmi
                 <Plus size={14} /> {t.adminCreatePromo}
               </button>
 
+              {/* Source filter — separate admin-made codes from box-won coupons. */}
+              <div className="mb-3 grid grid-cols-3 gap-1.5">
+                {([
+                  ['all', t.adminPromoFilterAll, promos.length],
+                  ['mine', t.adminPromoFilterMine, promos.filter((p) => !isBoxPromo(p)).length],
+                  ['boxes', t.adminPromoFilterBoxes, promos.filter((p) => isBoxPromo(p)).length],
+                ] as const).map(([key, label, count]) => (
+                  <button
+                    key={key}
+                    onClick={() => setPromoFilter(key)}
+                    className={`text-xs font-medium py-2 px-2 rounded-lg border transition-all ${promoFilter === key ? 'bg-white/10 border-white/25 text-white' : 'border-white/5 text-zinc-400 hover:text-white'}`}
+                  >
+                    {label} <span className="text-zinc-500">{count}</span>
+                  </button>
+                ))}
+              </div>
+
               {showPromoForm && (
                 <div className="mb-4 rounded-xl border border-white/10 bg-zinc-900/60 p-3 space-y-2.5">
                   <div>
@@ -7188,16 +7221,23 @@ function AdminView({ t, direction, tgUser, navigate, lang, onHideNav, onLockAdmi
 
               {promosLoading ? (
                 <div className="text-center py-8 text-zinc-400 text-sm">Загрузка...</div>
-              ) : promos.length === 0 ? (
+              ) : (() => {
+                const filteredPromos = promos.filter((p) =>
+                  promoFilter === 'all' ? true : promoFilter === 'boxes' ? isBoxPromo(p) : !isBoxPromo(p),
+                );
+                return filteredPromos.length === 0 ? (
                 <div className="text-center py-8 text-zinc-400 text-sm">{t.adminNoPromos}</div>
               ) : (
                 <div className="space-y-2">
-                  {promos.map((p) => (
+                  {filteredPromos.map((p) => (
                     <div key={p.id} className={`rounded-xl border p-3 ${p.is_active ? 'border-white/10 bg-zinc-900/60' : 'border-white/5 bg-zinc-900/30 opacity-60'}`}>
                       <div className="flex items-center justify-between mb-1">
                         <div className="flex items-center gap-2">
                           <Tag size={12} className="text-cyan-400" />
                           <span className="text-white font-mono text-sm font-bold">{p.code}</span>
+                          <span className={`text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded-full ${isBoxPromo(p) ? 'bg-amber-500/15 text-amber-300' : 'bg-cyan-500/15 text-cyan-300'}`}>
+                            {isBoxPromo(p) ? `🎁 ${t.adminPromoFilterBoxes}` : `✍️ ${t.adminPromoFilterMine}`}
+                          </span>
                         </div>
                         <div className="flex items-center gap-2">
                           <span className={`text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded-full ${p.is_active ? 'bg-green-500/20 text-green-300' : 'bg-zinc-700 text-zinc-400'}`}>
@@ -7222,7 +7262,8 @@ function AdminView({ t, direction, tgUser, navigate, lang, onHideNav, onLockAdmi
                     </div>
                   ))}
                 </div>
-              )}
+              );
+              })()}
             </div>
           )}
 
