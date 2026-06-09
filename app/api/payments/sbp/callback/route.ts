@@ -5,7 +5,6 @@ import {
   confirmSbpPayment,
   notifySbpSuccessViaTelegram,
 } from '@/lib/sbp-confirm';
-import { accrueReferralCashStandalone } from '@/lib/referral-cash';
 
 export async function POST(req: Request) {
   // Read body up-front so we can log it on auth failures and recover the
@@ -228,10 +227,10 @@ async function handleFragmentOrderConfirmed(
     ]
   );
 
-  // Accrue the inviter's 10% referral cash on this RUB fragment-order
-  // payment (Stars/Premium top-ups). Runs AFTER the status='paid' flip
-  // above. No-op for non-referred users; idempotent per payment_id.
-  await accrueReferralCashStandalone(pool, dbUserId, paymentId);
+  // NOTE: referral cash (10%) is intentionally NOT accrued here.
+  // Fragment orders (Stars/Premium top-ups) are not subscriptions, and
+  // per product decision referral cash is credited ONLY for subscription
+  // payments. The day-bonus side is unaffected.
 
   // Update fragment order status
   if (fragmentOrderId) {

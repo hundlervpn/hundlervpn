@@ -1,6 +1,5 @@
 import { createHmac } from 'crypto';
 import { getDbPool } from '@/lib/db';
-import { accrueReferralCashStandalone } from '@/lib/referral-cash';
 
 function okResponse() {
   return new Response('ok', { status: 200, headers: { 'Content-Type': 'text/plain' } });
@@ -49,11 +48,9 @@ export async function POST(req: Request) {
         [JSON.stringify({ oxapay_track_id: trackId, oxapay_status: status }), payment.id]
       );
 
-      // Accrue the inviter's 10% referral cash on this RUB payment. Runs
-      // AFTER the status='paid' flip above (the helper's SELECT filters
-      // status='paid'). No-op for non-RUB (crypto) services payments and
-      // for non-referred users. Best-effort: never blocks the callback.
-      await accrueReferralCashStandalone(pool, payment.user_id, payment.id);
+      // NOTE: referral cash (10%) is intentionally NOT accrued here.
+      // Paid services are not subscriptions, and per product decision
+      // referral cash is credited ONLY for subscription payments.
 
       if (serviceRequestId) {
         await pool.query(
