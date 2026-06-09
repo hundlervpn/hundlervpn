@@ -86,6 +86,12 @@ export type WithdrawalMessageRow = {
 //   • payment.currency must be 'RUB' — Stars (XTR) and crypto rails are
 //     ignored on the cash side. They still grant referral bonus DAYS via
 //     applyReferralReward in lib/access.ts.
+//   • payment.subscription_id must be set — cash is credited ONLY for
+//     SUBSCRIPTION payments. Non-subscription RUB payments (fragment
+//     orders / Stars-Premium top-ups, paid services) never set
+//     subscription_id, so they're skipped here even if a caller invokes
+//     the helper. This centralizes the "subscriptions only" rule so the
+//     backfill endpoint and every call site stay consistent.
 //   • Inviter must exist and must NOT be the payer (self-ref guard).
 //   • Idempotency anchored to payment_id via the partial UNIQUE index
 //     `idx_referral_balance_payment_unique`. ON CONFLICT DO NOTHING +
@@ -120,6 +126,7 @@ export async function applyReferralCashReward(
        FROM payments
       WHERE id = $1
         AND status = 'paid'
+        AND subscription_id IS NOT NULL
       LIMIT 1;`,
     [paymentId],
   );
@@ -166,9 +173,12 @@ export async function applyReferralCashReward(
 
 // ────────────────────────────────────────────────────────────────────────────
 // Standalone accrual wrapper for callers that DON'T already own a
-// transaction client (e.g. the OxaPay "services" callback and the SBP
-// fragment-order handler use bare `pool.query`, not a BEGIN/COMMIT
-// client). `applyReferralCashReward` does an INSERT (journal) followed by
+// transaction client (i.e. handlers using bare `pool.query` instead of a
+// BEGIN/COMMIT client). Currently no path wires this in — subscription
+// confirmations (SBP + crypto) own their own transaction client and call
+// `applyReferralCashReward` directly; non-subscription paths no longer
+// accrue cash at all. Kept as a safe, transaction-wrapped entry point for
+// any future pool-based caller. `applyReferralCashReward` does an INSERT (journal) followed by
 // an UPDATE (wallet) — those two MUST be atomic, otherwise a crash
 // between them leaves a journal row with no wallet credit, and the
 // ON CONFLICT idempotency would then permanently skip the retry → the
