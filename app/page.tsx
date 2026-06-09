@@ -190,7 +190,9 @@ const translations = {
     adminTotalUsers: 'Всего',
     adminTodayUsers: 'Сегодня',
     adminBannedUsers: 'Забанено',
-    adminRevenue: 'Доход',
+    adminRevenue: 'Доход (всего)',
+    adminRevenueMonth: 'Доход за месяц',
+    adminRevenueByMonth: 'Доход по месяцам',
     adminActiveSubs: 'Активных подписок',
     adminPaidPayments: 'Оплаченных',
     adminSearchUsers: 'Поиск по имени или ID...',
@@ -554,7 +556,9 @@ const translations = {
     adminTotalUsers: 'Total',
     adminTodayUsers: 'Today',
     adminBannedUsers: 'Banned',
-    adminRevenue: 'Revenue',
+    adminRevenue: 'Revenue (total)',
+    adminRevenueMonth: 'Revenue this month',
+    adminRevenueByMonth: 'Revenue by month',
     adminActiveSubs: 'Active subs',
     adminPaidPayments: 'Paid',
     adminSearchUsers: 'Search by name or ID...',
@@ -5053,9 +5057,11 @@ type AdminStats = {
   todayUsers: number;
   bannedUsers: number;
   totalRevenue: number;
+  currentMonthRevenue: number;
   totalPayments: number;
   paidPayments: number;
   activeSubscriptions: number;
+  monthlyRevenue: { month: string; revenue: number; paidCount: number }[];
 };
 
 type AdminUser = {
@@ -6754,6 +6760,13 @@ function AdminView({ t, direction, tgUser, navigate, lang, onHideNav, onLockAdmi
                 </div>
                 <div className="rounded-xl border border-white/10 bg-zinc-900/60 p-3">
                   <div className="flex items-center gap-2 mb-1">
+                    <Calendar size={14} className="text-amber-400" />
+                    <span className="text-zinc-400 text-[10px] uppercase tracking-wider">{t.adminRevenueMonth}</span>
+                  </div>
+                  <span className="text-white text-xl font-bold">{stats.currentMonthRevenue}₽</span>
+                </div>
+                <div className="rounded-xl border border-white/10 bg-zinc-900/60 p-3">
+                  <div className="flex items-center gap-2 mb-1">
                     <Zap size={14} className="text-cyan-400" />
                     <span className="text-zinc-400 text-[10px] uppercase tracking-wider">{t.adminActiveSubs}</span>
                   </div>
@@ -6768,6 +6781,44 @@ function AdminView({ t, direction, tgUser, navigate, lang, onHideNav, onLockAdmi
                 </div>
               </div>
             ) : null
+          )}
+
+          {/* Revenue by month (v-monthly) — visible on Stats tab */}
+          {adminTab === 'stats' && stats && stats.monthlyRevenue && stats.monthlyRevenue.length > 0 && (
+            <div className="mt-3 rounded-xl border border-white/10 bg-zinc-900/60 p-3">
+              <div className="flex items-center gap-2 mb-3">
+                <Calendar size={14} className="text-amber-400" />
+                <span className="text-zinc-400 text-[10px] uppercase tracking-wider">{t.adminRevenueByMonth}</span>
+              </div>
+              {(() => {
+                const maxRev = Math.max(...stats.monthlyRevenue.map((m) => m.revenue), 1);
+                const monthNames = lang === 'ru'
+                  ? ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек']
+                  : ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                const fmtMonth = (m: string) => {
+                  const [y, mo] = m.split('-');
+                  const idx = parseInt(mo, 10) - 1;
+                  return `${monthNames[idx] ?? mo} ${y}`;
+                };
+                return (
+                  <div className="space-y-2">
+                    {stats.monthlyRevenue.map((m) => (
+                      <div key={m.month} className="flex items-center gap-2">
+                        <span className="text-zinc-400 text-[11px] w-16 shrink-0">{fmtMonth(m.month)}</span>
+                        <div className="flex-1 h-2 rounded-full bg-white/5 overflow-hidden">
+                          <div
+                            className="h-full rounded-full bg-gradient-to-r from-amber-500/70 to-yellow-400"
+                            style={{ width: `${(m.revenue / maxRev) * 100}%` }}
+                          />
+                        </div>
+                        <span className="text-white text-[12px] font-semibold w-20 text-right shrink-0">{m.revenue}₽</span>
+                        <span className="text-zinc-500 text-[10px] w-12 text-right shrink-0">{m.paidCount} {lang === 'ru' ? 'опл.' : 'paid'}</span>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
           )}
 
           {/* UUID Pool widget (v46) — visible on Stats tab */}
