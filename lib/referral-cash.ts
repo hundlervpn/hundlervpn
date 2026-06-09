@@ -1,4 +1,4 @@
-import type { PoolClient } from 'pg';
+import type { Pool, PoolClient } from 'pg';
 
 // ────────────────────────────────────────────────────────────────────────────
 // Referral CASH balance + withdrawal flow (2026-05-22).
@@ -162,6 +162,48 @@ export async function applyReferralCashReward(
   );
 
   return { credited: true, amountRub: accrual };
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Standalone accrual wrapper for callers that DON'T already own a
+// transaction client (e.g. the OxaPay "services" callback and the SBP
+// fragment-order handler use bare `pool.query`, not a BEGIN/COMMIT
+// client). `applyReferralCashReward` does an INSERT (journal) followed by
+// an UPDATE (wallet) — those two MUST be atomic, otherwise a crash
+// between them leaves a journal row with no wallet credit, and the
+// ON CONFLICT idempotency would then permanently skip the retry → the
+// inviter silently loses the money. This helper grabs its own client,
+// wraps the pair in a transaction, and is safe to call from any
+// payment-confirmation path right AFTER the payment row was flipped to
+// status='paid'. RUB-only + self-ref guards live inside the helper, so
+// it's a no-op for Stars/crypto/non-referred payments.
+// ────────────────────────────────────────────────────────────────────────────
+export async function accrueReferralCashStandalone(
+  pool: Pool,
+  paidUserId: number,
+  paymentId: number | null,
+): Promise<{ credited: boolean; amountRub: number }> {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await applyReferralCashReward(client, paidUserId, paymentId);
+    await client.query('COMMIT');
+    if (result.credited) {
+      console.log(
+        `[referral-cash] accrued ${result.amountRub} RUB to inviter of user=${paidUserId} (payment=${paymentId})`,
+      );
+    }
+    return result;
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    // Never let a referral-cash hiccup break the payment-confirmation
+    // response — log and swallow. The backfill endpoint can re-credit
+    // any payment this missed (idempotent via UNIQUE(payment_id)).
+    console.error('[referral-cash] accrueReferralCashStandalone failed:', err);
+    return { credited: false, amountRub: 0 };
+  } finally {
+    client.release();
+  }
 }
 
 // ────────────────────────────────────────────────────────────────────────────
