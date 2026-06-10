@@ -99,21 +99,35 @@ export type WithdrawalMessageRow = {
 // ────────────────────────────────────────────────────────────────────────────
 export async function applyReferralCashReward(
   client: PoolClient,
-  paidUserId: number,
-  paymentId: number | null,
+  paidUserId: number | string,
+  paymentId: number | string | null,
 ): Promise<{ credited: boolean; amountRub: number }> {
-  if (!paymentId || !Number.isFinite(paymentId) || paymentId <= 0) {
+  // ⚠️ ROOT-CAUSE FIX (2026-06-10): `payments.id` / `users.id` are BIGSERIAL,
+  // and node-pg returns BIGINT (int8) columns as STRINGS by default (no
+  // global parseInt8 is configured). Every live caller passes a DB-selected
+  // id, i.e. a string like "133" — and `Number.isFinite("133")` is false,
+  // so this guard silently swallowed EVERY accrual (live SBP/crypto paths
+  // AND the backfill's real run; the backfill dry-run doesn't call this
+  // helper, which is why dryRun reported credits the real run never made).
+  // Coerce to number first; BIGSERIAL ids on this DB are far below
+  // Number.MAX_SAFE_INTEGER so the cast is lossless.
+  const pid = Number(paymentId);
+  const payerId = Number(paidUserId);
+  if (!pid || !Number.isFinite(pid) || pid <= 0 || !Number.isFinite(payerId)) {
     return { credited: false, amountRub: 0 };
   }
 
   // Locate the inviter first — most callers will hit this fast-fail path
   // (no referrer → no work to do, skip the heavier query below).
-  const inviterRes = await client.query<{ referred_by_user_id: number | null }>(
+  const inviterRes = await client.query<{ referred_by_user_id: number | string | null }>(
     'SELECT referred_by_user_id FROM users WHERE id = $1 LIMIT 1;',
-    [paidUserId],
+    [payerId],
   );
-  const inviterUserId = inviterRes.rows[0]?.referred_by_user_id;
-  if (!inviterUserId || inviterUserId === paidUserId) {
+  const inviterRaw = inviterRes.rows[0]?.referred_by_user_id;
+  // BIGINT comes back as a string — compare numerically or the self-ref
+  // guard (string vs number) silently stops working.
+  const inviterUserId = inviterRaw === null || inviterRaw === undefined ? null : Number(inviterRaw);
+  if (!inviterUserId || inviterUserId === payerId) {
     return { credited: false, amountRub: 0 };
   }
 
@@ -152,7 +166,7 @@ export async function applyReferralCashReward(
           )
         )
       LIMIT 1;`,
-    [paymentId],
+    [pid],
   );
   const payment = payRes.rows[0];
   if (!payment || payment.currency !== 'RUB') {
@@ -179,7 +193,7 @@ export async function applyReferralCashReward(
      VALUES ($1, $2, $3, $4, $5, $6)
      ON CONFLICT (payment_id) WHERE payment_id IS NOT NULL DO NOTHING
      RETURNING id::text AS id;`,
-    [inviterUserId, paidUserId, paymentId, paidAmountRub, REFERRAL_CASH_PERCENT, accrual],
+    [inviterUserId, payerId, pid, paidAmountRub, REFERRAL_CASH_PERCENT, accrual],
   );
   if (journal.rowCount === 0) {
     return { credited: false, amountRub: 0 };
@@ -214,8 +228,8 @@ export async function applyReferralCashReward(
 // ────────────────────────────────────────────────────────────────────────────
 export async function accrueReferralCashStandalone(
   pool: Pool,
-  paidUserId: number,
-  paymentId: number | null,
+  paidUserId: number | string,
+  paymentId: number | string | null,
 ): Promise<{ credited: boolean; amountRub: number }> {
   const client = await pool.connect();
   try {
