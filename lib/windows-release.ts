@@ -79,14 +79,16 @@ export function normalizeVersion(tag: string): string {
 }
 
 /**
- * Тянет последний релиз из GitHub API. Кэш 5 мин (revalidate) чтобы не
- * упереться в rate-limit. Возвращает `null` при ошибке/отсутствии.
+ * Тянет последний релиз из GitHub API. Короткий кэш 60с (revalidate)
+ * чтобы новый релиз появлялся в открытом клиенте почти сразу; rate-limit
+ * не упираемся за счёт PAT (`GITHUB_RELEASE_TOKEN` → 5000 req/hour).
+ * Возвращает `null` при ошибке/отсутствии.
  */
 export async function fetchGithubLatest(): Promise<GithubRelease | null> {
   try {
     const res = await fetch(GITHUB_LATEST_API, {
       headers: githubHeaders(),
-      next: { revalidate: 300 },
+      next: { revalidate: 60 },
     });
     if (!res.ok) {
       console.error(`GitHub API returned ${res.status}`);
@@ -110,7 +112,7 @@ export async function fetchSha256(asset: GithubAsset | null): Promise<string | n
     const res = await fetch(asset.url, {
       headers: githubHeaders({ Accept: 'application/octet-stream' }),
       redirect: 'follow',
-      next: { revalidate: 300 },
+      next: { revalidate: 60 },
     });
     if (!res.ok) return null;
     const text = (await res.text()).trim().toLowerCase();
