@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server';
 import { getDbPool, dbQuery } from '@/lib/db';
 import { isAdmin } from '@/lib/admin';
+import {
+  parseIncomingAttachments,
+  insertAttachments,
+  fetchAttachmentsByMessage,
+  type AttachmentMeta,
+} from '@/lib/ticket-attachments';
 
 type TicketDetailsRow = {
   id: string;
@@ -92,10 +98,16 @@ export async function GET(
       return NextResponse.json({ error: 'Ticket not found' }, { status: 404 });
     }
 
+    const attachmentsByMessage = await fetchAttachmentsByMessage(dbQuery, ticketId);
+    const messages = messagesResult.rows.map((msg) => ({
+      ...msg,
+      attachments: attachmentsByMessage.get(msg.id) ?? ([] as AttachmentMeta[]),
+    }));
+
     return NextResponse.json({
       ok: true,
       ticket: ticketResult.rows[0],
-      messages: messagesResult.rows,
+      messages,
     });
   } catch (error) {
     console.error('Admin ticket details error:', error);
@@ -106,6 +118,7 @@ export async function GET(
 type ReplyBody = {
   telegramId?: number | string;
   message?: string;
+  attachments?: unknown;
 };
 
 export async function POST(
@@ -127,7 +140,13 @@ export async function POST(
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    if (!message) {
+    const attachmentsParse = parseIncomingAttachments(body.attachments);
+    if (!attachmentsParse.ok) {
+      return NextResponse.json({ error: attachmentsParse.error }, { status: 400 });
+    }
+    const attachments = attachmentsParse.attachments;
+
+    if (!message && attachments.length === 0) {
       return NextResponse.json({ error: 'message is required' }, { status: 400 });
     }
 
@@ -159,6 +178,8 @@ export async function POST(
         `,
         [ticketId, message]
       );
+
+      await insertAttachments(client, ticketId, messageResult.rows[0].id, attachments);
 
       await client.query(
         `

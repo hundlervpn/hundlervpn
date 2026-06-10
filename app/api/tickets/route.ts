@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { dbQuery, getDbPool } from '@/lib/db';
+import { parseIncomingAttachments, insertAttachments } from '@/lib/ticket-attachments';
 
 type IdentityResolution =
   | { ok: true; field: 'telegram_id' | 'id'; value: number }
@@ -64,7 +65,10 @@ export async function GET(req: Request) {
         st.status,
         st.created_at,
         st.updated_at,
-        last_msg.message AS last_message,
+        COALESCE(
+          NULLIF(last_msg.message, ''),
+          CASE WHEN last_msg.attachments_count > 0 THEN '📷 Фото' ELSE NULL END
+        ) AS last_message,
         COALESCE(last_msg.created_at, st.created_at) AS last_message_at,
         (SELECT COUNT(*)::int FROM support_ticket_messages stm WHERE stm.ticket_id = st.id) AS messages_count,
         (
@@ -76,10 +80,13 @@ export async function GET(req: Request) {
       FROM support_tickets st
       JOIN users u ON u.id = st.user_id
       LEFT JOIN LATERAL (
-        SELECT message, created_at
-        FROM support_ticket_messages
-        WHERE ticket_id = st.id
-        ORDER BY created_at DESC
+        SELECT
+          stm.message,
+          stm.created_at,
+          (SELECT COUNT(*)::int FROM support_ticket_attachments sta WHERE sta.message_id = stm.id) AS attachments_count
+        FROM support_ticket_messages stm
+        WHERE stm.ticket_id = st.id
+        ORDER BY stm.created_at DESC
         LIMIT 1
       ) last_msg ON TRUE
       WHERE u.${identity.field} = $1
@@ -100,6 +107,7 @@ type CreateTicketBody = {
   userId?: number | string;
   subject?: string;
   message?: string;
+  attachments?: unknown;
 };
 
 export async function POST(req: Request) {
@@ -114,7 +122,13 @@ export async function POST(req: Request) {
     const subject = body.subject?.trim() ?? '';
     const message = body.message?.trim() ?? '';
 
-    if (!message) {
+    const attachmentsParse = parseIncomingAttachments(body.attachments);
+    if (!attachmentsParse.ok) {
+      return NextResponse.json({ error: attachmentsParse.error }, { status: 400 });
+    }
+    const attachments = attachmentsParse.attachments;
+
+    if (!message && attachments.length === 0) {
       return NextResponse.json({ error: 'message is required' }, { status: 400 });
     }
 
@@ -162,13 +176,16 @@ export async function POST(req: Request) {
 
       const ticket = ticketResult.rows[0];
 
-      await client.query(
+      const insertedMessage = await client.query<{ id: string }>(
         `
         INSERT INTO support_ticket_messages (ticket_id, sender_type, message)
-        VALUES ($1, 'user', $2);
+        VALUES ($1, 'user', $2)
+        RETURNING id::text AS id;
         `,
         [ticket.id, message]
       );
+
+      await insertAttachments(client, ticket.id, insertedMessage.rows[0].id, attachments);
 
       await client.query('UPDATE support_tickets SET updated_at = NOW() WHERE id = $1;', [ticket.id]);
 
@@ -178,7 +195,7 @@ export async function POST(req: Request) {
         ok: true,
         ticket: {
           ...ticket,
-          last_message: message,
+          last_message: message || (attachments.length > 0 ? '📷 Фото' : null),
         },
       });
     } catch (error) {

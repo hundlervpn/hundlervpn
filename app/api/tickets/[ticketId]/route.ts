@@ -1,5 +1,11 @@
 import { NextResponse } from 'next/server';
 import { dbQuery, getDbPool } from '@/lib/db';
+import {
+  parseIncomingAttachments,
+  insertAttachments,
+  fetchAttachmentsByMessage,
+  type AttachmentMeta,
+} from '@/lib/ticket-attachments';
 
 type IdentityResolution =
   | { ok: true; field: 'telegram_id' | 'id'; value: number }
@@ -102,24 +108,32 @@ export async function GET(
       return NextResponse.json({ error: 'Ticket not found' }, { status: 404 });
     }
 
-    const messagesResult = await dbQuery<TicketMessageRow>(
-      `
-      SELECT
-        id::text AS id,
-        sender_type,
-        message,
-        created_at
-      FROM support_ticket_messages
-      WHERE ticket_id = $1
-      ORDER BY created_at ASC;
-      `,
-      [ticketId]
-    );
+    const [messagesResult, attachmentsByMessage] = await Promise.all([
+      dbQuery<TicketMessageRow>(
+        `
+        SELECT
+          id::text AS id,
+          sender_type,
+          message,
+          created_at
+        FROM support_ticket_messages
+        WHERE ticket_id = $1
+        ORDER BY created_at ASC;
+        `,
+        [ticketId]
+      ),
+      fetchAttachmentsByMessage(dbQuery, ticketId),
+    ]);
+
+    const messages = messagesResult.rows.map((msg) => ({
+      ...msg,
+      attachments: attachmentsByMessage.get(msg.id) ?? ([] as AttachmentMeta[]),
+    }));
 
     return NextResponse.json({
       ok: true,
       ticket: ticketResult.rows[0],
-      messages: messagesResult.rows,
+      messages,
     });
   } catch (error) {
     console.error('Ticket details error:', error);
@@ -131,6 +145,7 @@ type UserReplyBody = {
   telegramId?: number | string;
   userId?: number | string;
   message?: string;
+  attachments?: unknown;
 };
 
 export async function POST(
@@ -154,7 +169,13 @@ export async function POST(
 
     const message = body.message?.trim() ?? '';
 
-    if (!message) {
+    const attachmentsParse = parseIncomingAttachments(body.attachments);
+    if (!attachmentsParse.ok) {
+      return NextResponse.json({ error: attachmentsParse.error }, { status: 400 });
+    }
+    const attachments = attachmentsParse.attachments;
+
+    if (!message && attachments.length === 0) {
       return NextResponse.json({ error: 'message is required' }, { status: 400 });
     }
 
@@ -194,6 +215,8 @@ export async function POST(
         `,
         [ticketId, message]
       );
+
+      await insertAttachments(client, ticketId, messageResult.rows[0].id, attachments);
 
       await client.query(
         `

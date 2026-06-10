@@ -4,7 +4,7 @@ import { useState, memo, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Shield, CreditCard, User, Zap, Check, ChevronRight, ChevronLeft, ChevronDown, HelpCircle, Star, Bitcoin, Wallet, Calendar, Smartphone, Settings, Gift, MonitorSmartphone, Globe, X, Monitor, FileText, Lock, Download, ArrowRight, ArrowUp, CheckCircle2, Laptop, Smartphone as SmartphoneIcon, ShieldAlert, Users, Ban, Tag, Search, Plus, Trash2, Copy, ClipboardCheck, Key, Mail, Send, Pencil, LogOut, RefreshCw, AlertCircle, Link2, Home, Crown, MessageCircle, Server, Package, Sparkles, Flame, Trophy, Clock } from 'lucide-react';
+import { Shield, CreditCard, User, Zap, Check, ChevronRight, ChevronLeft, ChevronDown, HelpCircle, Star, Bitcoin, Wallet, Calendar, Smartphone, Settings, Gift, MonitorSmartphone, Globe, X, Monitor, FileText, Lock, Download, ArrowRight, ArrowUp, CheckCircle2, Laptop, Smartphone as SmartphoneIcon, ShieldAlert, Users, Ban, Tag, Search, Plus, Trash2, Copy, ClipboardCheck, Key, Mail, Send, Pencil, LogOut, RefreshCw, AlertCircle, Link2, Home, Crown, MessageCircle, Server, Package, Sparkles, Flame, Trophy, Clock, Paperclip, Image as ImageIcon } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import ParticlesBackground from '@/components/ParticlesBackground';
 import SparkEffect from '@/components/SparkEffect';
@@ -277,6 +277,7 @@ const translations = {
     supportMessageRequired: 'Введите сообщение',
     supportTicketMessages: 'Сообщения',
     supportReplyPlaceholder: 'Введите сообщение...',
+    supportAttachPhoto: 'Прикрепить фото',
     supportCloseTicket: 'Закрыть обращение',
     supportReopenTicket: 'Переоткрыть обращение',
     supportTicketActionError: 'Не удалось выполнить действие',
@@ -645,6 +646,7 @@ const translations = {
     supportMessageRequired: 'Message is required',
     supportTicketMessages: 'Messages',
     supportReplyPlaceholder: 'Type your message...',
+    supportAttachPhoto: 'Attach photo',
     supportCloseTicket: 'Close ticket',
     supportReopenTicket: 'Reopen ticket',
     supportTicketActionError: 'Failed to complete action',
@@ -3187,6 +3189,169 @@ type SupportTicket = {
   unread_count: number;
 };
 
+// ---------------------------------------------------------------------------
+// Support-ticket photo attachments (shared by user + admin ticket views).
+// Images are uploaded inline as base64 in the JSON request body and stored as
+// BYTEA in Postgres; they stream back through the attachment GET routes.
+// ---------------------------------------------------------------------------
+
+const TICKET_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+const TICKET_IMAGE_MAX_BYTES = 5 * 1024 * 1024; // 5 MB
+const TICKET_IMAGE_MAX_COUNT = 5;
+
+// Metadata for a stored attachment (no bytes — URL points at the GET route).
+type TicketAttachmentMeta = {
+  id: string;
+  message_id?: string;
+  mime_type: string;
+  file_name: string | null;
+  byte_size: number;
+};
+
+// A picked-but-not-yet-sent image (local preview before upload).
+type PendingTicketImage = {
+  key: string;
+  file: File;
+  previewUrl: string;
+};
+
+// Encode a File as { name, mime, dataBase64 } for the request body.
+async function fileToTicketAttachment(file: File): Promise<{ name: string; mime: string; dataBase64: string }> {
+  const buf = await file.arrayBuffer();
+  const bytes = new Uint8Array(buf);
+  let binary = '';
+  const CHUNK = 0x8000;
+  for (let i = 0; i < bytes.length; i += CHUNK) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
+  }
+  return { name: file.name, mime: file.type, dataBase64: btoa(binary) };
+}
+
+// Validate + dedupe newly picked files against the current pending list.
+// Returns the accepted PendingTicketImage[] and an optional error string.
+function acceptTicketImages(
+  files: FileList | File[],
+  existingCount: number,
+): { accepted: PendingTicketImage[]; error: string | null } {
+  const accepted: PendingTicketImage[] = [];
+  let error: string | null = null;
+  let count = existingCount;
+  for (const file of Array.from(files)) {
+    if (count >= TICKET_IMAGE_MAX_COUNT) {
+      error = `Можно прикрепить не более ${TICKET_IMAGE_MAX_COUNT} фото`;
+      break;
+    }
+    if (!TICKET_IMAGE_TYPES.includes(file.type)) {
+      error = 'Можно прикреплять только изображения';
+      continue;
+    }
+    if (file.size > TICKET_IMAGE_MAX_BYTES) {
+      error = 'Изображение слишком большое (макс. 5 МБ)';
+      continue;
+    }
+    accepted.push({
+      key: `${file.name}-${file.size}-${file.lastModified}-${Math.random().toString(36).slice(2)}`,
+      file,
+      previewUrl: URL.createObjectURL(file),
+    });
+    count += 1;
+  }
+  return { accepted, error };
+}
+
+// Fullscreen image viewer (tap a thumbnail to open). Rendered via portal so it
+// sits above the chat. Tap anywhere / the × to close.
+function TicketImageLightbox({ url, onClose }: { url: string | null; onClose: () => void }) {
+  if (!url || typeof document === 'undefined') return null;
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4"
+      onClick={onClose}
+    >
+      <button
+        onClick={onClose}
+        aria-label="Close"
+        className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center"
+      >
+        <X size={22} />
+      </button>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={url} alt="attachment" className="max-h-full max-w-full rounded-lg object-contain" />
+    </div>,
+    document.body,
+  );
+}
+
+// Thumbnail grid shown inside a message bubble. `buildUrl` resolves an
+// attachment to its (auth-carrying) GET URL.
+function TicketAttachmentGrid({
+  attachments,
+  buildUrl,
+  onOpen,
+}: {
+  attachments?: TicketAttachmentMeta[];
+  buildUrl: (att: TicketAttachmentMeta) => string;
+  onOpen: (url: string) => void;
+}) {
+  if (!attachments || attachments.length === 0) return null;
+  return (
+    <div className="mt-2 flex flex-wrap gap-2">
+      {attachments.map((att) => {
+        const url = buildUrl(att);
+        return (
+          <button
+            key={att.id}
+            type="button"
+            onClick={() => onOpen(url)}
+            className="block overflow-hidden rounded-lg border border-white/10 active:scale-95 transition-transform"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={url}
+              alt={att.file_name ?? 'image'}
+              loading="lazy"
+              className="h-36 w-36 object-cover bg-black/20"
+            />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// Horizontal strip of picked-but-unsent images with a remove (×) button.
+function PendingImagesStrip({
+  images,
+  onRemove,
+}: {
+  images: PendingTicketImage[];
+  onRemove: (key: string) => void;
+}) {
+  if (images.length === 0) return null;
+  return (
+    <div className="flex flex-wrap gap-2 pb-2">
+      {images.map((img) => (
+        <div key={img.key} className="relative">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={img.previewUrl}
+            alt={img.file.name}
+            className="h-16 w-16 rounded-lg object-cover border border-white/15"
+          />
+          <button
+            type="button"
+            onClick={() => onRemove(img.key)}
+            aria-label="Remove"
+            className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-zinc-900 border border-white/20 text-zinc-300 hover:text-white flex items-center justify-center"
+          >
+            <X size={12} />
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 type SupportTicketDetails = {
   id: string;
   subject: string | null;
@@ -3201,6 +3366,7 @@ type SupportTicketMessage = {
   sender_type: 'user' | 'admin' | 'system';
   message: string;
   created_at: string;
+  attachments?: TicketAttachmentMeta[];
 };
 
 function SupportView({ t, direction, userIdentifier, lang, onHideNav, onMarkRead }: { t: any; direction: number; userIdentifier: UserIdentifier | null; lang: 'ru' | 'en'; onHideNav?: (hide: boolean) => void; onMarkRead?: () => void }) {
@@ -3219,12 +3385,50 @@ function SupportView({ t, direction, userIdentifier, lang, onHideNav, onMarkRead
   const [message, setMessage] = useState('');
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // Photo attachments: picked-but-unsent images for the create form + reply box,
+  // plus the fullscreen viewer URL.
+  const [createImages, setCreateImages] = useState<PendingTicketImage[]>([]);
+  const [replyImages, setReplyImages] = useState<PendingTicketImage[]>([]);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const createFileRef = useRef<HTMLInputElement>(null);
+  const replyFileRef = useRef<HTMLInputElement>(null);
 
   const userQuery = userIdentifier
     ? (userIdentifier.type === 'telegram'
       ? `telegramId=${encodeURIComponent(String(userIdentifier.telegramId))}`
       : `userId=${encodeURIComponent(String(userIdentifier.userId))}`)
     : '';
+
+  const buildAttachmentUrl = useCallback(
+    (ticketId: string, att: TicketAttachmentMeta) =>
+      `/api/tickets/${ticketId}/attachments/${att.id}?${userQuery}`,
+    [userQuery],
+  );
+
+  const handlePickImages = (
+    files: FileList | null,
+    target: 'create' | 'reply',
+  ) => {
+    if (!files || files.length === 0) return;
+    const setter = target === 'create' ? setCreateImages : setReplyImages;
+    setter((prev) => {
+      const { accepted, error } = acceptTicketImages(files, prev.length);
+      if (error) {
+        if (target === 'create') setSubmitError(error);
+        else setTicketsError(error);
+      }
+      return [...prev, ...accepted];
+    });
+  };
+
+  const removePendingImage = (key: string, target: 'create' | 'reply') => {
+    const setter = target === 'create' ? setCreateImages : setReplyImages;
+    setter((prev) => {
+      const found = prev.find((p) => p.key === key);
+      if (found) URL.revokeObjectURL(found.previewUrl);
+      return prev.filter((p) => p.key !== key);
+    });
+  };
 
   const requestBody = userIdentifier
     ? (userIdentifier.type === 'telegram'
@@ -3308,7 +3512,7 @@ function SupportView({ t, direction, userIdentifier, lang, onHideNav, onMarkRead
     }
 
     const messageValue = message.trim();
-    if (!messageValue) {
+    if (!messageValue && createImages.length === 0) {
       setSubmitError(t.supportMessageRequired);
       return;
     }
@@ -3317,6 +3521,7 @@ function SupportView({ t, direction, userIdentifier, lang, onHideNav, onMarkRead
     setSubmitError(null);
 
     try {
+      const attachments = await Promise.all(createImages.map((img) => fileToTicketAttachment(img.file)));
       const res = await fetch('/api/tickets', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -3324,6 +3529,7 @@ function SupportView({ t, direction, userIdentifier, lang, onHideNav, onMarkRead
           ...requestBody,
           subject: subject.trim() || undefined,
           message: messageValue,
+          attachments: attachments.length > 0 ? attachments : undefined,
         }),
       });
 
@@ -3334,6 +3540,8 @@ function SupportView({ t, direction, userIdentifier, lang, onHideNav, onMarkRead
 
       setSubject('');
       setMessage('');
+      createImages.forEach((img) => URL.revokeObjectURL(img.previewUrl));
+      setCreateImages([]);
       setShowCreateForm(false);
 
       const newTicketId = typeof data.ticket?.id === 'string' ? data.ticket.id : null;
@@ -3362,7 +3570,7 @@ function SupportView({ t, direction, userIdentifier, lang, onHideNav, onMarkRead
     if (!requestBody || !selectedTicketId) return;
 
     const messageValue = replyMessage.trim();
-    if (!messageValue) {
+    if (!messageValue && replyImages.length === 0) {
       setTicketsError(t.supportMessageRequired);
       return;
     }
@@ -3371,12 +3579,14 @@ function SupportView({ t, direction, userIdentifier, lang, onHideNav, onMarkRead
     setTicketsError(null);
 
     try {
+      const attachments = await Promise.all(replyImages.map((img) => fileToTicketAttachment(img.file)));
       const res = await fetch(`/api/tickets/${selectedTicketId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...requestBody,
           message: messageValue,
+          attachments: attachments.length > 0 ? attachments : undefined,
         }),
       });
 
@@ -3386,6 +3596,8 @@ function SupportView({ t, direction, userIdentifier, lang, onHideNav, onMarkRead
       }
 
       setReplyMessage('');
+      replyImages.forEach((img) => URL.revokeObjectURL(img.previewUrl));
+      setReplyImages([]);
       await Promise.all([loadTicketDetails(selectedTicketId), loadTickets()]);
     } catch (error) {
       setTicketsError(error instanceof Error ? error.message : t.supportTicketActionError);
@@ -3505,6 +3717,29 @@ function SupportView({ t, direction, userIdentifier, lang, onHideNav, onMarkRead
                   />
                 </div>
 
+                {/* Photo attachments */}
+                <div className="mb-5">
+                  <input
+                    ref={createFileRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => {
+                      handlePickImages(e.target.files, 'create');
+                      e.target.value = '';
+                    }}
+                  />
+                  <PendingImagesStrip images={createImages} onRemove={(k) => removePendingImage(k, 'create')} />
+                  <button
+                    type="button"
+                    onClick={() => createFileRef.current?.click()}
+                    className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-2.5 text-sm text-zinc-300 hover:text-white hover:bg-white/[0.06] transition-colors"
+                  >
+                    <ImageIcon size={16} /> {t.supportAttachPhoto}
+                  </button>
+                </div>
+
                 {submitError && (
                   <div className="mb-4 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300 flex items-center gap-2">
                     <X size={16} />
@@ -3589,7 +3824,14 @@ function SupportView({ t, direction, userIdentifier, lang, onHideNav, onMarkRead
                               ? 'rounded-2xl rounded-br-md bg-red-500/15 border border-red-500/30 text-white'
                               : 'rounded-2xl rounded-bl-md bg-white/[0.04] border border-white/10 text-zinc-100'
                           }`}>
-                            <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">{msg.message}</p>
+                            {msg.message && (
+                              <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">{msg.message}</p>
+                            )}
+                            <TicketAttachmentGrid
+                              attachments={msg.attachments}
+                              buildUrl={(att) => buildAttachmentUrl(selectedTicket.id, att)}
+                              onOpen={setLightboxUrl}
+                            />
                             <p className={`text-[10px] mt-1.5 ${msg.sender_type === 'user' ? 'text-red-200/60' : 'text-zinc-500'}`}>
                               {senderLabel(msg.sender_type)} · {formatDate(msg.created_at)}
                             </p>
@@ -3602,7 +3844,28 @@ function SupportView({ t, direction, userIdentifier, lang, onHideNav, onMarkRead
 
                 {/* Fixed input at bottom — premium pill textarea + circular ArrowUp send (no airplane) */}
                 <div className="shrink-0 px-4 pt-3 border-t border-white/10 bg-zinc-950/95 backdrop-blur-md" style={{ paddingBottom: 'calc(var(--sab) + 0.75rem)' }}>
+                  <PendingImagesStrip images={replyImages} onRemove={(k) => removePendingImage(k, 'reply')} />
                   <div className="flex items-end gap-2">
+                    <input
+                      ref={replyFileRef}
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      className="hidden"
+                      onChange={(e) => {
+                        handlePickImages(e.target.files, 'reply');
+                        e.target.value = '';
+                      }}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => replyFileRef.current?.click()}
+                      aria-label={t.supportAttachPhoto}
+                      title={t.supportAttachPhoto}
+                      className="shrink-0 w-12 h-12 rounded-full bg-white/[0.04] border border-white/10 text-zinc-400 hover:text-white hover:bg-white/[0.08] flex items-center justify-center active:scale-90 transition-all"
+                    >
+                      <Paperclip size={19} strokeWidth={2} />
+                    </button>
                     <textarea
                       value={replyMessage}
                       onChange={(e) => setReplyMessage(e.target.value)}
@@ -3613,7 +3876,7 @@ function SupportView({ t, direction, userIdentifier, lang, onHideNav, onMarkRead
                     />
                     <button
                       onClick={handleSendMessage}
-                      disabled={replySending || !replyMessage.trim()}
+                      disabled={replySending || (!replyMessage.trim() && replyImages.length === 0)}
                       aria-label={t.supportSend}
                       className="shrink-0 w-12 h-12 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center active:scale-90 transition-all disabled:bg-zinc-800 disabled:text-zinc-600 disabled:cursor-not-allowed"
                     >
@@ -3621,6 +3884,7 @@ function SupportView({ t, direction, userIdentifier, lang, onHideNav, onMarkRead
                     </button>
                   </div>
                 </div>
+                <TicketImageLightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} />
               </>
             )}
           </div>
@@ -5169,6 +5433,7 @@ type AdminTicketMessage = {
   sender_type: 'user' | 'admin' | 'system';
   message: string;
   created_at: string;
+  attachments?: TicketAttachmentMeta[];
 };
 
 function AdminTicketsView({
@@ -5212,6 +5477,44 @@ function AdminTicketsView({
   const [composeMessage, setComposeMessage] = useState('');
   const [composeSending, setComposeSending] = useState(false);
   const [composeError, setComposeError] = useState<string | null>(null);
+
+  // Photo attachments (admin reply + compose) + fullscreen viewer.
+  const [replyImages, setReplyImages] = useState<PendingTicketImage[]>([]);
+  const [composeImages, setComposeImages] = useState<PendingTicketImage[]>([]);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const replyFileRef = useRef<HTMLInputElement>(null);
+  const composeFileRef = useRef<HTMLInputElement>(null);
+
+  const buildAttachmentUrl = useCallback(
+    (ticketId: string, att: TicketAttachmentMeta) =>
+      `/api/admin/tickets/${ticketId}/attachments/${att.id}?telegramId=${encodeURIComponent(String(tgId))}`,
+    [tgId],
+  );
+
+  const handlePickImages = (
+    files: FileList | null,
+    target: 'reply' | 'compose',
+  ) => {
+    if (!files || files.length === 0) return;
+    const setter = target === 'reply' ? setReplyImages : setComposeImages;
+    setter((prev) => {
+      const { accepted, error } = acceptTicketImages(files, prev.length);
+      if (error) {
+        if (target === 'reply') setTicketsError(error);
+        else setComposeError(error);
+      }
+      return [...prev, ...accepted];
+    });
+  };
+
+  const removePendingImage = (key: string, target: 'reply' | 'compose') => {
+    const setter = target === 'reply' ? setReplyImages : setComposeImages;
+    setter((prev) => {
+      const found = prev.find((p) => p.key === key);
+      if (found) URL.revokeObjectURL(found.previewUrl);
+      return prev.filter((p) => p.key !== key);
+    });
+  };
 
   // v57: when the parent AdminView passes a pendingCompose target, open the
   // composer pre-filled and immediately tell the parent it has been consumed
@@ -5323,7 +5626,7 @@ function AdminTicketsView({
     if (!tgId || !selectedTicketId) return;
 
     const message = replyMessage.trim();
-    if (!message) {
+    if (!message && replyImages.length === 0) {
       setTicketsError(t.supportMessageRequired);
       return;
     }
@@ -5331,10 +5634,15 @@ function AdminTicketsView({
     setReplySending(true);
     setTicketsError(null);
     try {
+      const attachments = await Promise.all(replyImages.map((img) => fileToTicketAttachment(img.file)));
       const res = await fetch(`/api/admin/tickets/${selectedTicketId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ telegramId: tgId, message }),
+        body: JSON.stringify({
+          telegramId: tgId,
+          message,
+          attachments: attachments.length > 0 ? attachments : undefined,
+        }),
       });
 
       const data = await res.json().catch(() => ({}));
@@ -5343,6 +5651,8 @@ function AdminTicketsView({
       }
 
       setReplyMessage('');
+      replyImages.forEach((img) => URL.revokeObjectURL(img.previewUrl));
+      setReplyImages([]);
       await Promise.all([
         loadTicketDetails(selectedTicketId),
         loadTickets(ticketsSearch, ticketsFilter),
@@ -5424,7 +5734,7 @@ function AdminTicketsView({
       setComposeError(lang === 'ru' ? 'Укажите получателя' : 'Recipient is required');
       return;
     }
-    if (!message) {
+    if (!message && composeImages.length === 0) {
       setComposeError(lang === 'ru' ? 'Введите сообщение' : 'Message is required');
       return;
     }
@@ -5432,6 +5742,7 @@ function AdminTicketsView({
     setComposeSending(true);
     setComposeError(null);
     try {
+      const attachments = await Promise.all(composeImages.map((img) => fileToTicketAttachment(img.file)));
       const targetPayload: Record<string, string | number> = {};
       if (composeTargetType === 'telegramId' || composeTargetType === 'userId') {
         const n = Number(target);
@@ -5453,6 +5764,7 @@ function AdminTicketsView({
           target: targetPayload,
           subject: subject || undefined,
           message,
+          attachments: attachments.length > 0 ? attachments : undefined,
         }),
       });
 
@@ -5467,6 +5779,8 @@ function AdminTicketsView({
       setComposeTargetValue('');
       setComposeSubject('');
       setComposeMessage('');
+      composeImages.forEach((img) => URL.revokeObjectURL(img.previewUrl));
+      setComposeImages([]);
       const newTicketId: string | undefined = data.ticket?.id;
       await loadTickets(ticketsSearch, ticketsFilter);
       if (newTicketId) {
@@ -5586,6 +5900,25 @@ function AdminTicketsView({
                 maxLength={4000}
                 className="w-full bg-zinc-800/60 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-zinc-500 outline-none focus:border-red-500/40 resize-none"
               />
+              <input
+                ref={composeFileRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={(e) => {
+                  handlePickImages(e.target.files, 'compose');
+                  e.target.value = '';
+                }}
+              />
+              <PendingImagesStrip images={composeImages} onRemove={(k) => removePendingImage(k, 'compose')} />
+              <button
+                type="button"
+                onClick={() => composeFileRef.current?.click()}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-zinc-800/60 px-3 py-1.5 text-xs text-zinc-300 hover:text-white hover:bg-zinc-700/60"
+              >
+                <ImageIcon size={13} /> {t.supportAttachPhoto}
+              </button>
               {composeError && (
                 <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">{composeError}</div>
               )}
@@ -5757,7 +6090,16 @@ function AdminTicketsView({
                             : 'bg-zinc-800/80 border border-white/10 text-zinc-200'
                         }`}>
                           <div className="flex items-start gap-2">
-                            <p className="text-sm whitespace-pre-wrap break-words leading-relaxed flex-1">{msg.message}</p>
+                            <div className="flex-1 min-w-0">
+                              {msg.message && (
+                                <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">{msg.message}</p>
+                              )}
+                              <TicketAttachmentGrid
+                                attachments={msg.attachments}
+                                buildUrl={(att) => buildAttachmentUrl(selectedTicket.id, att)}
+                                onOpen={setLightboxUrl}
+                              />
+                            </div>
                             <button
                               onClick={() => handleDeleteMessage(msg.id)}
                               disabled={deletingMessageId === msg.id}
@@ -5779,7 +6121,28 @@ function AdminTicketsView({
 
               {/* Fixed input at bottom */}
               <div className="shrink-0 px-4 pt-3 border-t border-white/10 bg-zinc-950" style={{ paddingBottom: 'calc(var(--sab) + 0.75rem)' }}>
+                <PendingImagesStrip images={replyImages} onRemove={(k) => removePendingImage(k, 'reply')} />
                 <div className="flex gap-2">
+                  <input
+                    ref={replyFileRef}
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => {
+                      handlePickImages(e.target.files, 'reply');
+                      e.target.value = '';
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => replyFileRef.current?.click()}
+                    aria-label={t.supportAttachPhoto}
+                    title={t.supportAttachPhoto}
+                    className="shrink-0 w-12 h-12 rounded-xl border border-white/10 bg-zinc-900/60 text-zinc-400 hover:text-white hover:bg-zinc-800/80 flex items-center justify-center active:scale-95 transition-all"
+                  >
+                    <Paperclip size={18} strokeWidth={2} />
+                  </button>
                   <textarea
                     value={replyMessage}
                     onChange={(e) => setReplyMessage(e.target.value)}
@@ -5797,6 +6160,7 @@ function AdminTicketsView({
                   </button>
                 </div>
               </div>
+              <TicketImageLightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} />
             </>
           )}
         </div>
