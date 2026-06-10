@@ -72,10 +72,21 @@ export async function POST(req: Request) {
       // Dry-run path: only report what WOULD be backfilled — useful for
       // an admin to sanity-check before pulling the trigger.
       if (dryRun) {
-        // Count payments without an existing journal row. We can do this
-        // in a single SQL but the per-id loop matches the live path's
-        // semantics exactly, so the numbers we report match what a real
-        // run would produce.
+        // 2026-06-10: the dry-run used to check ONLY "no journal row yet"
+        // while the real run (via applyReferralCashReward) additionally
+        // requires the payment to be a SUBSCRIPTION payment. That mismatch
+        // produced confusing reports (dryRun credited:1 → real credited:0).
+        // Now the dry-run applies the exact same eligibility SQL as the
+        // helper and returns per-payment diagnostics so a skipped payment
+        // is explainable at a glance.
+        const details: Array<{
+          paymentId: number;
+          userId: number;
+          amountRub: number;
+          accrualRub: number;
+          eligible: boolean;
+          reason: string;
+        }> = [];
         for (const row of candidates.rows) {
           const existing = await client.query<{ id: string }>(
             `SELECT id::text AS id
@@ -84,20 +95,45 @@ export async function POST(req: Request) {
               LIMIT 1;`,
             [row.id]
           );
-          if (existing.rowCount === 0) {
-            // Estimate amount the same way `applyReferralCashReward`
-            // does: 10% of payment amount, rounded to 2 decimals.
-            const amt = await client.query<{ amount: number }>(
-              'SELECT amount::float8 AS amount FROM payments WHERE id = $1 LIMIT 1;',
-              [row.id]
-            );
-            const paid = Number(amt.rows[0]?.amount ?? 0);
-            const accrual = Math.round((paid * 10) / 100 * 100) / 100;
-            if (accrual > 0) {
-              credited += 1;
-              totalAmountRub += accrual;
-            }
+          if (existing.rowCount !== 0) {
+            continue; // already journaled — real run would skip silently
           }
+          // Same WHERE clause as applyReferralCashReward (keep in sync!).
+          const pay = await client.query<{ amount: number; is_sub: boolean }>(
+            `SELECT amount::float8 AS amount,
+                    (
+                      subscription_id IS NOT NULL
+                      OR (
+                        metadata ? 'days'
+                        AND COALESCE(metadata->>'type', '') <> 'fragment_order'
+                        AND NOT (metadata ? 'service_request_id')
+                      )
+                    ) AS is_sub
+               FROM payments
+              WHERE id = $1
+              LIMIT 1;`,
+            [row.id]
+          );
+          const paid = Number(pay.rows[0]?.amount ?? 0);
+          const isSub = pay.rows[0]?.is_sub === true;
+          const accrual = Math.round((paid * 10) / 100 * 100) / 100;
+          const eligible = isSub && accrual > 0;
+          if (eligible) {
+            credited += 1;
+            totalAmountRub += accrual;
+          }
+          details.push({
+            paymentId: row.id,
+            userId: row.user_id,
+            amountRub: paid,
+            accrualRub: eligible ? accrual : 0,
+            eligible,
+            reason: eligible
+              ? 'would_credit'
+              : !isSub
+                ? 'not_a_subscription_payment'
+                : 'accrual_rounds_to_zero',
+          });
         }
         return NextResponse.json({
           ok: true,
@@ -106,6 +142,12 @@ export async function POST(req: Request) {
           credited,
           totalAmountRub: Math.round(totalAmountRub * 100) / 100,
           skipped: (candidates.rowCount ?? 0) - credited,
+          // Cap the detail list so the response stays small even if the
+          // backlog ever grows huge. Eligible rows are the interesting
+          // ones, keep them first.
+          details: details
+            .sort((a, b) => Number(b.eligible) - Number(a.eligible))
+            .slice(0, 100),
         });
       }
 
