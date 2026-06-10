@@ -121,12 +121,36 @@ export async function applyReferralCashReward(
   // have already marked status='paid'; the journal here is downstream of
   // that. NUMERIC values come back as strings from pg — cast in SQL to
   // ::float8 so JS gets a real number.
+  //
+  // "Is this a SUBSCRIPTION payment?" check (2026-06-10 hardening):
+  //   primary:  subscription_id IS NOT NULL (set by confirmSbpPayment /
+  //             crypto callback / Stars webhook in the same UPDATE that
+  //             flips status='paid').
+  //   fallback: metadata ? 'days'. Both subscription-create routes
+  //             (/api/payments/sbp/create and /api/crypto-invoice) stamp
+  //             `days` into metadata at INSERT time, and NO other payment
+  //             type does: fragment orders carry `type:'fragment_order'`,
+  //             paid services carry `service_request_id`. Live incident:
+  //             payment id of user 5463 (98 ₽, 14-day sub, 2026-06-09/10)
+  //             ended up status='paid' with subscription_id NULL even
+  //             though the subscription itself WAS extended — so the
+  //             inviter (user 5233) never got the 10 % cash. The fallback
+  //             makes the accrual (and the idempotent backfill) robust to
+  //             a lost subscription link. Belt-and-braces: the fallback
+  //             still explicitly excludes fragment/service markers.
   const payRes = await client.query<{ amount: number; currency: string }>(
     `SELECT amount::float8 AS amount, currency
        FROM payments
       WHERE id = $1
         AND status = 'paid'
-        AND subscription_id IS NOT NULL
+        AND (
+          subscription_id IS NOT NULL
+          OR (
+            metadata ? 'days'
+            AND COALESCE(metadata->>'type', '') <> 'fragment_order'
+            AND NOT (metadata ? 'service_request_id')
+          )
+        )
       LIMIT 1;`,
     [paymentId],
   );
