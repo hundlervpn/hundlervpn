@@ -48,6 +48,22 @@ CREATE INDEX IF NOT EXISTS idx_device_sessions_kicked ON device_sessions(user_id
 -- code. Idempotent.
 ALTER TABLE promo_codes ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
 CREATE INDEX IF NOT EXISTS idx_promo_codes_deleted_at ON promo_codes(deleted_at);
+
+-- 2026-06-10: photo attachments for support tickets (BYTEA in Postgres,
+-- not S3/disk — the Hostman container FS is wiped on redeploy). Cascade
+-- deletes with the parent message/ticket. Idempotent.
+CREATE TABLE IF NOT EXISTS support_ticket_attachments (
+  id BIGSERIAL PRIMARY KEY,
+  message_id BIGINT NOT NULL REFERENCES support_ticket_messages(id) ON DELETE CASCADE,
+  ticket_id BIGINT NOT NULL REFERENCES support_tickets(id) ON DELETE CASCADE,
+  mime_type TEXT NOT NULL,
+  file_name TEXT,
+  byte_size INTEGER NOT NULL,
+  data BYTEA NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_support_ticket_attachments_message ON support_ticket_attachments(message_id);
+CREATE INDEX IF NOT EXISTS idx_support_ticket_attachments_ticket ON support_ticket_attachments(ticket_id);
 `;
 
 export async function POST(req: Request) {

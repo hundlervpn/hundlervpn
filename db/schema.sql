@@ -266,6 +266,24 @@ CREATE INDEX IF NOT EXISTS idx_support_ticket_messages_ticket_created ON support
 ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS last_user_read_at TIMESTAMPTZ;
 ALTER TABLE support_tickets ADD COLUMN IF NOT EXISTS last_admin_read_at TIMESTAMPTZ;
 
+-- 2026-06-10: photo attachments for support tickets. Stored as BYTEA in
+-- Postgres (the Hostman container FS is ephemeral, the managed DB is not).
+-- Cascade-deletes with the parent message/ticket.
+CREATE TABLE IF NOT EXISTS support_ticket_attachments (
+  id BIGSERIAL PRIMARY KEY,
+  message_id BIGINT NOT NULL REFERENCES support_ticket_messages(id) ON DELETE CASCADE,
+  ticket_id BIGINT NOT NULL REFERENCES support_tickets(id) ON DELETE CASCADE,
+  mime_type TEXT NOT NULL,
+  file_name TEXT,
+  byte_size INTEGER NOT NULL,
+  data BYTEA NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_support_ticket_attachments_message
+  ON support_ticket_attachments(message_id);
+CREATE INDEX IF NOT EXISTS idx_support_ticket_attachments_ticket
+  ON support_ticket_attachments(ticket_id);
+
 DROP TRIGGER IF EXISTS trg_users_set_updated_at ON users;
 CREATE TRIGGER trg_users_set_updated_at
 BEFORE UPDATE ON users

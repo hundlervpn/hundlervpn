@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getDbPool, dbQuery } from '@/lib/db';
 import { isAdmin } from '@/lib/admin';
+import { parseIncomingAttachments, insertAttachments } from '@/lib/ticket-attachments';
 
 // POST /api/admin/tickets/start
 // Body: {
@@ -26,6 +27,7 @@ type StartTicketBody = {
   target?: Target;
   subject?: string;
   message?: string;
+  attachments?: unknown;
 };
 
 type ResolvedUser = { id: number; telegram_id: string | null; username: string | null; first_name: string | null; last_name: string | null };
@@ -79,7 +81,13 @@ export async function POST(req: Request) {
     const subject = body.subject?.trim() ?? '';
     const message = body.message?.trim() ?? '';
 
-    if (!message) {
+    const attachmentsParse = parseIncomingAttachments(body.attachments);
+    if (!attachmentsParse.ok) {
+      return NextResponse.json({ error: attachmentsParse.error }, { status: 400 });
+    }
+    const attachments = attachmentsParse.attachments;
+
+    if (!message && attachments.length === 0) {
       return NextResponse.json({ error: 'message is required' }, { status: 400 });
     }
     if (subject.length > 120) {
@@ -131,6 +139,8 @@ export async function POST(req: Request) {
         `,
         [ticket.id, message],
       );
+
+      await insertAttachments(client, ticket.id, messageResult.rows[0].id, attachments);
 
       await client.query(
         `UPDATE support_tickets SET updated_at = NOW() WHERE id = $1;`,
