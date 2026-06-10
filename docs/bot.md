@@ -19,96 +19,15 @@
   The Node `pg` driver auto-negotiates SSL so the web app side never noticed,
   but psycopg2 needs the explicit flag.
 
-### DB Tunnel via Yandex Cloud bridge (v66, 2026-04-28) — DEPRECATED in v68:
+### DB Tunnel (v66, 2026-04-28) — REMOVED in v68
 
-> **⚠️ v68 (2026-05-17) note**: this section describes the *old* Timeweb
-> setup. After the DB migration to Hostman managed PG (`132.243.242.196`),
-> bots talk to the new host directly — no tunnel needed. Both
-> `db-tunnel.service` and the Yandex Cloud bridge VM (`fv46bv2v7oe728fo57nq`,
-> `158.160.254.104`) are now unused and can be disabled / decommissioned.
-> Kept here as historical context for the migration story and as a
-> fallback procedure should Hostman ever apply similar GeoIP filtering.
-
-
-**Why**: Timeweb-hosted Postgres applies a hidden GeoIP / application-layer
-filter — connections from the Amsterdam bot VPS' IP (`132.243.242.124`) get
-TCP-handshaked but the Postgres daemon then silently ignores the SSLRequest
-payload. tcpdump confirms: SYN/SYN-ACK exchange ✅, our 8-byte SSLRequest gets
-TCP-acked ✅, but the server never replies with the 1-byte 'S'/'N' answer →
-psycopg2 times out after 10s. Same connection from a Russian IP (Windows ПК,
-YC bridge) works fine. The Timeweb UI's "Firewall" tab is empty and "Allow
-public IP access" is enabled — the filter is invisible at the dashboard level.
-
-**Solution**: bot connects to `127.0.0.1:5433` instead of Timeweb directly.
-A persistent SSH tunnel forwards that port through the Yandex Cloud bridge
-(`158.160.254.104`, RU IP) to `5.42.118.215:5432`. Timeweb sees a Russian IP
-on the inbound TCP and lets it through.
-
-**Components**:
-- Bot env (in systemd unit, NOT `.env`):
-  `POSTGRESQL_HOST=127.0.0.1`, `POSTGRESQL_PORT=5433` (NOT `5.42.118.215:5432`).
-- `/etc/systemd/system/db-tunnel.service` on the bot VPS:
-  ```
-  ExecStart=/usr/bin/ssh -N \
-    -o ServerAliveInterval=30 -o ServerAliveCountMax=3 \
-    -o ExitOnForwardFailure=yes -o StrictHostKeyChecking=accept-new \
-    -o TCPKeepAlive=yes -o BatchMode=yes \
-    -i /root/.ssh/yc_db_tunnel \
-    -L 127.0.0.1:5433:5.42.118.215:5432 \
-    bot-tunnel@158.160.254.104
-  Restart=always
-  RestartSec=10
-  ```
-  systemd auto-restarts ssh on disconnect; `ServerAliveInterval=30` keeps the
-  tunnel hot through NAT timeouts; `ExitOnForwardFailure=yes` ensures any port
-  conflict / forward refusal triggers a restart instead of a silent zombie.
-- SSH key: `/root/.ssh/yc_db_tunnel` (ed25519). Public key registered as
-  metadata on the YC VM (`fv46bv2v7oe728fo57nq`) under user `bot-tunnel`.
-  Add via Cloud Shell:
-  ```
-  yc compute instance update --id fv46bv2v7oe728fo57nq \
-    --metadata-from-file ssh-keys=/tmp/keys.txt
-  ```
-  where `/tmp/keys.txt` contains lines `<user>:<ssh-ed25519 key>` (preserve
-  ALL existing keys when adding — `--metadata-from-file` REPLACES the entire
-  `ssh-keys` value, not merges).
-- `sslmode=require` is still mandatory in psycopg2 — the tunnel just transports
-  TCP bytes; the actual TLS handshake still happens between bot ↔ Timeweb.
-
-**Verify the tunnel**:
-```
-systemctl status db-tunnel              # active (running)
-journalctl -u hundlervpn-bot -n 25      # no "timeout expired" errors
-```
-A direct test from the bot VPS:
-```
-/root/hundlervpn/bot/venv/bin/python3 -c "
-import psycopg2
-c = psycopg2.connect(host='127.0.0.1', port=5433, user='gen_user',
-  password='<pwd>', database='default_db', sslmode='require',
-  connect_timeout=10)
-cur = c.cursor(); cur.execute('SELECT version()')
-print('OK:', cur.fetchone()[0][:60])
-"
-```
-should print `OK: PostgreSQL 18.1 ...`.
-
-**Rollback** (if Timeweb ever lifts the GeoIP filter):
-```
-systemctl disable --now db-tunnel
-sed -i 's|POSTGRESQL_HOST=127.0.0.1|POSTGRESQL_HOST=5.42.118.215|;
-        s|POSTGRESQL_PORT=5433|POSTGRESQL_PORT=5432|' \
-  /etc/systemd/system/hundlervpn-bot.service
-systemctl daemon-reload && systemctl restart hundlervpn-bot
-```
-
-**Reference TODO** for next iteration:
-- Migrate DB to Yandex Cloud Managed PostgreSQL in the same VPC as the
-  bridge — eliminates the tunnel and gives bot ↔ DB a private network hop
-  (~1ms latency vs ~50ms intercontinental). Web app would still hit a public
-  endpoint but with a deterministic Cloudflare-friendly IP allowlist.
-- Rotate the DB password — it has appeared in chat logs and is currently
-  embedded in `/etc/systemd/system/hundlervpn-bot.service` in cleartext.
+Historical: until v68 the bots reached the old Timeweb Postgres through an
+SSH tunnel via a cloud VM in RU (workaround for Timeweb's hidden GeoIP
+filter that silently dropped SSLRequest from foreign IPs). After the DB
+migration to Hostman managed PG (`132.243.242.196`, `sslmode=require`) the
+bots connect directly; the tunnel service and the bridge VM are deleted.
+Remaining TODO from that era: rotate the DB password (it appeared in chat
+logs and sits in cleartext inside the bot systemd units).
 
 ### Broadcast Audience Filter (v65, 2026-04-28; v2 2026-05-05):
 Admin can target a Telegram broadcast to a specific user segment instead of
@@ -474,7 +393,7 @@ sister bot). User report 2026-05-07: «оплачивал с чат бота п�
   ```
 - ⚠️ **v68 (2026-05-17)**: bot-chat now talks directly to Hostman managed PG
   at `132.243.242.196:5432` (`sslmode=require`). The previous tunnel setup
-  through `127.0.0.1:5433` → YC bridge → Timeweb is no longer used. The
+  through `127.0.0.1:5433` (SSH bridge, removed) is no longer used. The
   Timeweb GeoIP-filter constraint that forced the tunnel has been retired
   along with the Timeweb host itself.
 - Update flow: `git pull && systemctl restart hundlervpn-bot-chat`.

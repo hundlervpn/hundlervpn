@@ -1,19 +1,18 @@
 ## VPN Architecture
 
-### Servers (as of May 2026):
-- **Yandex Cloud** (158.160.254.104) — bridge/entry server, accepts user connections
-  - Pure dokodemo-door passthrough to NL VPS:443 — does NOT validate UUIDs.
-  - **No xray-webhook** is needed here; UUID changes do not require restart on YC.
-- **Netherlands VPS** (185.238.169.235) — foreign exit node + UUID validator for the NL flow.
-  - YC dokodemo-door points its TCP byte-stream at NL:443; NL runs the actual VLESS+Reality
-    handshake against the UUID pool, then forwards through WARP (Cloudflare) SOCKS5 on
-    127.0.0.1:40000.
+### Servers (as of June 2026):
+> ⚠️ Hosts/IPs change (hoster reassignments). **Source of truth is the
+> `servers` DB table**, not this file. The old Yandex Cloud dokodemo
+> bridge and the old NL exit (185.238.169.235) are decommissioned
+> (2026-06) — all nodes are direct entry+exit now.
+- **Netherlands VPS** (195.216.169.154, `obxod.hundlervpn.xyz`, id=3
+  «Обход Глушилок») — direct node, Xray VLESS+Reality on :443.
   - Runs `/opt/xray-webhook.py` on port 9999 (must use `ThreadingHTTPServer` — see
     "NL Webhook Deadlock" below).
 - **Germany VPS** (213.182.213.183) — standalone exit node, direct (no cascade)
   - Xray VLESS+Reality on :443, WARP SOCKS5 on 127.0.0.1:40000
   - Provisioned via `scripts/setup-germany-server.sh`.
-- **Russia VPS** (85.239.53.25, hostname `msk-1-vm-2ypv`) — direct RU exit, NO WARP,
+- **Russia VPS** (159.194.220.99, `ru.hundlervpn.xyz`, id=6) — direct RU exit, NO WARP,
   ad-blocking via DNS. Provisioned via `scripts/setup-rf-server.sh` (2026-05-07).
   - Xray VLESS+Reality on :443, freedom outbound direct (no SOCKS5 cascade).
   - **Purpose**: a Russian-IP exit so users can reach RU-only services
@@ -70,7 +69,7 @@ Takes effect on new TCP connections immediately, no Xray/system restart.
 
 ### SNI rotation (Reality serverNames pool, 2026-05-08):
 DPI (TSPU, ISP) increasingly fingerprints by the **(server-IP, SNI) pair**.
-"Every connection to 158.160.254.104 advertises SNI=www.microsoft.com" is
+"Every connection to 213.182.213.183 advertises SNI=www.microsoft.com" is
 a recognisable pattern even though each individual TLS handshake looks
 legit. Spreading users across 4 SNIs per node breaks the pattern.
 
@@ -117,10 +116,6 @@ accept and break until the next poll).
    change to Hostman (auto-deploys).
 4. Existing users keep working with their cached SNI (still in the array);
    their next subscription poll re-keys them onto a new pool entry.
-
-The YC bridge (158.160.254.104) does NOT do TLS termination — it's pure
-dokodemo-door TCP passthrough to the NL exit which IS the Reality
-terminator. So the YC bridge does NOT need this patch.
 
 ### Hysteria2 inbound on Germany (PILOT, 2026-05-08):
 Phase-1 pilot for fixing TG voice / Discord voice / WhatsApp voice in RU
@@ -398,35 +393,6 @@ understand).
 
 **Code version**: `v48-routing-header-happ-v2raytun-2026-05-08`.
 
-### YC bridge SSH access (lessons learned 2026-05-07):
-The YC VM (currently named `compute-vm-2-2-20-ssd-1776178370896` in folder
-`b1g6mbhsa39jb1rgc52e`) runs as user `solmaster` and was provisioned with
-an SSH key that is easy to lose. If `ssh solmaster@158.160.254.104` returns
-`Permission denied (publickey)`, recover via YC Cloud Shell (which has `yc`
-CLI pre-installed and authenticated):
-
-```bash
-# 1. Generate a fresh keypair in Cloud Shell
-ssh-keygen -t ed25519 -f ~/.ssh/yc_bridge -N "" -q -C "hundler-cli"
-
-# 2. Push it to the VM's metadata (replaces the existing ssh-keys entry)
-yc compute instance add-metadata \
-  --name compute-vm-2-2-20-ssd-1776178370896 \
-  --metadata ssh-keys="solmaster:$(cat ~/.ssh/yc_bridge.pub)"
-
-# 3. Wait ~30 s for the YC guest agent to sync, then SSH in
-ssh -i ~/.ssh/yc_bridge -o StrictHostKeyChecking=no solmaster@158.160.254.104
-
-# 4. Inside, sudo is passwordless for solmaster.
-```
-
-The `add-metadata` call REPLACES the `ssh-keys` metadata value entirely —
-any previous keys for `solmaster` stop working. Acceptable for a recovery
-scenario where we already lost the original key.
-
-The Cloud Shell URL is https://console.yandex.cloud (link shows on the YC
-landing page). It auto-authenticates with the YC account in the browser.
-
 ### Adding a new VPN server:
 The reference scripts are now `setup-germany-server.sh` (foreign exit
 with WARP) and `setup-rf-server.sh` (RU exit, ad-blocking, no WARP).
@@ -498,7 +464,7 @@ since `lib/postgres-config.ts` and bot configs already read from env):
 - Telegram bots VPS — edit `/etc/systemd/system/hundlervpn-bot.service`
   (and chat-bot equivalent), `systemctl daemon-reload && systemctl
   restart hundlervpn-bot hundlervpn-chat-bot`.
-- The old `db-tunnel.service` SSH bridge through `158.160.254.104` is
+- The old `db-tunnel.service` SSH bridge (via the deleted YC VM) is
   **no longer required** if the new Hostman DB allows direct inbound
   from the bot VPS IP. Verify with `psql 'postgresql://...@132.243.242.196:5432/...'`
   from the bot host before disabling the tunnel. If the tunnel is
@@ -553,14 +519,14 @@ in case any rare-event row needs to be restored).
 - id=4: Germany, host=213.182.213.183, port=443, country=DE,
   name='Pro', sort_order=**1** (is_active=true) — displayed as `🇩🇪 Германия | Pro`,
   appears FIRST in client UIs by default (2026-05-08 swap, see below).
-- id=3: Netherlands, host=vpn.hundlervpn.xyz (158.160.254.104), port=443, country=NL,
-  name='LTE', sort_order=**2** (is_active=true) — displayed to users as
-  `🇳🇱 Нидерланды | LTE`. NL is the YC bridge cascade — entry IP is YC, so user
-  traffic exits Yandex Cloud's network. YC LTE/mobile egress pricing made this
-  the most expensive flow per GB, hence demoted from default to second.
-- id=5: Russia, host=85.239.53.25 (`msk-1-vm-2ypv`), port=443, country=RU,
+- id=3: Netherlands, host=195.216.169.154 (display_host=obxod.hundlervpn.xyz), port=443,
+  country=NL, name='Обход Глушилок', sort_order=**2** (is_active=true) — displayed as
+  `🇳🇱 Нидерланды | Обход Глушилок`. Direct node (old YC-bridge cascade decommissioned).
+- id=5: Russia OLD row (host=186.246.28.251, is_active=**false**) — kept for history.
+- id=6: Russia, host=159.194.220.99 (display_host=ru.hundlervpn.xyz), port=443, country=RU,
   name='YouTube', sort_order=3 (is_active=true) — displayed as `🇷🇺 Россия | YouTube`.
-  Provisioned 2026-05-07 via `scripts/setup-rf-server.sh` + `scripts/add-rf-server.js`.
+  Originally provisioned 2026-05-07 via `scripts/setup-rf-server.sh` (the hoster has since
+  changed the VM's IP more than once — always trust the DB row, not docs).
   See the **Russia VPS** bullet under "Servers" above for routing / DNS / ad-blocking notes.
 - **`sort_order` column** (INTEGER NOT NULL DEFAULT 100) — controls the order in which
   servers appear in client UIs. `/api/sub/[token]` orders by `sort_order ASC, country
@@ -683,9 +649,8 @@ user UUIDs so no client has to reimport the subscription.
   UUIDs (NL exit + DE), port 9999, triggered by `triggerXraySync()` from
   `lib/xray-webhook.ts` on UUID changes.
   Env (comma-separated for multi-server fan-out):
-  `XRAY_WEBHOOK_URL=http://185.238.169.235:9999/sync,http://213.182.213.183:9999/sync`
-  - YC bridge (158.160.254.104) is NOT in this list — it's a passthrough, doesn't run
-    its own VLESS validation, doesn't need restart on UUID changes.
+  `XRAY_WEBHOOK_URL=http://<host>:9999/sync,...` — legacy ENV fallback only;
+  since v67 `getWebhookUrls()` builds the list from active `servers.host` rows in the DB.
   - Webhook is called from DELETE `/api/users/devices` only (instant kick).
   - **Not** called on new device add (v34+) — UUID pool makes webhook
     unnecessary for that path.
@@ -1013,7 +978,7 @@ App Store, Android Play Store (no Linux native build).
 
 ## Security (VLESS vulnerability — April 2026):
 - All VLESS clients expose unauthenticated SOCKS5 on localhost — spyware can detect VPN exit IP
-- Our architecture mitigates this: entry (Yandex Cloud) ≠ exit (WARP/Cloudflare)
+- WARP-cascade nodes mitigate this: entry node IP ≠ exit IP (WARP/Cloudflare)
 - Spyware sees only Cloudflare WARP IP, not our server IPs
 - Happ client has additional vulnerability (xray API without auth, can dump configs)
 - Consider blocking Happ by User-Agent in subscription endpoint if needed
@@ -1137,7 +1102,7 @@ Phase-1/v55 route rule «TG-CIDR → hy2Tags[0]» в `buildSingboxConfig`
 
 `/opt/xray-traffic.sh` + `/etc/cron.d/xray-traffic` (через
 `scripts/install-xray-traffic-collector.sh`) сейчас развёрнуты на
-**NL + DE**. RU (`85.239.53.25`) пока без локального collector'a, поэтому
+**NL + DE**. RU (`159.194.220.99`) пока без локального collector'a, поэтому
 в БД `user_server_traffic` нет записей с `server_id=5`.
 
 История: 2026-05-15 был только NL. 2026-05-16 (одна сессия с
@@ -1183,7 +1148,7 @@ ssh root@213.182.213.183 'ls -la /opt/xray-traffic.sh /etc/cron.d/xray-traffic 2
 
 ```bash
 ssh root@213.182.213.183 'bash -s' < scripts/install-xray-traffic-collector.sh
-ssh root@85.239.53.25  'bash -s' < scripts/install-xray-traffic-collector.sh
+ssh root@159.194.220.99  'bash -s' < scripts/install-xray-traffic-collector.sh
 ```
 
 Скрипт идемпотентен. Если Xray config надо патчить (добавляет `stats:

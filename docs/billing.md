@@ -480,7 +480,7 @@ needed):
    EasyCron: configure a job to GET
    `https://hundlervpn.xyz/api/cron/sweep-expired?token=hVpN2026sEcReT_xR4y`
    every 1 minute.
-2. **Existing VPN VPS cron**. SSH to NL (185.238.169.235) and DE
+2. **Existing VPN VPS cron**. SSH to NL (195.216.169.154) and DE
    (213.182.213.183) and edit the line in `crontab -e` from
    `*/5 * * * * /opt/xray-sync.sh …` to `* * * * * /opt/xray-sync.sh …`
    so the existing GC in `/api/xray/clients` runs every minute. This
@@ -712,7 +712,7 @@ the exact row that needs fixing.
 **Net effect**: a user's VPN should NEVER drop from a server-side cause
 in steady state. Genuine restarts (signup / payment / kick / sub
 expiration) drop connections for 5-15s and clients reconnect normally.
-Anything longer is now either WARP / YC bridge / mobile-network
+Anything longer is now either WARP / mobile-network
 infrastructure (use `scripts/diag-vpn-now.sh` to capture the real cause),
 or iOS NetworkExtension client-side caching — both outside our backend.
 

@@ -3,7 +3,7 @@ Goal: serve hundlervpn.xyz fast and reliably both for RU users and for users out
 - Current state: site hosted only on Timeweb (RU datacenter). RU users are fine; non-RU users may see slower loads / regional blocks of RU IPs.
 - Plan (staged rollout):
   1. **Stage 1 — Cloudflare Free in front of hundlervpn.xyz.** Proxy A-record (orange cloud), origin stays on Timeweb. Static assets cached at edge POPs (Moscow, Amsterdam, Frankfurt, etc.). Hides origin IP. Zero cost, ~15 min to set up.
-  2. **Stage 2 — NL web mirror + geo-routing.** Deploy the Next.js app on a separate NL VPS (NOT the Xray exit node 185.238.169.235 — use a dedicated NL web VPS). Use Cloudflare Load Balancer ($5/mo) with Geo Steering: country=RU → Timeweb origin, else → NL mirror. Alternative: Cloudflare Worker that routes by `req.cf.country` (free up to 100k req/day).
+  2. **Stage 2 — NL web mirror + geo-routing.** Deploy the Next.js app on a separate NL VPS (NOT the NL Xray node — use a dedicated NL web VPS). Use Cloudflare Load Balancer ($5/mo) with Geo Steering: country=RU → Timeweb origin, else → NL mirror. Alternative: Cloudflare Worker that routes by `req.cf.country` (free up to 100k req/day).
 - Constraints to handle for Stage 2:
   - DB stays in Hostman managed PG (132.243.242.196, v68). NL mirror must reach it over internet → IP whitelist in the Hostman Postgres dashboard for the NL mirror's egress IP, or tunnel via WireGuard. Adds ~70ms latency per DB query if the mirror sits on a non-EU exit.
   - All env vars (XRAY_SYNC_TOKEN, PLATEGA_SECRET_KEY, OXAPAY_API_KEY, RESEND_API_KEY, etc.) must be synced to both origins.
@@ -36,7 +36,7 @@ Three concrete failure modes:
 2. **SNI/IP correlation check (already shipped on TSPU boxes per
    leaks).** DPI resolves `microsoft.com` → set of legit Microsoft IPs.
    Then checks: "is the destination IP I'm seeing this TLS to actually
-   in that set?" Our YC IP `158.160.254.104` is obviously NOT in
+   in that set?" Our node IPs are obviously NOT in
    Microsoft's IP space → flagged as spoofed-SNI VPN.
 3. **One SNI = one block-rule.** A single firewall rule
    `block sni=www.microsoft.com when dst_ip not in microsoft_subnet`
@@ -81,7 +81,7 @@ window (early morning Moscow time) and announce in TG.
 Architecture:
 ```
 DNS:
-  nl.hundlervpn.xyz   A   158.160.254.104   (YC bridge IP)
+  obxod.hundlervpn.xyz  A  195.216.169.154  (NL direct IP)
   de.hundlervpn.xyz   A   213.182.213.183   (DE direct IP)
   it.hundlervpn.xyz   A   <next server>     (etc.)
 
