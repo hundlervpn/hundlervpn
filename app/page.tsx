@@ -100,6 +100,8 @@ const translations = {
     setupInstallTitle: 'Установка клиента',
     setupInstallDesc: 'Сначала установите приложение клиента на устройство.',
     setupInstallButton: 'Установить клиент',
+    setupHundlerWinTitle: 'Скачать HundlerVPN для Windows',
+    setupHundlerWinDesc: 'Наше приложение для Windows — подписка подключается автоматически, ничего настраивать вручную не нужно.',
     setupChooseClient: 'Выберите клиент',
     setupClientRecommended: 'Рекомендуется',
     setupClientHiddifyDesc: 'Проще в использовании',
@@ -466,6 +468,8 @@ const translations = {
     setupInstallTitle: 'Install client',
     setupInstallDesc: 'First, install the client application on your device.',
     setupInstallButton: 'Install client',
+    setupHundlerWinTitle: 'Download HundlerVPN for Windows',
+    setupHundlerWinDesc: 'Our native Windows app — your subscription connects automatically, no manual setup needed.',
     setupChooseClient: 'Choose client',
     setupClientRecommended: 'Recommended',
     setupClientHiddifyDesc: 'Easiest to use',
@@ -1790,6 +1794,11 @@ function HomeView({ t, direction, subscriptionEndDateLabel, subscriptionDaysLabe
     }
   };
 
+  // Public pretty link to our native Windows installer. Backend `/download`
+  // (app/download/route.ts) 302-redirects to the proxy that streams the latest
+  // HundlerVPN-Setup-*.exe from the (now private) Hundler-App repo via token.
+  const HUNDLER_WINDOWS_DOWNLOAD = 'https://hundlervpn.xyz/download';
+
   const getStoreLink = () => {
     if (setupClient === 'v2raytun') {
       // v2rayTun — https://v2raytun.com
@@ -2134,6 +2143,21 @@ function HomeView({ t, direction, subscriptionEndDateLabel, subscriptionDaysLabe
                     <h3 className="text-xl sm:text-2xl font-bold text-center text-white mb-2">{t.setupInstallTitle}</h3>
                     <p className="text-zinc-400 text-center text-sm mb-5 sm:mb-7">{t.setupInstallDesc}</p>
 
+                    {/* Native HundlerVPN Windows client — recommended for Windows.
+                        Downloads via our domain (hundlervpn.xyz/download), which
+                        proxies the installer from the private Hundler-App repo. */}
+                    {deviceOS === 'windows' && (
+                      <div className="mb-5 rounded-2xl border border-white/15 bg-white/[0.04] p-4">
+                        <p className="text-white font-semibold text-sm mb-1">{t.setupHundlerWinTitle}</p>
+                        <p className="text-zinc-400 text-xs mb-3 leading-relaxed">{t.setupHundlerWinDesc}</p>
+                        <button
+                          onClick={() => openStoreLink(HUNDLER_WINDOWS_DOWNLOAD)}
+                          className="w-full bg-gradient-to-r from-red-500 to-red-600 border border-red-400/30 text-white font-semibold py-3.5 rounded-full flex items-center justify-center gap-2 active:scale-95 text-sm shadow-lg shadow-red-500/25 hover:shadow-red-500/40 transition-shadow"
+                        >
+                          <Download size={16} /> {t.setupHundlerWinTitle}
+                        </button>
+                      </div>
+                    )}
 
                     {setupClient === 'happ' && (deviceOS === 'ios' || deviceOS === 'macos') && (
                       <div className="mb-5">
