@@ -1071,9 +1071,9 @@ export function getReferralBonusDays(paidDays: number): number {
  */
 export async function applyReferralReward(
   client: PoolClient,
-  paidUserId: number,
+  paidUserId: number | string,
   paidDays: number,
-  paymentId: number | null
+  paymentId: number | string | null
 ) {
   const bonusDays = getReferralBonusDays(paidDays);
   if (bonusDays <= 0) {
@@ -1083,7 +1083,14 @@ export async function applyReferralReward(
   // No paymentId → can't dedupe across retries. Skip rather than risk
   // double-crediting the inviter. All three current callers (SBP, crypto,
   // Telegram Stars webhook) pass a concrete id.
-  if (!paymentId || !Number.isFinite(paymentId) || paymentId <= 0) {
+  //
+  // 2026-06-10: coerce to number FIRST. `payments.id` is BIGSERIAL and
+  // node-pg returns int8 as a STRING — `Number.isFinite("133")` is false,
+  // so this guard silently skipped the day-bonus for every DB-selected
+  // payment id (same root cause as the referral-cash accrual bug, see
+  // lib/referral-cash.ts).
+  const pid = Number(paymentId);
+  if (!pid || !Number.isFinite(pid) || pid <= 0) {
     return;
   }
 
@@ -1113,7 +1120,7 @@ export async function applyReferralReward(
     ON CONFLICT (payment_id) WHERE payment_id IS NOT NULL AND bonus_type = 'payment' DO NOTHING
     RETURNING id;
     `,
-    [inviterUserId, paidUserId, bonusDays, paymentId]
+    [inviterUserId, paidUserId, bonusDays, pid]
   );
 
   if (journal.rowCount === 0) {
