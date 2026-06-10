@@ -300,7 +300,7 @@ cat > /usr/local/etc/xray/config.json <<EOF
       "lkfl2.nalog.ru": "213.24.64.175",
       "lknpd.nalog.ru": "213.24.64.181"
     },
-    "queryStrategy": "UseIP",
+    "queryStrategy": "UseIPv4",
     "servers": [
       "${DNS_PRIMARY}",
       "${DNS_SECONDARY}"
@@ -345,7 +345,7 @@ cat > /usr/local/etc/xray/config.json <<EOF
     {
       "tag": "direct",
       "protocol": "freedom",
-      "settings": { "domainStrategy": "UseIPv4v6" }
+      "settings": { "domainStrategy": "ForceIPv4" }
     },
     { "tag": "block",   "protocol": "blackhole" },
     { "tag": "dns-out", "protocol": "dns" }
