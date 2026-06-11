@@ -568,6 +568,17 @@ ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS traffic_used_bytes BIGINT NOT
 -- Set default 1000 GB traffic limit on all plans that don't have one yet.
 UPDATE plans SET traffic_limit = 1000000000000 WHERE traffic_limit IS NULL;
 
+-- 2026-06-11: monthly traffic accumulator for the admin Stats histogram.
+-- Cumulative counters (subscriptions.traffic_used_bytes, user_server_traffic)
+-- can't be split by month after the fact — Xray ships resettable deltas every
+-- 5 min — so `/api/xray/traffic` increments the current month's bucket here on
+-- every push. `month` = first day of month; `bytes_total` = uplink+downlink.
+CREATE TABLE IF NOT EXISTS traffic_monthly (
+  month DATE PRIMARY KEY,
+  bytes_total BIGINT NOT NULL DEFAULT 0,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- ────────────────────────────────────────────────────────────────────────────
 -- Referral bonus journal (2026-05-03, v2 2026-05-04).
 --

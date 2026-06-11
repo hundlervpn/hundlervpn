@@ -185,6 +185,31 @@ export async function POST(req: Request) {
     for (const v of userTraffic.values()) {
       subBytesPerUser.set(v.userId, (subBytesPerUser.get(v.userId) || 0) + v.bytes);
     }
+
+    // Monthly traffic histogram (2026-06-11): accumulate this batch's total
+    // bytes (across ALL servers/protocols/users) into the current calendar
+    // month's bucket so the admin Stats tab can render a "трафик по месяцам"
+    // gistogram. We bucket by NOW() because Xray ships resettable 5-min deltas
+    // — there is no per-byte timestamp to attribute traffic to a past month.
+    // We only count traffic that resolved to a real user (userTraffic) so the
+    // total stays consistent with "сколько сожрано пользователями".
+    let batchTotalBytes = 0;
+    for (const v of userTraffic.values()) batchTotalBytes += v.bytes;
+    if (batchTotalBytes > 0) {
+      try {
+        await dbQuery(
+          `INSERT INTO traffic_monthly (month, bytes_total, updated_at)
+           VALUES (date_trunc('month', NOW())::date, $1, NOW())
+           ON CONFLICT (month) DO UPDATE SET
+             bytes_total = traffic_monthly.bytes_total + EXCLUDED.bytes_total,
+             updated_at = NOW()`,
+          [batchTotalBytes],
+        );
+      } catch (e) {
+        // Never let monthly accounting break the live quota/heartbeat path.
+        console.warn('[xray-traffic] traffic_monthly upsert failed:', e);
+      }
+    }
     for (const [userId, bytes] of subBytesPerUser) {
       const subRes = await dbQuery(
         `UPDATE subscriptions
