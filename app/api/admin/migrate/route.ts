@@ -72,6 +72,16 @@ CREATE INDEX IF NOT EXISTS idx_support_ticket_attachments_ticket ON support_tick
 -- is unchanged. Idempotent.
 ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS image_data BYTEA;
 ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS image_mime TEXT;
+
+-- 2026-06-11: monthly traffic accumulator for the admin Stats histogram.
+-- /api/xray/traffic increments the current month's bucket on every push.
+-- Cumulative counters can't be split by month retroactively, so history
+-- builds forward from now. Idempotent.
+CREATE TABLE IF NOT EXISTS traffic_monthly (
+  month DATE PRIMARY KEY,
+  bytes_total BIGINT NOT NULL DEFAULT 0,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 `;
 
 export async function POST(req: Request) {

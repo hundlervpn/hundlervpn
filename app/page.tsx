@@ -200,6 +200,8 @@ const translations = {
     adminRevenue: 'Доход (всего)',
     adminRevenueMonth: 'Доход за месяц',
     adminRevenueByMonth: 'Доход по месяцам',
+    adminTraffic: 'Трафик (всего)',
+    adminTrafficByMonth: 'Трафик по месяцам',
     adminActiveSubs: 'Активных подписок',
     adminPaidPayments: 'Оплаченных',
     adminSearchUsers: 'Поиск по имени или ID...',
@@ -574,6 +576,8 @@ const translations = {
     adminRevenue: 'Revenue (total)',
     adminRevenueMonth: 'Revenue this month',
     adminRevenueByMonth: 'Revenue by month',
+    adminTraffic: 'Traffic (total)',
+    adminTrafficByMonth: 'Traffic by month',
     adminActiveSubs: 'Active subs',
     adminPaidPayments: 'Paid',
     adminSearchUsers: 'Search by name or ID...',
@@ -5350,6 +5354,20 @@ function ServicesView({ t, direction, tgUser, navigate, lang, onHideNav }: { t: 
   );
 }
 
+// Human-readable byte formatter for the admin traffic stats (2026-06-11).
+// Uses binary units (KiB/MiB/GiB/TiB) shown with familiar КБ/МБ/ГБ/ТБ labels,
+// matching the existing per-user formatting in renderConnUserRow.
+function formatTrafficBytes(bytes: number): string {
+  if (!bytes || bytes <= 0) return '0 МБ';
+  const tb = bytes / (1024 ** 4);
+  if (tb >= 1) return `${tb.toFixed(2)} ТБ`;
+  const gb = bytes / (1024 ** 3);
+  if (gb >= 1) return `${gb.toFixed(2)} ГБ`;
+  const mb = bytes / (1024 ** 2);
+  if (mb >= 1) return `${mb.toFixed(1)} МБ`;
+  return `${(bytes / 1024).toFixed(0)} КБ`;
+}
+
 type AdminStats = {
   totalUsers: number;
   todayUsers: number;
@@ -5360,6 +5378,10 @@ type AdminStats = {
   paidPayments: number;
   activeSubscriptions: number;
   monthlyRevenue: { month: string; revenue: number; paidCount: number }[];
+  // Traffic (2026-06-11): lifetime total bytes consumed by users + a monthly
+  // histogram that accumulates forward from when tracking started.
+  totalTrafficBytes: number;
+  monthlyTraffic: { month: string; bytes: number }[];
 };
 
 type AdminUser = {
@@ -7218,6 +7240,13 @@ function AdminView({ t, direction, tgUser, navigate, lang, onHideNav, onLockAdmi
                   </div>
                   <span className="text-white text-xl font-bold">{stats.paidPayments}</span>
                 </div>
+                <div className="rounded-xl border border-white/10 bg-zinc-900/60 p-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Download size={14} className="text-violet-400" />
+                    <span className="text-zinc-400 text-[10px] uppercase tracking-wider">{t.adminTraffic}</span>
+                  </div>
+                  <span className="text-white text-xl font-bold">{formatTrafficBytes(stats.totalTrafficBytes)}</span>
+                </div>
               </div>
             ) : null
           )}
@@ -7252,6 +7281,45 @@ function AdminView({ t, direction, tgUser, navigate, lang, onHideNav, onLockAdmi
                         </div>
                         <span className="text-white text-[12px] font-semibold w-20 text-right shrink-0">{m.revenue}₽</span>
                         <span className="text-zinc-500 text-[10px] w-12 text-right shrink-0">{m.paidCount} {lang === 'ru' ? 'опл.' : 'paid'}</span>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+
+          {/* Traffic by month (2026-06-11) — histogram, visible on Stats tab.
+              Builds forward from when monthly tracking started; the total card
+              above (lifetime) can exceed the sum of the bars for older history. */}
+          {adminTab === 'stats' && stats && stats.monthlyTraffic && stats.monthlyTraffic.length > 0 && (
+            <div className="mt-3 rounded-xl border border-white/10 bg-zinc-900/60 p-3">
+              <div className="flex items-center gap-2 mb-3">
+                <Download size={14} className="text-violet-400" />
+                <span className="text-zinc-400 text-[10px] uppercase tracking-wider">{t.adminTrafficByMonth}</span>
+              </div>
+              {(() => {
+                const maxBytes = Math.max(...stats.monthlyTraffic.map((m) => m.bytes), 1);
+                const monthNames = lang === 'ru'
+                  ? ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек']
+                  : ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                const fmtMonth = (m: string) => {
+                  const [y, mo] = m.split('-');
+                  const idx = parseInt(mo, 10) - 1;
+                  return `${monthNames[idx] ?? mo} ${y}`;
+                };
+                return (
+                  <div className="space-y-2">
+                    {stats.monthlyTraffic.map((m) => (
+                      <div key={m.month} className="flex items-center gap-2">
+                        <span className="text-zinc-400 text-[11px] w-16 shrink-0">{fmtMonth(m.month)}</span>
+                        <div className="flex-1 h-2 rounded-full bg-white/5 overflow-hidden">
+                          <div
+                            className="h-full rounded-full bg-gradient-to-r from-violet-500/70 to-fuchsia-400"
+                            style={{ width: `${(m.bytes / maxBytes) * 100}%` }}
+                          />
+                        </div>
+                        <span className="text-white text-[12px] font-semibold w-24 text-right shrink-0">{formatTrafficBytes(m.bytes)}</span>
                       </div>
                     ))}
                   </div>

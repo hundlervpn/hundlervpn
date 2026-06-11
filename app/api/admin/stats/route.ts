@@ -11,7 +11,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const [usersResult, paymentsResult, subsResult, monthlyResult] = await Promise.all([
+    const [usersResult, paymentsResult, subsResult, monthlyResult, trafficTotalResult, monthlyTrafficResult] = await Promise.all([
       dbQuery<{ total: string; today: string; banned: string }>(`
         SELECT
           COUNT(*)::text AS total,
@@ -47,6 +47,25 @@ export async function GET(req: Request) {
         ORDER BY date_trunc('month', COALESCE(paid_at, created_at)) DESC
         LIMIT 24;
       `),
+      // All-time total traffic consumed by users. subscriptions.traffic_used_bytes
+      // is a lifetime per-subscription counter that never resets (a new sub starts
+      // at 0, expired subs keep their value), so SUM across ALL rows ≈ lifetime
+      // bytes through the tunnels. This includes history from before the monthly
+      // bucket table existed, so it can legitimately exceed the sum of the bars.
+      dbQuery<{ total_bytes: string }>(`
+        SELECT COALESCE(SUM(traffic_used_bytes), 0)::text AS total_bytes
+        FROM subscriptions;
+      `),
+      // Monthly traffic histogram (2026-06-11). Accumulated forward by
+      // /api/xray/traffic — past months before the table existed are absent.
+      dbQuery<{ month: string; bytes: string }>(`
+        SELECT
+          to_char(month, 'YYYY-MM') AS month,
+          bytes_total::text AS bytes
+        FROM traffic_monthly
+        ORDER BY month DESC
+        LIMIT 24;
+      `),
     ]);
 
     return NextResponse.json({
@@ -64,6 +83,13 @@ export async function GET(req: Request) {
           month: r.month,
           revenue: Number(r.revenue ?? 0),
           paidCount: Number(r.paid_count ?? 0),
+        })),
+        // BIGINT comes back as a string from node-pg; Number() is safe here
+        // (Number.MAX_SAFE_INTEGER ≈ 9 PB, far above realistic byte totals).
+        totalTrafficBytes: Number(trafficTotalResult.rows[0]?.total_bytes ?? 0),
+        monthlyTraffic: monthlyTrafficResult.rows.map((r) => ({
+          month: r.month,
+          bytes: Number(r.bytes ?? 0),
         })),
       },
     });
