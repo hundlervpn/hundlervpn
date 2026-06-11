@@ -1,6 +1,13 @@
 import { NextResponse } from 'next/server';
 import { dbQuery } from '@/lib/db';
 import { isAdmin } from '@/lib/admin';
+import { parseIncomingAttachments } from '@/lib/ticket-attachments';
+
+// Public base URL of the app — used to build the broadcast image serving URL
+// (/api/broadcasts/<id>/image) that the bot hands to Telegram's sendPhoto.
+// Telegram fetches the image from this URL, so it must be the real public
+// origin. Mirrors the fallback used across the codebase.
+const APP_URL = process.env.APP_URL || 'https://hundlervpn.xyz';
 
 type Broadcast = {
   id: string;
@@ -125,6 +132,12 @@ export async function POST(req: Request) {
       title,
       message,
       imageUrl,
+      // 2026-06-11: optional uploaded image (base64). When present it takes
+      // precedence over imageUrl — we store the bytes as BYTEA and point
+      // image_url at our own serving route. `imageMime` is optional when
+      // imageDataBase64 is a full data: URL (mime is parsed from it).
+      imageDataBase64,
+      imageMime,
       buttonText,
       buttonUrl,
       targetTelegramId,
@@ -140,6 +153,22 @@ export async function POST(req: Request) {
 
     if (!message?.trim()) {
       return NextResponse.json({ error: 'Message is required' }, { status: 400 });
+    }
+
+    // 2026-06-11: validate an optionally-uploaded image. Reuse the ticket
+    // attachment parser (mime allow-list + 5 MB cap) by wrapping the single
+    // image in a one-element array. An uploaded file takes precedence over a
+    // pasted imageUrl link.
+    let uploadedImage: { mime: string; bytes: Buffer } | null = null;
+    if (typeof imageDataBase64 === 'string' && imageDataBase64.trim()) {
+      const parsed = parseIncomingAttachments([{ mime: imageMime, dataBase64: imageDataBase64 }]);
+      if (!parsed.ok) {
+        return NextResponse.json({ error: parsed.error }, { status: 400 });
+      }
+      const first = parsed.attachments[0];
+      if (first) {
+        uploadedImage = { mime: first.mime, bytes: first.bytes };
+      }
     }
 
     // v65: normalize audience. Default 'all' for backward compat with old admin UI.
@@ -212,17 +241,26 @@ export async function POST(req: Request) {
       totalUsers = Number(countResult.rows[0]?.count ?? 0);
     }
 
+    // For an uploaded file we don't yet know the row id (BIGSERIAL), so we
+    // can't build /api/broadcasts/<id>/image up front. INSERT first with the
+    // image bytes (image_url NULL), then UPDATE image_url to the serving
+    // route once we have the id. For a pasted link we just store imageUrl.
+    const initialImageUrl: string | null = uploadedImage ? null : (imageUrl?.trim() || null);
+
     // Create broadcast record
     const result = await dbQuery<{ id: string }>(
-      `INSERT INTO broadcasts (title, message, image_url, button_text, button_url,
+      `INSERT INTO broadcasts (title, message, image_url, image_data, image_mime,
+                               button_text, button_url,
                                button_kind, button_promo_code,
                                target_telegram_id, target_audience, total_users, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
        RETURNING id::text`,
       [
         title?.trim() || null,
         message.trim(),
-        imageUrl?.trim() || null,
+        initialImageUrl,
+        uploadedImage ? uploadedImage.bytes : null,
+        uploadedImage ? uploadedImage.mime : null,
         buttonText?.trim() || null,
         finalButtonUrl,
         buttonKind,
@@ -234,14 +272,28 @@ export async function POST(req: Request) {
       ]
     );
 
+    const broadcastId = result.rows[0].id;
+
+    // Point image_url at our public serving route so the bot's existing
+    // URLInputFile(image_url) flow fetches the uploaded bytes from us.
+    let finalImageUrl = initialImageUrl;
+    if (uploadedImage) {
+      finalImageUrl = `${APP_URL}/api/broadcasts/${broadcastId}/image`;
+      await dbQuery(
+        `UPDATE broadcasts SET image_url = $1 WHERE id = $2`,
+        [finalImageUrl, broadcastId]
+      );
+    }
+
     return NextResponse.json({
       ok: true,
-      broadcastId: result.rows[0].id,
+      broadcastId,
       totalUsers,
       targeted: !!targetTelegramId,
       targetAudience,
       buttonKind,
       buttonPromoCode,
+      imageUrl: finalImageUrl,
     });
   } catch (error) {
     console.error('Admin broadcasts POST error:', error);
