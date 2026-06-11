@@ -102,6 +102,8 @@ const translations = {
     setupInstallButton: 'Установить клиент',
     setupHundlerWinTitle: 'Скачать HundlerVPN для Windows',
     setupHundlerWinDesc: 'Наше приложение для Windows — подписка подключается автоматически, ничего настраивать вручную не нужно.',
+    setupHundlerAndroidTitle: 'Скачать HundlerVPN для Android',
+    setupHundlerAndroidDesc: 'Наше приложение для Android — подписка подключается автоматически, обновления прилетают прямо в приложение.',
     setupChooseClient: 'Выберите клиент',
     setupClientRecommended: 'Рекомендуется',
     setupClientHiddifyDesc: 'Проще в использовании',
@@ -478,6 +480,8 @@ const translations = {
     setupInstallButton: 'Install client',
     setupHundlerWinTitle: 'Download HundlerVPN for Windows',
     setupHundlerWinDesc: 'Our native Windows app — your subscription connects automatically, no manual setup needed.',
+    setupHundlerAndroidTitle: 'Download HundlerVPN for Android',
+    setupHundlerAndroidDesc: 'Our native Android app — your subscription connects automatically and updates arrive right inside the app.',
     setupChooseClient: 'Choose client',
     setupClientRecommended: 'Recommended',
     setupClientHiddifyDesc: 'Easiest to use',
@@ -1814,6 +1818,10 @@ function HomeView({ t, direction, subscriptionEndDateLabel, subscriptionDaysLabe
   // (app/download/route.ts) 302-redirects to the proxy that streams the latest
   // HundlerVPN-Setup-*.exe from the (now private) Hundler-App repo via token.
   const HUNDLER_WINDOWS_DOWNLOAD = 'https://hundlervpn.xyz/download';
+  // Same idea for Android: `/download/android` (app/download/android/route.ts)
+  // 302-redirects to the proxy that streams the latest arm64-v8a APK from the
+  // private Hundler-Android repo via token.
+  const HUNDLER_ANDROID_DOWNLOAD = 'https://hundlervpn.xyz/download/android';
 
   const getStoreLink = () => {
     if (setupClient === 'v2raytun') {
@@ -2171,6 +2179,22 @@ function HomeView({ t, direction, subscriptionEndDateLabel, subscriptionDaysLabe
                           className="w-full bg-gradient-to-r from-red-500 to-red-600 border border-red-400/30 text-white font-semibold py-3.5 rounded-full flex items-center justify-center gap-2 active:scale-95 text-sm shadow-lg shadow-red-500/25 hover:shadow-red-500/40 transition-shadow"
                         >
                           <Download size={16} /> {t.setupHundlerWinTitle}
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Native HundlerVPN Android client — recommended for Android.
+                        APK downloads via our domain (hundlervpn.xyz/download/android),
+                        which proxies it from the private Hundler-Android repo. */}
+                    {deviceOS === 'android' && (
+                      <div className="mb-5 rounded-2xl border border-white/15 bg-white/[0.04] p-4">
+                        <p className="text-white font-semibold text-sm mb-1">{t.setupHundlerAndroidTitle}</p>
+                        <p className="text-zinc-400 text-xs mb-3 leading-relaxed">{t.setupHundlerAndroidDesc}</p>
+                        <button
+                          onClick={() => openStoreLink(HUNDLER_ANDROID_DOWNLOAD)}
+                          className="w-full bg-gradient-to-r from-red-500 to-red-600 border border-red-400/30 text-white font-semibold py-3.5 rounded-full flex items-center justify-center gap-2 active:scale-95 text-sm shadow-lg shadow-red-500/25 hover:shadow-red-500/40 transition-shadow"
+                        >
+                          <Download size={16} /> {t.setupHundlerAndroidTitle}
                         </button>
                       </div>
                     )}
