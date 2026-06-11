@@ -112,6 +112,8 @@ const translations = {
     setupClientHappSubtitle: 'VPN Client',
     setupClientV2RayTunTitle: 'v2rayTun',
     setupClientV2RayTunSubtitle: 'Альтернативный клиент',
+    setupClientHundlerTitle: 'HundlerVPN',
+    setupClientHundlerSubtitle: 'Наше приложение',
     setupAddTitle: 'Добавление подписки',
     setupAddDesc: 'Скопируйте ключ и вставьте его в VPN-приложение.',
     setupAddButton: 'Скопировать ключ',
@@ -490,6 +492,8 @@ const translations = {
     setupClientHappSubtitle: 'VPN Client',
     setupClientV2RayTunTitle: 'v2rayTun',
     setupClientV2RayTunSubtitle: 'Alternative client',
+    setupClientHundlerTitle: 'HundlerVPN',
+    setupClientHundlerSubtitle: 'Our native app',
     setupAddTitle: 'Add subscription key',
     setupAddDesc: 'Copy the key and paste it into your VPN app.',
     setupAddButton: 'Copy key',
@@ -1610,7 +1614,7 @@ function HomeView({ t, direction, subscriptionEndDateLabel, subscriptionDaysLabe
   const [setupStep, setSetupStep] = useState<1 | 2 | 3>(1);
   const [showDevicePicker, setShowDevicePicker] = useState(false);
   const [setupRegion, setSetupRegion] = useState<'global' | 'russia'>('russia');
-  const [setupClient, setSetupClient] = useState<'happ' | 'v2raytun'>('happ');
+  const [setupClient, setSetupClient] = useState<'hundler' | 'happ' | 'v2raytun'>('happ');
   const [vpnKey, setVpnKey] = useState<string | null>(null);
   const [vpnKeyLoading, setVpnKeyLoading] = useState(false);
   const [keyCopied, setKeyCopied] = useState(false);
@@ -1700,7 +1704,7 @@ function HomeView({ t, direction, subscriptionEndDateLabel, subscriptionDaysLabe
     setDeviceOS(os);
     setSetupStep(1);
     setShowDevicePicker(false);
-    setSetupClient('happ');
+    setSetupClient(os === 'windows' ? 'hundler' : 'happ');
     setShowSetupModal(true);
   };
 
@@ -1818,10 +1822,21 @@ function HomeView({ t, direction, subscriptionEndDateLabel, subscriptionDaysLabe
   // (app/download/route.ts) 302-redirects to the proxy that streams the latest
   // HundlerVPN-Setup-*.exe from the (now private) Hundler-App repo via token.
   const HUNDLER_WINDOWS_DOWNLOAD = 'https://hundlervpn.xyz/download';
-  // Same idea for Android: `/download/android` (app/download/android/route.ts)
-  // 302-redirects to the proxy that streams the latest arm64-v8a APK from the
-  // private Hundler-Android repo via token.
-  const HUNDLER_ANDROID_DOWNLOAD = 'https://hundlervpn.xyz/download/android';
+
+  // Which clients we offer per platform, in display order. The FIRST entry is
+  // the recommended one (gets the badge) and the default selection. Windows:
+  // our native HundlerVPN app first, then Happ. Everywhere else (incl. Android,
+  // where our native app is still store-only / too raw to push): Happ + v2rayTun.
+  const clientsForOS = (os: typeof deviceOS): Array<'hundler' | 'happ' | 'v2raytun'> =>
+    os === 'windows' ? ['hundler', 'happ'] : ['happ', 'v2raytun'];
+  const availableClients = clientsForOS(deviceOS);
+  // Switching device in the picker also resets to that platform's recommended
+  // client so we never end up with an option that doesn't apply (e.g. 'hundler'
+  // selected after switching to Android).
+  const pickDeviceOS = (os: typeof deviceOS) => {
+    setDeviceOS(os);
+    setSetupClient(clientsForOS(os)[0]);
+  };
 
   const getStoreLink = () => {
     if (setupClient === 'v2raytun') {
@@ -2068,41 +2083,38 @@ function HomeView({ t, direction, subscriptionEndDateLabel, subscriptionDaysLabe
                     {/* Client chooser */}
                     <p className="text-zinc-500 text-[11px] uppercase tracking-[0.18em] text-center mb-2">{t.setupChooseClient}</p>
                     <div className="grid grid-cols-2 gap-2 mb-5 sm:mb-6">
-                      <button
-                        onClick={() => { haptic('light'); setSetupClient('happ'); }}
-                        className={`relative rounded-xl border px-3 py-3 transition-all text-left ${setupClient === 'happ' ? 'border-white/60 bg-white/[0.06] shadow-[0_0_16px_rgba(255,255,255,0.18)]' : 'border-white/10 bg-zinc-900/50 hover:border-white/20'}`}
-                      >
-                        {/* 2026-05-13: switched from violet/red gradient to a
-                            crisp white-on-black pill per user request — purple
-                            was clashing with the strict black/red palette and
-                            felt off-brand. */}
-                        <div className="absolute -top-1.5 right-2 rounded-full bg-black border border-white/80 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white">
-                          {t.setupClientRecommended}
-                        </div>
-                        <div className="flex items-center gap-2.5">
-                          <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border ${setupClient === 'happ' ? 'border-white/40 bg-white/10' : 'border-white/10 bg-zinc-800/80'}`}>
-                            <HappIcon size={20} className={setupClient === 'happ' ? 'text-white' : 'text-zinc-400'} />
-                          </div>
-                          <div className="min-w-0">
-                            <p className={`font-semibold text-sm ${setupClient === 'happ' ? 'text-white' : 'text-zinc-300'}`}>{t.setupClientHappTitle}</p>
-                            <p className="text-zinc-500 text-[10px] truncate">{t.setupClientHappSubtitle}</p>
-                          </div>
-                        </div>
-                      </button>
-                      <button
-                        onClick={() => { haptic('light'); setSetupClient('v2raytun'); }}
-                        className={`rounded-xl border px-3 py-3 transition-all text-left ${setupClient === 'v2raytun' ? 'border-red-500/50 bg-red-500/10 shadow-[0_0_16px_rgba(239,68,68,0.25)]' : 'border-white/10 bg-zinc-900/50 hover:border-white/20'}`}
-                      >
-                        <div className="flex items-center gap-2.5">
-                          <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border ${setupClient === 'v2raytun' ? 'border-red-500/40 bg-red-500/20' : 'border-white/10 bg-zinc-800/80'}`}>
-                            <V2RayTunIcon size={20} className={setupClient === 'v2raytun' ? 'text-red-300' : 'text-zinc-400'} />
-                          </div>
-                          <div className="min-w-0">
-                            <p className={`font-semibold text-sm ${setupClient === 'v2raytun' ? 'text-white' : 'text-zinc-300'}`}>{t.setupClientV2RayTunTitle}</p>
-                            <p className="text-zinc-500 text-[10px] truncate">{t.setupClientV2RayTunSubtitle}</p>
-                          </div>
-                        </div>
-                      </button>
+                      {availableClients.map((client, idx) => {
+                        const selected = setupClient === client;
+                        const meta = {
+                          hundler: { title: t.setupClientHundlerTitle, subtitle: t.setupClientHundlerSubtitle, icon: <Shield size={20} strokeWidth={1.8} className={selected ? 'text-white' : 'text-zinc-400'} /> },
+                          happ: { title: t.setupClientHappTitle, subtitle: t.setupClientHappSubtitle, icon: <HappIcon size={20} className={selected ? 'text-white' : 'text-zinc-400'} /> },
+                          v2raytun: { title: t.setupClientV2RayTunTitle, subtitle: t.setupClientV2RayTunSubtitle, icon: <V2RayTunIcon size={20} className={selected ? 'text-white' : 'text-zinc-400'} /> },
+                        }[client];
+                        // The FIRST client for the platform is the recommended one.
+                        const recommended = idx === 0;
+                        return (
+                          <button
+                            key={client}
+                            onClick={() => { haptic('light'); setSetupClient(client); }}
+                            className={`relative rounded-xl border px-3 py-3 transition-all text-left ${selected ? 'border-white/60 bg-white/[0.06] shadow-[0_0_16px_rgba(255,255,255,0.18)]' : 'border-white/10 bg-zinc-900/50 hover:border-white/20'}`}
+                          >
+                            {recommended && (
+                              <div className="absolute -top-1.5 right-2 rounded-full bg-black border border-white/80 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white">
+                                {t.setupClientRecommended}
+                              </div>
+                            )}
+                            <div className="flex items-center gap-2.5">
+                              <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border ${selected ? 'border-white/40 bg-white/10' : 'border-white/10 bg-zinc-800/80'}`}>
+                                {meta.icon}
+                              </div>
+                              <div className="min-w-0">
+                                <p className={`font-semibold text-sm ${selected ? 'text-white' : 'text-zinc-300'}`}>{meta.title}</p>
+                                <p className="text-zinc-500 text-[10px] truncate">{meta.subtitle}</p>
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
                     </div>
 
                     <div className="space-y-2.5">
@@ -2125,12 +2137,12 @@ function HomeView({ t, direction, subscriptionEndDateLabel, subscriptionDaysLabe
                       <div className="mt-4 rounded-2xl border border-white/10 bg-zinc-900/50 p-3">
                         <p className="text-zinc-400 text-xs uppercase tracking-wider mb-2">{t.setupChooseDevice}</p>
                         <div className="grid grid-cols-2 gap-2">
-                          <button onClick={() => setDeviceOS('windows')} className={`rounded-lg border px-3 py-2 text-sm transition-colors ${deviceOS === 'windows' ? 'border-white/35 text-white bg-white/10' : 'border-white/10 text-zinc-300'}`}>Windows</button>
-                          <button onClick={() => setDeviceOS('macos')} className={`rounded-lg border px-3 py-2 text-sm transition-colors ${deviceOS === 'macos' ? 'border-white/35 text-white bg-white/10' : 'border-white/10 text-zinc-300'}`}>macOS</button>
-                          <button onClick={() => setDeviceOS('android')} className={`rounded-lg border px-3 py-2 text-sm transition-colors ${deviceOS === 'android' ? 'border-white/35 text-white bg-white/10' : 'border-white/10 text-zinc-300'}`}>Android</button>
-                          <button onClick={() => setDeviceOS('ios')} className={`rounded-lg border px-3 py-2 text-sm transition-colors ${deviceOS === 'ios' ? 'border-white/35 text-white bg-white/10' : 'border-white/10 text-zinc-300'}`}>iPhone/iPad</button>
-                          <button onClick={() => setDeviceOS('linux')} className={`rounded-lg border px-3 py-2 text-sm transition-colors ${deviceOS === 'linux' ? 'border-white/35 text-white bg-white/10' : 'border-white/10 text-zinc-300'}`}>Linux</button>
-                          <button onClick={() => setDeviceOS('unknown')} className={`rounded-lg border px-3 py-2 text-sm transition-colors ${deviceOS === 'unknown' ? 'border-white/35 text-white bg-white/10' : 'border-white/10 text-zinc-300'}`}>Other</button>
+                          <button onClick={() => pickDeviceOS('windows')} className={`rounded-lg border px-3 py-2 text-sm transition-colors ${deviceOS === 'windows' ? 'border-white/35 text-white bg-white/10' : 'border-white/10 text-zinc-300'}`}>Windows</button>
+                          <button onClick={() => pickDeviceOS('macos')} className={`rounded-lg border px-3 py-2 text-sm transition-colors ${deviceOS === 'macos' ? 'border-white/35 text-white bg-white/10' : 'border-white/10 text-zinc-300'}`}>macOS</button>
+                          <button onClick={() => pickDeviceOS('android')} className={`rounded-lg border px-3 py-2 text-sm transition-colors ${deviceOS === 'android' ? 'border-white/35 text-white bg-white/10' : 'border-white/10 text-zinc-300'}`}>Android</button>
+                          <button onClick={() => pickDeviceOS('ios')} className={`rounded-lg border px-3 py-2 text-sm transition-colors ${deviceOS === 'ios' ? 'border-white/35 text-white bg-white/10' : 'border-white/10 text-zinc-300'}`}>iPhone/iPad</button>
+                          <button onClick={() => pickDeviceOS('linux')} className={`rounded-lg border px-3 py-2 text-sm transition-colors ${deviceOS === 'linux' ? 'border-white/35 text-white bg-white/10' : 'border-white/10 text-zinc-300'}`}>Linux</button>
+                          <button onClick={() => pickDeviceOS('unknown')} className={`rounded-lg border px-3 py-2 text-sm transition-colors ${deviceOS === 'unknown' ? 'border-white/35 text-white bg-white/10' : 'border-white/10 text-zinc-300'}`}>Other</button>
                         </div>
 
                         <div className="mt-3 pt-3 border-t border-white/10">
@@ -2170,7 +2182,7 @@ function HomeView({ t, direction, subscriptionEndDateLabel, subscriptionDaysLabe
                     {/* Native HundlerVPN Windows client — recommended for Windows.
                         Downloads via our domain (hundlervpn.xyz/download), which
                         proxies the installer from the private Hundler-App repo. */}
-                    {deviceOS === 'windows' && (
+                    {setupClient === 'hundler' && deviceOS === 'windows' && (
                       <div className="mb-5 rounded-2xl border border-white/15 bg-white/[0.04] p-4">
                         <p className="text-white font-semibold text-sm mb-1">{t.setupHundlerWinTitle}</p>
                         <p className="text-zinc-400 text-xs mb-3 leading-relaxed">{t.setupHundlerWinDesc}</p>
@@ -2183,21 +2195,6 @@ function HomeView({ t, direction, subscriptionEndDateLabel, subscriptionDaysLabe
                       </div>
                     )}
 
-                    {/* Native HundlerVPN Android client — recommended for Android.
-                        APK downloads via our domain (hundlervpn.xyz/download/android),
-                        which proxies it from the private Hundler-Android repo. */}
-                    {deviceOS === 'android' && (
-                      <div className="mb-5 rounded-2xl border border-white/15 bg-white/[0.04] p-4">
-                        <p className="text-white font-semibold text-sm mb-1">{t.setupHundlerAndroidTitle}</p>
-                        <p className="text-zinc-400 text-xs mb-3 leading-relaxed">{t.setupHundlerAndroidDesc}</p>
-                        <button
-                          onClick={() => openStoreLink(HUNDLER_ANDROID_DOWNLOAD)}
-                          className="w-full bg-gradient-to-r from-red-500 to-red-600 border border-red-400/30 text-white font-semibold py-3.5 rounded-full flex items-center justify-center gap-2 active:scale-95 text-sm shadow-lg shadow-red-500/25 hover:shadow-red-500/40 transition-shadow"
-                        >
-                          <Download size={16} /> {t.setupHundlerAndroidTitle}
-                        </button>
-                      </div>
-                    )}
 
                     {setupClient === 'happ' && (deviceOS === 'ios' || deviceOS === 'macos') && (
                       <div className="mb-5">
@@ -2209,10 +2206,10 @@ function HomeView({ t, direction, subscriptionEndDateLabel, subscriptionDaysLabe
                       </div>
                     )}
 
-                    {!getStoreLink() && !(deviceOS === 'linux' && setupClient === 'happ') && <p className="text-amber-300 text-xs mb-4">{t.setupNoStore}</p>}
+                    {setupClient !== 'hundler' && !getStoreLink() && !(deviceOS === 'linux' && setupClient === 'happ') && <p className="text-amber-300 text-xs mb-4">{t.setupNoStore}</p>}
 
                     <div className="space-y-2.5">
-                      {deviceOS === 'linux' && setupClient === 'happ' ? (
+                      {setupClient === 'hundler' ? null : deviceOS === 'linux' && setupClient === 'happ' ? (
                         <>
                           <p className="text-zinc-500 text-xs uppercase tracking-wider mb-1">{t.setupChooseFormat || 'Выберите формат'}</p>
                           <button
