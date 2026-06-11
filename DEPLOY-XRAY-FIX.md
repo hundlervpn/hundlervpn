@@ -11,7 +11,7 @@
 ### NL
 
 ```bash
-ssh root@185.238.169.235
+ssh root@195.216.169.154
 ```
 
 затем вставляй:
@@ -72,8 +72,8 @@ ssh root@213.182.213.183
 Из корня репозитория `hundler-vpn`:
 
 ```bash
-scp scripts/xray-sync.sh root@185.238.169.235:/opt/xray-sync.sh
-ssh root@185.238.169.235 'bash /opt/xray-sync.sh && tail -n 5 /var/log/xray-sync.log'
+scp scripts/xray-sync.sh root@195.216.169.154:/opt/xray-sync.sh
+ssh root@195.216.169.154 'bash /opt/xray-sync.sh && tail -n 5 /var/log/xray-sync.log'
 
 scp scripts/xray-sync.sh root@213.182.213.183:/opt/xray-sync.sh
 ssh root@213.182.213.183 'bash /opt/xray-sync.sh && tail -n 5 /var/log/xray-sync.log'
@@ -92,7 +92,7 @@ ssh root@213.182.213.183 'bash /opt/xray-sync.sh && tail -n 5 /var/log/xray-sync
 Проверка через 10 минут после деплоя:
 
 ```bash
-ssh root@185.238.169.235 'tail -n 30 /var/log/xray-sync.log'
+ssh root@195.216.169.154 'tail -n 30 /var/log/xray-sync.log'
 ssh root@213.182.213.183 'tail -n 30 /var/log/xray-sync.log'
 ```
 
@@ -100,8 +100,6 @@ ssh root@213.182.213.183 'tail -n 30 /var/log/xray-sync.log'
 неладно, дай знать (проверю что приходит из `/api/xray/clients`).
 
 ## Замечания
-- YC bridge (158.160.254.104) **не трогать** — там нет xray-sync, оно
-  pure dokodemo passthrough.
 - Этот скрипт уже закоммичен в `scripts/xray-sync.sh`
   (commit `5dff5d3`) и в `scripts/setup-germany-server.sh`, так что
   будущие новые VPN VPS получат фикс автоматически.
