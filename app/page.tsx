@@ -170,6 +170,11 @@ const translations = {
     adminBroadcastTitle: 'Заголовок (опционально)',
     adminBroadcastMessage: 'Текст сообщения',
     adminBroadcastImage: 'URL картинки (опционально)',
+    adminBroadcastImageUpload: 'Загрузить фото',
+    adminBroadcastImageOrUrl: 'или вставьте ссылку на картинку',
+    adminBroadcastImageRemove: 'Убрать фото',
+    adminBroadcastImageTooBig: 'Файл слишком большой (макс. 5 МБ)',
+    adminBroadcastImageBadType: 'Можно загружать только изображения',
     adminBroadcastButton: 'Текст кнопки',
     adminBroadcastButtonUrl: 'URL кнопки',
     adminBroadcastTargetId: 'Telegram ID (если указан — игнорирует фильтр аудитории)',
@@ -539,6 +544,11 @@ const translations = {
     adminBroadcastTitle: 'Title (optional)',
     adminBroadcastMessage: 'Message text',
     adminBroadcastImage: 'Image URL (optional)',
+    adminBroadcastImageUpload: 'Upload photo',
+    adminBroadcastImageOrUrl: 'or paste an image URL',
+    adminBroadcastImageRemove: 'Remove photo',
+    adminBroadcastImageTooBig: 'File is too large (max 5 MB)',
+    adminBroadcastImageBadType: 'Only image files are allowed',
     adminBroadcastButton: 'Button text',
     adminBroadcastButtonUrl: 'Button URL',
     adminBroadcastTargetId: 'Telegram ID (if set — overrides audience filter)',
@@ -6336,6 +6346,13 @@ function AdminView({ t, direction, tgUser, navigate, lang, onHideNav, onLockAdmi
   const [emojiHelperId, setEmojiHelperId] = useState('');
   const [emojiHelperFallback, setEmojiHelperFallback] = useState('');
   const [broadcastImage, setBroadcastImage] = useState('');
+  // 2026-06-11: optionally upload a photo file instead of pasting a URL.
+  // We keep the file as a base64 data URL (sent to the API as imageDataBase64)
+  // plus a preview URL + filename for the UI. An uploaded file takes
+  // precedence over the pasted broadcastImage URL.
+  const [broadcastImageDataUrl, setBroadcastImageDataUrl] = useState<string | null>(null);
+  const [broadcastImageName, setBroadcastImageName] = useState<string | null>(null);
+  const broadcastImageInputRef = useRef<HTMLInputElement | null>(null);
   const [broadcastButtonText, setBroadcastButtonText] = useState('');
   const [broadcastButtonUrl, setBroadcastButtonUrl] = useState('');
   // 2026-05-05: button kind for the inline button in a broadcast.
@@ -6659,6 +6676,36 @@ function AdminView({ t, direction, tgUser, navigate, lang, onHideNav, onLockAdmi
     }
   };
 
+  // 2026-06-11: read a picked broadcast image file into a base64 data URL.
+  const handleBroadcastImagePick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      alert(t.adminBroadcastImageBadType);
+      if (broadcastImageInputRef.current) broadcastImageInputRef.current.value = '';
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      alert(t.adminBroadcastImageTooBig);
+      if (broadcastImageInputRef.current) broadcastImageInputRef.current.value = '';
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setBroadcastImageDataUrl(typeof reader.result === 'string' ? reader.result : null);
+      setBroadcastImageName(file.name);
+      // A file overrides the pasted URL — clear it to avoid confusion.
+      setBroadcastImage('');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const clearBroadcastImageFile = () => {
+    setBroadcastImageDataUrl(null);
+    setBroadcastImageName(null);
+    if (broadcastImageInputRef.current) broadcastImageInputRef.current.value = '';
+  };
+
   const handleCreateBroadcast = async () => {
     haptic('heavy');
     if (!tgId || !broadcastMessage.trim()) return;
@@ -6677,7 +6724,10 @@ function AdminView({ t, direction, tgUser, navigate, lang, onHideNav, onLockAdmi
           telegramId: tgId,
           title: broadcastTitle.trim() || null,
           message: broadcastMessage.trim(),
+          // An uploaded file (imageDataBase64) takes precedence over a pasted
+          // URL on the server; we still send imageUrl as a fallback.
           imageUrl: broadcastImage.trim() || null,
+          imageDataBase64: broadcastImageDataUrl || null,
           buttonText: broadcastButtonText.trim() || null,
           // For 'app'/'promo' kinds the bot builds the URL itself, so
           // we don't need to send buttonUrl. Sending it anyway is fine —
@@ -6697,6 +6747,7 @@ function AdminView({ t, direction, tgUser, navigate, lang, onHideNav, onLockAdmi
         setBroadcastTitle('');
         setBroadcastMessage('');
         setBroadcastImage('');
+        clearBroadcastImageFile();
         setBroadcastButtonText('');
         setBroadcastButtonUrl('');
         setBroadcastButtonKind('url');
@@ -7911,13 +7962,57 @@ function AdminView({ t, direction, tgUser, navigate, lang, onHideNav, onLockAdmi
                       </div>
                     )}
                   </div>
-                  <input
-                    type="text"
-                    value={broadcastImage}
-                    onChange={(e) => setBroadcastImage(e.target.value)}
-                    placeholder={t.adminBroadcastImage}
-                    className="w-full bg-zinc-800/60 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-zinc-500 outline-none focus:border-white/25"
-                  />
+                  {/* 2026-06-11: broadcast image — upload a file OR paste a URL.
+                      An uploaded file takes precedence; it's stored as BYTEA in
+                      Postgres and served via /api/broadcasts/<id>/image, which
+                      the bot hands to Telegram's sendPhoto. */}
+                  <div className="space-y-2">
+                    {broadcastImageDataUrl ? (
+                      <div className="flex items-center gap-3 bg-zinc-800/60 border border-white/10 rounded-lg p-2">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={broadcastImageDataUrl}
+                          alt="preview"
+                          className="w-14 h-14 rounded-md object-cover border border-white/10"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs text-white truncate">{broadcastImageName}</div>
+                          <button
+                            type="button"
+                            onClick={clearBroadcastImageFile}
+                            className="mt-1 text-[11px] text-red-400 hover:text-red-300"
+                          >
+                            {t.adminBroadcastImageRemove}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => broadcastImageInputRef.current?.click()}
+                          className="w-full bg-zinc-800/60 hover:border-white/25 border border-white/10 border-dashed rounded-lg px-3 py-2.5 text-sm text-zinc-300 transition-colors"
+                        >
+                          📷 {t.adminBroadcastImageUpload}
+                        </button>
+                        <input
+                          type="text"
+                          value={broadcastImage}
+                          onChange={(e) => setBroadcastImage(e.target.value)}
+                          placeholder={t.adminBroadcastImage}
+                          className="w-full bg-zinc-800/60 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder:text-zinc-500 outline-none focus:border-white/25"
+                        />
+                        <p className="text-[10px] text-zinc-600 leading-snug">{t.adminBroadcastImageOrUrl}</p>
+                      </>
+                    )}
+                    <input
+                      ref={broadcastImageInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handleBroadcastImagePick}
+                      className="hidden"
+                    />
+                  </div>
                   {/* 2026-05-05: button kind picker.
                       - 'url'   → show URL input (legacy)
                       - 'app'   → no extra input (bot builds t.me/<bot>?startapp=open)

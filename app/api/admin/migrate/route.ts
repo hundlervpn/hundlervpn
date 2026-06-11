@@ -64,6 +64,14 @@ CREATE TABLE IF NOT EXISTS support_ticket_attachments (
 );
 CREATE INDEX IF NOT EXISTS idx_support_ticket_attachments_message ON support_ticket_attachments(message_id);
 CREATE INDEX IF NOT EXISTS idx_support_ticket_attachments_ticket ON support_ticket_attachments(ticket_id);
+
+-- 2026-06-11: uploaded broadcast image (BYTEA in Postgres, same reasoning as
+-- ticket attachments — container FS is wiped on redeploy). When set, the
+-- broadcasts POST stores bytes here and points image_url at the public
+-- serving route (/api/broadcasts/<id>/image) so the bot's URLInputFile flow
+-- is unchanged. Idempotent.
+ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS image_data BYTEA;
+ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS image_mime TEXT;
 `;
 
 export async function POST(req: Request) {

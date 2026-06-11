@@ -373,6 +373,16 @@ END $$;
 --   'promo' — opens the Mini App with a `promo_<CODE>` start_param so the
 --             frontend boot effect auto-applies the promo via
 --             /api/promos/apply. button_promo_code holds the CODE.
+-- 2026-06-11: uploaded broadcast image stored as BYTEA in Postgres (instead
+-- of / in addition to image_url). Same rationale as ticket attachments —
+-- the Hostman container FS is wiped on redeploy, so we can't keep files on
+-- disk. When an admin uploads a file we store the bytes here and set
+-- image_url to our public serving route (/api/broadcasts/<id>/image) so the
+-- bot's existing URLInputFile(image_url) flow keeps working unchanged.
+-- image_url alone (a remote link) still works for the legacy URL path.
+ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS image_data BYTEA;
+ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS image_mime TEXT;
+
 ALTER TABLE broadcasts ADD COLUMN IF NOT EXISTS button_kind TEXT
   NOT NULL DEFAULT 'url'
   CHECK (button_kind IN ('url', 'app', 'promo'));
