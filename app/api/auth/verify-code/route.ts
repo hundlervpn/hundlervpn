@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { dbQuery, getDbPool } from '@/lib/db';
 import { randomUUID } from 'crypto';
-import { issueTrialAccess, userNeedsInitialTrial } from '@/lib/access';
+import { attachSiteReferral, issueTrialAccess, userNeedsInitialTrial } from '@/lib/access';
 import { buildReferralCodeForUser } from '@/lib/referral-code';
 
 export async function POST(req: Request) {
@@ -9,6 +9,9 @@ export async function POST(req: Request) {
     const body = await req.json();
     const email = (body.email || '').trim().toLowerCase();
     const code = (body.code || '').trim();
+    // Site referral code from `?ref=<code>` captured on the web (passed by
+    // the login page). Only honoured for BRAND-NEW signups below.
+    const refCode = typeof body.ref === 'string' ? body.ref.trim() : '';
 
     if (!email || !code) {
       return NextResponse.json({ error: 'Email и код обязательны' }, { status: 400 });
@@ -93,6 +96,21 @@ export async function POST(req: Request) {
       const pool = getDbPool();
       const client = await pool.connect();
       try {
+        // Site referral attribution — ONLY for brand-new email signups.
+        // Sets referred_by_user_id (never overwrites) so the inviter earns
+        // the 10% CASH reward on this user's future RUB subscription
+        // payments. No bonus DAYS are granted for email signups by design.
+        if (isNew && refCode) {
+          try {
+            const { attached, inviterUserId } = await attachSiteReferral(client, userId, refCode);
+            if (attached) {
+              console.log(`[verify-code] site referral attached: invitee=${userId} inviter=${inviterUserId} (cash-only)`);
+            }
+          } catch (refAttachErr) {
+            console.error('[verify-code] site referral attach failed:', refAttachErr);
+          }
+        }
+
         if (await userNeedsInitialTrial(client, userId)) {
           // Email signups get a 1-day trial (vs Telegram's 3-day). Product
           // rule: email signups are easier to mass-create, so the trial is

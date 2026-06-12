@@ -3,7 +3,7 @@ import { dbQuery, getDbPool } from '@/lib/db';
 import { randomUUID } from 'crypto';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { buildReferralCodeForUser } from '@/lib/referral-code';
-import { issueTrialAccess, userNeedsInitialTrial } from '@/lib/access';
+import { attachSiteReferral, issueTrialAccess, userNeedsInitialTrial } from '@/lib/access';
 import { isAllowedNativeReturn } from '@/lib/native-return';
 
 const GOOGLE_ISSUER = 'https://accounts.google.com';
@@ -29,6 +29,7 @@ export async function GET(req: Request) {
     res.cookies.set('g_oauth_link_user', '', { path: '/', maxAge: 0 });
     res.cookies.set('g_oauth_link_origin', '', { path: '/', maxAge: 0 });
     res.cookies.set('g_oauth_native_return', '', { path: '/', maxAge: 0 });
+    res.cookies.set('g_oauth_ref', '', { path: '/', maxAge: 0 });
     return res;
   };
 
@@ -223,6 +224,7 @@ export async function GET(req: Request) {
     // LOGIN FLOW: find user by google_id, then by email, else create new.
     // ───────────────────────────────────────────────────────────────────────
     let userId: number | null = null;
+    let createdNewUser = false;
     const byGoogle = await dbQuery<{ id: number }>(
       `SELECT id FROM users WHERE google_id = $1 LIMIT 1;`,
       [googleId]
@@ -268,6 +270,7 @@ export async function GET(req: Request) {
           [googleId, email, firstName, lastName, picture]
         );
         userId = insertResult.rows[0].id;
+        createdNewUser = true;
       }
     }
 
@@ -297,6 +300,23 @@ export async function GET(req: Request) {
       const pool = getDbPool();
       const client = await pool.connect();
       try {
+        // Site referral attribution — ONLY for brand-new Google signups
+        // (LOGIN flow, not account-linking). Sets referred_by_user_id
+        // (never overwrites) so the inviter earns the 10% CASH reward on
+        // this user's future RUB subscription payments. No bonus DAYS for
+        // Google/email signups by design.
+        const refCode = cookies.get('g_oauth_ref') || '';
+        if (createdNewUser && !isLinkFlow && refCode) {
+          try {
+            const { attached, inviterUserId } = await attachSiteReferral(client, userId, refCode);
+            if (attached) {
+              console.log(`[google/callback] site referral attached: invitee=${userId} inviter=${inviterUserId} (cash-only)`);
+            }
+          } catch (refAttachErr) {
+            console.error('[google/callback] site referral attach failed:', refAttachErr);
+          }
+        }
+
         if (await userNeedsInitialTrial(client, userId)) {
           await issueTrialAccess(client, userId, 0, 1);
           console.log(`[google/callback] issued 1-day trial for user_id=${userId} (${email})`);

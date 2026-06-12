@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { motion, AnimatePresence } from 'motion/react';
@@ -32,8 +32,26 @@ import ParticlesBackground from '@/components/ParticlesBackground';
 export default function LandingPage() {
   const router = useRouter();
 
+  // Capture a site referral code from `?ref=<code>` (e.g. a friend opens
+  // hundlervpn.xyz/?ref=<code>) and persist it so it survives the route to
+  // /login and the email/Google signup. The inviter then earns the 10%
+  // cash reward on this user's RUB subscription payments (no bonus days —
+  // email/Google referrals are cash-only).
+  useEffect(() => {
+    try {
+      const ref = new URLSearchParams(window.location.search).get('ref');
+      if (ref && ref.trim()) {
+        localStorage.setItem('hvpn_ref', ref.trim().slice(0, 64));
+      }
+    } catch { /* ignore */ }
+  }, []);
+
   const goToLogin = () => {
-    router.push('/login');
+    // Forward the referral code to /login as well, so it's present even if
+    // localStorage is unavailable (private mode / blocked storage).
+    let ref = '';
+    try { ref = (localStorage.getItem('hvpn_ref') || '').trim(); } catch { /* ignore */ }
+    router.push(ref ? `/login?ref=${encodeURIComponent(ref)}` : '/login');
   };
 
   const features = [
