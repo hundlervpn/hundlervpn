@@ -1038,6 +1038,64 @@ export async function issueTrialAccess(
 }
 
 /**
+ * Attribute a brand-new NON-Telegram (email / Google) user to an inviter
+ * using a SITE referral code captured from `?ref=<code>` on the website
+ * (added 2026-06-12). This is the counterpart to the Telegram Mini App
+ * `startapp=ref_<code>` flow, but for web/email signups.
+ *
+ * What it does — and deliberately does NOT do:
+ *   • Sets `users.referred_by_user_id` for the invitee so the inviter
+ *     starts earning the 10% CASH reward (lib/referral-cash.ts) on the
+ *     invitee's future RUB subscription payments. Cash accrual is the
+ *     whole point of the site link.
+ *   • Does NOT grant any bonus DAYS — email/Google referrals are cash-only
+ *     (see applyReferralReward's auth_type gate). So there's no
+ *     grantReferralSignupBonus call here.
+ *
+ * Safety guarantees (important — "связи юзеров не менять"):
+ *   • Only writes when `referred_by_user_id IS NULL` → never overwrites an
+ *     existing relationship.
+ *   • Skips self-referral.
+ *   • No-op on empty / unknown code.
+ *   • Accepts both `ref_<code>` and bare `<code>` for parity with the TG
+ *     startParam parser.
+ *
+ * Caller MUST only invoke this for FRESH signups (their first INSERT), so a
+ * returning email login that happens to carry a stale `?ref=` never re-points
+ * an already-attributed (or intentionally un-attributed) account.
+ */
+export async function attachSiteReferral(
+  client: PoolClient,
+  inviteeUserId: number,
+  rawRefCode: string | null | undefined,
+): Promise<{ attached: boolean; inviterUserId: number | null }> {
+  const trimmed = (rawRefCode ?? '').trim();
+  const code = trimmed.startsWith('ref_') ? trimmed.slice(4).trim() : trimmed;
+  if (!code || !inviteeUserId || !Number.isFinite(Number(inviteeUserId))) {
+    return { attached: false, inviterUserId: null };
+  }
+
+  const inviterRes = await client.query<{ id: number | string }>(
+    'SELECT id FROM users WHERE referral_code = $1 LIMIT 1;',
+    [code]
+  );
+  const inviterRaw = inviterRes.rows[0]?.id;
+  const inviterUserId = inviterRaw === undefined || inviterRaw === null ? null : Number(inviterRaw);
+  if (!inviterUserId || inviterUserId === Number(inviteeUserId)) {
+    return { attached: false, inviterUserId: null };
+  }
+
+  const upd = await client.query(
+    `UPDATE users
+        SET referred_by_user_id = $2
+      WHERE id = $1
+        AND referred_by_user_id IS NULL;`,
+    [inviteeUserId, inviterUserId]
+  );
+  return { attached: (upd.rowCount ?? 0) > 0, inviterUserId };
+}
+
+/**
  * Tiered referral bonus schedule (days granted to the inviter, based on
  * the subscription duration the invitee just purchased):
  *
@@ -1091,6 +1149,21 @@ export async function applyReferralReward(
   // lib/referral-cash.ts).
   const pid = Number(paymentId);
   if (!pid || !Number.isFinite(pid) || pid <= 0) {
+    return;
+  }
+
+  // ── Day-bonuses are a TELEGRAM-registration perk ONLY (2026-06-12). ──
+  // Invitees who registered via email / Google earn their inviter the 10%
+  // CASH reward (lib/referral-cash.ts) on every RUB subscription payment,
+  // but must NOT generate bonus DAYS. We gate on the INVITEE's auth_type:
+  // anything other than 'telegram' (i.e. 'email' | 'google') short-circuits
+  // here so only the cash path runs for them. Telegram-registered invitees
+  // keep the existing tiered day-bonus untouched.
+  const inviteeAuthRes = await client.query<{ auth_type: string | null }>(
+    'SELECT auth_type FROM users WHERE id = $1 LIMIT 1;',
+    [paidUserId]
+  );
+  if ((inviteeAuthRes.rows[0]?.auth_type ?? 'telegram') !== 'telegram') {
     return;
   }
 

@@ -224,8 +224,13 @@ export default function ReferralModal({ open, onClose, referralCode, t, lang, us
     prevWithdrawalOpenRef.current = withdrawalOpen;
   }, [withdrawalOpen, open, userIdentifier]);
 
+  // Site-format referral link (2026-06-12). Was a Telegram deep link
+  // (t.me/<bot>?startapp=ref_<code>); now points at the website so it also
+  // works for email/Google signups — those attribute the inviter for the
+  // 10% cash reward. The TG Mini App still accepts startapp=ref_<code> for
+  // in-Telegram signups, and the web landing reads `?ref=<code>`.
   const referralUrl = referralCode
-    ? `https://t.me/${process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || 'hundlervpnbot'}?startapp=ref_${referralCode}`
+    ? `${process.env.NEXT_PUBLIC_APP_URL || 'https://hundlervpn.xyz'}/?ref=${referralCode}`
     : '';
 
   const friendsCount = referrals.length;

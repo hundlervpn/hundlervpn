@@ -56,6 +56,25 @@ function LoginContent() {
     }
   }, [router, searchParams]);
 
+  // Persist a site referral code from `?ref=<code>` so it survives the
+  // email-code / Google round-trips and lands in the signup request.
+  // localStorage key `hvpn_ref` is also written by the landing page (/),
+  // so a friend who opens hundlervpn.xyz/?ref=<code> and only later taps
+  // "Войти" still gets attributed to the inviter (cash-only, no days).
+  useEffect(() => {
+    const ref = (searchParams.get('ref') || '').trim();
+    if (ref) {
+      try { localStorage.setItem('hvpn_ref', ref.slice(0, 64)); } catch { /* ignore */ }
+    }
+  }, [searchParams]);
+
+  // Read the effective referral code (URL param wins, else persisted one).
+  const getRefCode = useCallback(() => {
+    const fromUrl = (searchParams.get('ref') || '').trim();
+    if (fromUrl) return fromUrl.slice(0, 64);
+    try { return (localStorage.getItem('hvpn_ref') || '').trim().slice(0, 64); } catch { return ''; }
+  }, [searchParams]);
+
   // Cooldown timer
   useEffect(() => {
     if (cooldown <= 0) return;
@@ -72,10 +91,15 @@ function LoginContent() {
     window.location.href = url;
   }, []);
 
-  // Google OAuth 2.0 — server initiates the flow (state kept in httpOnly cookie)
+  // Google OAuth 2.0 — server initiates the flow (state kept in httpOnly cookie).
+  // Forward the site referral code so a brand-new Google signup gets
+  // attributed to the inviter (cash-only).
   const openGoogleLogin = useCallback(() => {
-    window.location.href = '/api/auth/google/start';
-  }, []);
+    const ref = getRefCode();
+    window.location.href = ref
+      ? `/api/auth/google/start?ref=${encodeURIComponent(ref)}`
+      : '/api/auth/google/start';
+  }, [getRefCode]);
 
   const handleSendCode = async () => {
     if (!email || loading) return;
@@ -109,11 +133,12 @@ function LoginContent() {
       const res = await fetch('/api/auth/verify-code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, code }),
+        body: JSON.stringify({ email, code, ref: getRefCode() }),
       });
       const data = await res.json();
       if (data.ok && data.sessionToken) {
         localStorage.setItem('hvpn_session', data.sessionToken);
+        try { localStorage.removeItem('hvpn_ref'); } catch { /* ignore */ }
         router.replace('/');
       } else {
         setError(data.error || 'Неверный код');

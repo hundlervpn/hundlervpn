@@ -14,12 +14,17 @@
  * Both prefixes guarantee collision-free unique codes because telegram_id
  * space and users.id space never overlap in the same prefix.
  *
- * Parsing is prefix-agnostic — `/api/users/sync` just looks up the row by
- * `WHERE referral_code = $1` regardless of how the code was generated.
- * This is important because a user referred by an email-registered user
- * still has to *accept* the invite by joining via Telegram (Mini App), so
- * the inviter lookup happens on the Telegram-side even when the inviter
- * themselves has no Telegram account.
+ * Parsing is prefix-agnostic — lookups just do `WHERE referral_code = $1`
+ * regardless of how the code was generated. The same code works in BOTH
+ * entry points:
+ *   - Telegram Mini App: `startapp=ref_<code>` → /api/users/sync.
+ *   - Website (since 2026-06-12): `?ref=<code>` on hundlervpn.xyz →
+ *     captured on the landing/login page and attributed at email/Google
+ *     signup via `attachSiteReferral` (lib/access.ts). This lets an
+ *     email/Google-registered invitee credit their inviter with the 10%
+ *     CASH reward (lib/referral-cash.ts) WITHOUT joining via Telegram.
+ *     Note: email/Google referrals are cash-only — no bonus DAYS (those
+ *     remain a Telegram-registration perk, gated in applyReferralReward).
  */
 
 export function buildReferralCodeForTelegramUser(telegramId: number): string {

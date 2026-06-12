@@ -31,6 +31,11 @@ export async function GET(req: Request) {
   const linkToken = url.searchParams.get('link') || '';
   const linkTgRaw = url.searchParams.get('linkTg') || '';
   const nativeReturnRaw = url.searchParams.get('nativeReturn') || '';
+  // Site referral code from `?ref=<code>` — remembered in a short-lived
+  // cookie so /callback can attribute a brand-new Google signup to the
+  // inviter (cash-only; no day bonus). Only used in the LOGIN flow (when
+  // there's no link/linkTg). Bounded length to keep the cookie sane.
+  const refRaw = (url.searchParams.get('ref') || '').trim().slice(0, 64);
 
   // Whitelist of allowed schemes/hosts for nativeReturn — see
   // lib/native-return.ts for the rationale and exact rules. Custom URL
@@ -141,6 +146,19 @@ export async function GET(req: Request) {
     //  - 'tg'  → Telegram Mini App deep-link (t.me/<bot>/app?startapp=gl_success)
     //  - 'web' → our own /?account_success=... banner
     res.cookies.set('g_oauth_link_origin', linkTgRaw ? 'tg' : 'web', {
+      httpOnly: true,
+      secure: req.url.startsWith('https://'),
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 10 * 60,
+    });
+  }
+
+  // Remember site referral code for the LOGIN flow only (a link/linkTg
+  // flow attaches Google to an EXISTING user, so there's nothing to
+  // attribute). Cleared by /callback on return.
+  if (refRaw && !linkUserId) {
+    res.cookies.set('g_oauth_ref', refRaw, {
       httpOnly: true,
       secure: req.url.startsWith('https://'),
       sameSite: 'lax',
