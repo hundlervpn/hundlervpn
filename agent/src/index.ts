@@ -30,6 +30,7 @@ async function main(): Promise<void> {
     apiUrl: redactToken(config.apiUrl),
     grpcTarget: config.grpcTarget,
     inboundTag: config.inboundTag,
+    cdnInboundTag: config.cdnInboundTag || '<disabled>',
     pullIntervalMs: config.pullIntervalMs,
     webhookPort: config.webhookPort,
     serverHost: config.serverHost || '<not set>',

@@ -31,6 +31,16 @@ export interface AgentConfig {
   inboundTag: string;
 
   /**
+   * Опциональный второй inbound для CDN-обхода (VLESS+WebSocket за
+   * Caddy/CDN, для режима «белых списков»/БС). Если задан — агент
+   * синхронизирует ТОТ ЖЕ пул клиентов и в него, но с пустым `flow`
+   * (xtls-rprx-vision работает только по прямому TCP, не через WS/CDN).
+   * Пусто (default) = фича выключена, поведение не меняется.
+   * Соответствует тегу inbound из deploy/add-cdn-inbound.sh.
+   */
+  cdnInboundTag: string;
+
+  /**
    * Header `X-Server-Host` чтобы /api/xray/clients вернул правильный
    * flow для этой ноды (NL=xtls-rprx-vision, DE/RU="" XUDP). См.
    * authenticateToken() в app/api/xray/clients/route.ts.
@@ -113,6 +123,7 @@ export function loadConfig(): AgentConfig {
     syncToken,
     grpcTarget: envOr('GRPC_TARGET', '127.0.0.1:10085'),
     inboundTag: envOr('INBOUND_TAG', 'vless-in'),
+    cdnInboundTag: process.env.CDN_INBOUND_TAG?.trim() ?? '',
     serverHost: envOr('SERVER_HOST', detectServerHost()),
     pullIntervalMs: envNum('PULL_INTERVAL_MS', 300_000), // 5 минут, как старый cron
     webhookPort: envNum('WEBHOOK_PORT', 9999),

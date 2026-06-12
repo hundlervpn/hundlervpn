@@ -8,7 +8,7 @@ import type { AgentConfig } from './config.ts';
 import { fetchClients, ApiClientError } from './api-client.ts';
 import { computeDiff } from './diff.ts';
 import { XrayGrpcClient, type XrayClient } from './xray-grpc-client.ts';
-import { writeConfigSnapshot } from './config-snapshot.ts';
+import { writeConfigSnapshotMulti, type SnapshotEntry } from './config-snapshot.ts';
 import { log } from './logger.ts';
 
 export interface SyncResult {
@@ -67,20 +67,126 @@ export async function runSync(
     return makeFailureResult(startedAt);
   }
 
-  // 3. List current state via gRPC.
-  let currentEmails: Set<string>;
+  // 3-4. Sync primary inbound (Reality). Ошибки тут фатальны для всего
+  // ран — это боевой inbound, в котором сидят все юзеры.
+  let primary: InboundSyncStats;
   try {
-    currentEmails = await grpc.listInboundUserEmails(config.inboundTag);
+    primary = await applyInboundDiff(grpc, config.inboundTag, desired);
   } catch (err) {
-    log.error('sync: listInboundUserEmails failed', {
+    log.error('sync: primary inbound sync failed', {
+      inboundTag: config.inboundTag,
       error: err instanceof Error ? err.message : String(err),
     });
     return makeFailureResult(startedAt);
   }
 
-  // 4. Compute diff and apply.
+  // 3b-4b. Опционально — CDN-inbound (VLESS+WS за CDN, режим БС).
+  // Тот же пул клиентов, но flow="" (vision не работает через WS/CDN).
+  // Best-effort: ошибки тут НЕ роняют primary sync.
+  const cdnEnabled = config.cdnInboundTag.length > 0;
+  const cdnDesired: XrayClient[] = cdnEnabled
+    ? desired.map((c) => ({ ...c, flow: '' }))
+    : [];
+  let cdn: InboundSyncStats | null = null;
+  if (cdnEnabled) {
+    try {
+      cdn = await applyInboundDiff(grpc, config.cdnInboundTag, cdnDesired);
+    } catch (err) {
+      log.warn('sync: cdn inbound sync failed (non-fatal)', {
+        cdnInboundTag: config.cdnInboundTag,
+        error: err instanceof Error ? err.message : String(err),
+        hint: 'inbound может быть ещё не добавлен — см. deploy/add-cdn-inbound.sh',
+      });
+    }
+  }
+
+  // 5. Snapshot to config.json. Делаем когда:
+  //    (a) есть реальные изменения (toAdd/toRemove > 0) в любом inbound;
+  //    (b) opts.forceSnapshot — startup hook + раз в N минут от main loop.
+  // Если diff пустой и opts.forceSnapshot=false, config.json не трогаем.
+  const hasChanges =
+    primary.added > 0 ||
+    primary.removed > 0 ||
+    (cdn != null && (cdn.added > 0 || cdn.removed > 0));
+  let snapshotWritten = false;
+  if (hasChanges || opts.forceSnapshot) {
+    const entries: SnapshotEntry[] = [
+      { inboundTag: config.inboundTag, desiredClients: desired, required: true },
+    ];
+    if (cdnEnabled) {
+      // required:false — если CDN-inbound ещё не в config.json, просто
+      // пропускаем его в snapshot, не роняя primary recovery-baseline.
+      entries.push({
+        inboundTag: config.cdnInboundTag,
+        desiredClients: cdnDesired,
+        required: false,
+      });
+    }
+    try {
+      await writeConfigSnapshotMulti(config.xrayConfigPath, entries);
+      snapshotWritten = true;
+    } catch (err) {
+      log.error('sync: writeConfigSnapshot failed', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      // НЕ считаем ошибку фатальной для всего sync'а — gRPC уже применили,
+      // running Xray в нужном состоянии. Snapshot — это только для
+      // post-restart recovery, и следующий run его повторит.
+    }
+  }
+
+  const failedAdds = primary.failedAdds + (cdn?.failedAdds ?? 0);
+  const failedRemoves = primary.failedRemoves + (cdn?.failedRemoves ?? 0);
+
+  const durationMs = Date.now() - startedAt;
+  log.info('sync: done', {
+    durationMs,
+    added: primary.added,
+    removed: primary.removed,
+    failedAdds: primary.failedAdds,
+    failedRemoves: primary.failedRemoves,
+    cdn: cdn
+      ? { added: cdn.added, removed: cdn.removed, failedAdds: cdn.failedAdds, failedRemoves: cdn.failedRemoves }
+      : undefined,
+    snapshotWritten,
+  });
+
+  return {
+    ok: failedAdds === 0 && failedRemoves === 0,
+    desiredCount: desired.length,
+    currentCount: primary.currentCount,
+    added: primary.added,
+    removed: primary.removed,
+    failedAdds: primary.failedAdds,
+    failedRemoves: primary.failedRemoves,
+    durationMs,
+    snapshotWritten,
+  };
+}
+
+interface InboundSyncStats {
+  added: number;
+  removed: number;
+  failedAdds: number;
+  failedRemoves: number;
+  currentCount: number;
+}
+
+/**
+ * list → diff → apply для одного inbound. Возвращает счётчики.
+ * Если inbound не зарегистрирован в running Xray (handler not found),
+ * первый же addUser кинет ошибку с "not found" — мы её детектим и
+ * сразу пробрасываем, чтобы не спамить варнингами на каждого клиента.
+ */
+async function applyInboundDiff(
+  grpc: XrayGrpcClient,
+  inboundTag: string,
+  desired: XrayClient[],
+): Promise<InboundSyncStats> {
+  const currentEmails = await grpc.listInboundUserEmails(inboundTag);
   const diff = computeDiff(desired, currentEmails);
   log.info('sync: diff computed', {
+    inboundTag,
     desired: desired.length,
     current: currentEmails.size,
     toAdd: diff.toAdd.length,
@@ -95,10 +201,11 @@ export async function runSync(
   // же email (relabelling pool-N → tg-… между signups).
   for (const email of diff.toRemove) {
     try {
-      await grpc.removeUser(config.inboundTag, email);
+      await grpc.removeUser(inboundTag, email);
     } catch (err) {
       failedRemoves++;
       log.warn('sync: removeUser failed', {
+        inboundTag,
         email,
         error: err instanceof Error ? err.message : String(err),
       });
@@ -107,56 +214,29 @@ export async function runSync(
 
   for (const client of diff.toAdd) {
     try {
-      await grpc.addUser(config.inboundTag, client);
+      await grpc.addUser(inboundTag, client);
     } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      // Inbound отсутствует в running Xray — нет смысла перебирать весь
+      // пул, пробрасываем сразу (caller решит — фатально или best-effort).
+      if (/not\s*found/i.test(msg)) {
+        throw new Error(`inbound ${inboundTag} not registered in Xray: ${msg}`);
+      }
       failedAdds++;
       log.warn('sync: addUser failed', {
+        inboundTag,
         email: client.email,
-        error: err instanceof Error ? err.message : String(err),
+        error: msg,
       });
     }
   }
-
-  // 5. Snapshot to config.json. Делаем когда:
-  //    (a) есть реальные изменения (toAdd/toRemove > 0);
-  //    (b) opts.forceSnapshot — startup hook + раз в N минут от main loop.
-  // Если diff пустой и opts.forceSnapshot=false, config.json не трогаем.
-  const hasChanges = diff.toAdd.length > 0 || diff.toRemove.length > 0;
-  let snapshotWritten = false;
-  if (hasChanges || opts.forceSnapshot) {
-    try {
-      await writeConfigSnapshot(config.xrayConfigPath, config.inboundTag, desired);
-      snapshotWritten = true;
-    } catch (err) {
-      log.error('sync: writeConfigSnapshot failed', {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      // НЕ считаем ошибку фатальной для всего sync'а — gRPC уже применили,
-      // running Xray в нужном состоянии. Snapshot — это только для
-      // post-restart recovery, и следующий run его повторит.
-    }
-  }
-
-  const durationMs = Date.now() - startedAt;
-  log.info('sync: done', {
-    durationMs,
-    added: diff.toAdd.length - failedAdds,
-    removed: diff.toRemove.length - failedRemoves,
-    failedAdds,
-    failedRemoves,
-    snapshotWritten,
-  });
 
   return {
-    ok: failedAdds === 0 && failedRemoves === 0,
-    desiredCount: desired.length,
-    currentCount: currentEmails.size,
     added: diff.toAdd.length - failedAdds,
     removed: diff.toRemove.length - failedRemoves,
     failedAdds,
     failedRemoves,
-    durationMs,
-    snapshotWritten,
+    currentCount: currentEmails.size,
   };
 }
 
