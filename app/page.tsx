@@ -5431,6 +5431,39 @@ type AdminUser = {
   // device_count = number of currently-bound (kicked_at IS NULL) devices.
   total_lifetime_days: string | number;
   device_count: string | number;
+  // 2026-06-13 (admin partner view): referral identity / reach / balance.
+  referral_code?: string | null;
+  referral_balance_rub?: string | number;
+  referred_count?: string | number;
+  is_partner?: boolean;
+  partner_cash_percent?: number;
+};
+
+// 2026-06-13: invitee list returned by /api/admin/users/<id>/referrals.
+type AdminInvitee = {
+  id: string;
+  telegram_id: string | null;
+  username: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  email: string | null;
+  auth_type: string | null;
+  created_at: string;
+  last_seen_at: string | null;
+  total_paid_rub: string;
+  cash_generated_rub: string;
+};
+type AdminUserReferrals = {
+  inviter: {
+    id: string;
+    referral_code: string | null;
+    balance_rub: string;
+    is_partner: boolean;
+    cash_percent: number;
+    invitee_count: number;
+    total_cash_earned_rub: string;
+  };
+  invitees: AdminInvitee[];
 };
 
 type AdminPromo = {
@@ -6331,6 +6364,10 @@ function AdminView({ t, direction, tgUser, navigate, lang, onHideNav, onLockAdmi
   const [usersSubFilter, setUsersSubFilter] = useState<'all' | 'active' | 'none' | 'active_no_devices'>('all');
   // v68: sort by lifetime days desc to surface heavy-usage accounts.
   const [usersSortBy, setUsersSortBy] = useState<'recent' | 'lifetime'>('recent');
+  // 2026-06-13: partner-only filter + per-user invitee expander state.
+  const [usersPartnersOnly, setUsersPartnersOnly] = useState(false);
+  const [expandedReferralsUserId, setExpandedReferralsUserId] = useState<string | null>(null);
+  const [referralsDetail, setReferralsDetail] = useState<Record<string, { loading: boolean; data: AdminUserReferrals | null }>>({});
   const [promos, setPromos] = useState<AdminPromo[]>([]);
   const [promosLoading, setPromosLoading] = useState(false);
   const [showPromoForm, setShowPromoForm] = useState(false);
@@ -6593,6 +6630,9 @@ function AdminView({ t, direction, tgUser, navigate, lang, onHideNav, onLockAdmi
     search = '',
     subscription: 'all' | 'active' | 'none' | 'active_no_devices' = 'all',
     sort: 'recent' | 'lifetime' = 'recent',
+    // 2026-06-13: pass an explicit value when toggling the partner filter to
+    // avoid the stale-closure read; otherwise falls back to current state.
+    partnersOverride?: boolean,
   ) => {
     if (!tgId) return;
     setUsersLoading(true);
@@ -6601,6 +6641,8 @@ function AdminView({ t, direction, tgUser, navigate, lang, onHideNav, onLockAdmi
       if (search) params.set('search', search);
       if (subscription && subscription !== 'all') params.set('subscription', subscription);
       if (sort && sort !== 'recent') params.set('sort', sort);
+      const partners = partnersOverride ?? usersPartnersOnly;
+      if (partners) params.set('partner', '1');
       const res = await fetch(`/api/admin/users?${params}`);
       if (res.ok) {
         const data = await res.json();
@@ -6609,6 +6651,37 @@ function AdminView({ t, direction, tgUser, navigate, lang, onHideNav, onLockAdmi
         setUsersPage(data.page ?? 1);
       }
     } catch { /* ignore */ } finally { setUsersLoading(false); }
+  };
+
+  // 2026-06-13: toggle the "partners only" filter and reload from page 1.
+  const handlePartnersToggle = () => {
+    const next = !usersPartnersOnly;
+    setUsersPartnersOnly(next);
+    setExpandedReferralsUserId(null);
+    loadUsers(1, usersSearch, usersSubFilter, usersSortBy, next);
+  };
+
+  // 2026-06-13: lazy-load a user's invitee list for the card expander.
+  const loadUserReferrals = async (userId: string) => {
+    if (!tgId) return;
+    setReferralsDetail((prev) => ({ ...prev, [userId]: { loading: true, data: prev[userId]?.data ?? null } }));
+    try {
+      const res = await fetch(`/api/admin/users/${userId}/referrals?telegramId=${tgId}`, { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        setReferralsDetail((prev) => ({ ...prev, [userId]: { loading: false, data } }));
+      } else {
+        setReferralsDetail((prev) => ({ ...prev, [userId]: { loading: false, data: prev[userId]?.data ?? null } }));
+      }
+    } catch {
+      setReferralsDetail((prev) => ({ ...prev, [userId]: { loading: false, data: prev[userId]?.data ?? null } }));
+    }
+  };
+
+  const toggleUserReferrals = (userId: string) => {
+    if (expandedReferralsUserId === userId) { setExpandedReferralsUserId(null); return; }
+    setExpandedReferralsUserId(userId);
+    if (!referralsDetail[userId]?.data) loadUserReferrals(userId);
   };
 
   const loadPromos = async () => {
@@ -7512,6 +7585,15 @@ function AdminView({ t, direction, tgUser, navigate, lang, onHideNav, onLockAdmi
                 >
                   ⚠️ {lang === 'ru' ? 'Суб без устр-в' : 'Sub no dev'}
                 </button>
+                {/* 2026-06-13: partner-only filter (inviters with a special реф-условием). */}
+                <button
+                  type="button"
+                  onClick={handlePartnersToggle}
+                  className={`text-[11px] px-2.5 py-1 rounded-md border transition-all inline-flex items-center gap-1 ${usersPartnersOnly ? 'bg-amber-500/20 border-amber-500/40 text-amber-200' : 'border-white/5 text-zinc-400 hover:text-amber-200 hover:border-amber-500/30'}`}
+                  title={lang === 'ru' ? 'Только партнёры (особое реф-условие)' : 'Partners only'}
+                >
+                  🤝 {lang === 'ru' ? 'Партнёры' : 'Partners'}
+                </button>
               </div>
 
               {/* v68: sort toggle. "По дням" — сортирует по полной сумме
@@ -7564,9 +7646,16 @@ function AdminView({ t, direction, tgUser, navigate, lang, onHideNav, onLockAdmi
                     <div key={u.id} className="rounded-xl border border-white/10 bg-zinc-900/60 p-3">
                       <div className="flex items-start justify-between gap-2 mb-1.5">
                         <div className="min-w-0 flex-1">
-                          <p className="text-white text-sm font-medium truncate">
-                            {displayName}
-                          </p>
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <p className="text-white text-sm font-medium truncate">
+                              {displayName}
+                            </p>
+                            {u.is_partner && (
+                              <span className="shrink-0 text-[9px] px-1.5 py-0.5 rounded border border-amber-500/40 bg-amber-500/15 text-amber-300 uppercase tracking-wide font-semibold">
+                                🤝 {lang === 'ru' ? 'Партнёр' : 'Partner'}
+                              </span>
+                            )}
+                          </div>
                           <div className="space-y-0.5 mt-1">
                             {idRows.map((row) => {
                               const copyKey = `u${u.id}-${row.key}`;
@@ -7676,6 +7765,91 @@ function AdminView({ t, direction, tgUser, navigate, lang, onHideNav, onLockAdmi
                         {u.is_banned && <span className="text-red-400">🚫</span>}
                         <span>📅 {new Date(u.created_at).toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'en-GB')}</span>
                       </div>
+                      {/* 2026-06-13 (partner view): referral identity, links,
+                          balance and an invitee expander. Shown for managed
+                          partners and for anyone who invited at least 1 user. */}
+                      {(() => {
+                        const referredCount = Number(u.referred_count || 0);
+                        if (!u.is_partner && referredCount === 0) return null;
+                        const refCode = u.referral_code || '';
+                        const botUser = process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || 'hundlervpnbot';
+                        const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://hundlervpn.xyz';
+                        const tgLink = refCode ? `https://t.me/${botUser}?startapp=ref_${refCode}` : '';
+                        const siteLink = refCode ? `${appUrl}/?ref=${refCode}` : '';
+                        const balance = Number(u.referral_balance_rub || 0);
+                        const pct = u.partner_cash_percent ?? 10;
+                        const expanded = expandedReferralsUserId === u.id;
+                        const detail = referralsDetail[u.id];
+                        const links = refCode
+                          ? [{ k: 'tg', label: 'TG', value: tgLink }, { k: 'site', label: lang === 'ru' ? 'Сайт' : 'Site', value: siteLink }]
+                          : [];
+                        return (
+                          <div className={u.is_partner
+                            ? 'mt-2 rounded-lg border border-amber-500/30 bg-amber-500/[0.06] p-2'
+                            : 'mt-2 rounded-lg border border-white/10 bg-white/[0.02] p-2'}>
+                            <div className="flex items-center justify-between gap-2 flex-wrap">
+                              <span className="text-[11px] font-medium">
+                                {u.is_partner
+                                  ? <span className="text-amber-300">🤝 {lang === 'ru' ? 'Партнёр' : 'Partner'} · {pct}%</span>
+                                  : <span className="text-zinc-300">🔗 {lang === 'ru' ? 'Рефовод' : 'Referrer'}</span>}
+                              </span>
+                              <span className="text-[10px] text-emerald-300">💵 {balance.toFixed(0)}₽ {lang === 'ru' ? 'баланс' : 'balance'}</span>
+                            </div>
+                            {links.length > 0 && (
+                              <div className="space-y-1 mt-1.5">
+                                {links.map((lnk) => {
+                                  const ck = `ref${u.id}-${lnk.k}`;
+                                  return (
+                                    <div key={lnk.k} className="flex items-center gap-1.5 text-[10px] text-zinc-400">
+                                      <span className="opacity-70 shrink-0 w-7">{lnk.label}</span>
+                                      <span className="truncate flex-1 min-w-0 font-mono text-zinc-300">{lnk.value}</span>
+                                      <button
+                                        type="button"
+                                        onClick={(e) => { e.stopPropagation(); copyToClipboard(lnk.value, ck); }}
+                                        className="text-zinc-500 hover:text-white shrink-0 p-0.5"
+                                        title={lang === 'ru' ? 'Копировать' : 'Copy'}
+                                      >
+                                        {copiedKey === ck ? <ClipboardCheck size={12} className="text-emerald-400" /> : <Copy size={12} />}
+                                      </button>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => toggleUserReferrals(u.id)}
+                              className="mt-1.5 text-[10px] px-2 py-1 rounded-md border border-white/10 text-zinc-300 hover:bg-white/5 inline-flex items-center gap-1"
+                            >
+                              👥 {lang === 'ru' ? 'Пригласил' : 'Invited'}: {referredCount} {expanded ? '▲' : '▼'}
+                            </button>
+                            {expanded && (
+                              <div className="mt-1.5">
+                                {detail?.loading && !detail?.data ? (
+                                  <div className="text-[10px] text-zinc-500 py-1">{lang === 'ru' ? 'Загрузка…' : 'Loading…'}</div>
+                                ) : detail?.data && detail.data.invitees.length > 0 ? (
+                                  <div className="space-y-1">
+                                    {detail.data.invitees.map((inv) => {
+                                      const invName = [inv.first_name, inv.last_name].filter(Boolean).join(' ') || inv.username || inv.email || (inv.telegram_id ? `TG ${inv.telegram_id}` : `#${inv.id}`);
+                                      return (
+                                        <div key={inv.id} className="flex items-center justify-between gap-2 text-[10px] rounded-md bg-black/20 px-2 py-1">
+                                          <span className="truncate flex-1 min-w-0 text-zinc-300">
+                                            {invName} <span className="text-zinc-600">#{inv.id}{inv.auth_type && inv.auth_type !== 'telegram' ? ` · ${inv.auth_type}` : ''}</span>
+                                          </span>
+                                          <span className="text-zinc-400 shrink-0">💰 {Number(inv.total_paid_rub).toFixed(0)}₽</span>
+                                          <span className="text-emerald-300 shrink-0" title={lang === 'ru' ? 'Кэш, который он принёс' : 'Cash generated'}>+{Number(inv.cash_generated_rub).toFixed(0)}₽</span>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                ) : (
+                                  <div className="text-[10px] text-zinc-500 py-1">{lang === 'ru' ? 'Пока никого не пригласил' : 'No invitees yet'}</div>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </div>
                     );
                   })}
