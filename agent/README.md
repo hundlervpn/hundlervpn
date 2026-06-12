@@ -183,6 +183,44 @@ curl -fsS http://127.0.0.1:9999/health | jq
   (network blip, deploy), agent сам подтянется максимум через 5 минут.
 - **Rollback одной командой** (см. выше).
 
+## CDN-обход / режим «белых списков» (БС) — опциональный второй inbound
+
+Во время мобильных «белых списков» прямой IP ноды недоступен. Решение —
+завести второй inbound **VLESS + WebSocket** за Caddy/CDN: клиент идёт на
+белый edge-IP CDN, CDN проксирует на origin-домен ноды (`:8443`, Caddy с
+TLS), Caddy форвардит `/api/stream` на локальный WS-inbound Xray. Reality
+на 443 не трогается — это отдельная ветка только под БС.
+
+Включается через **один env** — `CDN_INBOUND_TAG`. По умолчанию пусто =
+фича выключена, поведение агента не меняется (обратно совместимо).
+
+Когда задан:
+- агент синхронизирует **тот же пул клиентов** и в CDN-inbound, но с
+  `flow=""` (xtls-rprx-vision работает только по прямому TCP, не через
+  WS/CDN — поэтому flow затирается);
+- `config.json` snapshot пишет оба inbound'а одним атомарным write;
+- если CDN-inbound ещё не зарегистрирован в Xray — агент это видит и
+  best-effort пропускает (primary Reality-sync не страдает).
+
+### Развёртывание
+
+```bash
+# 1. Добавить WS-inbound в config.json ноды (идемпотентно):
+ssh root@<node> 'bash -s' < deploy/add-cdn-inbound.sh
+#    дефолты: tag=vless-ws-cdn, port=2087, path=/api/stream
+
+# 2. Включить sync в этот inbound:
+#    install-on-vps.sh --cdn-inbound-tag vless-ws-cdn ...
+#    либо вручную в /etc/hundler-xray-agent/env:
+#      CDN_INBOUND_TAG=vless-ws-cdn
+#    затем: systemctl restart hundler-xray-agent
+
+# 3. Caddy на ноде (origin):
+#      <node-domain> { https_port 8443; reverse_proxy /api/stream* 127.0.0.1:2087 }
+# 4. Timeweb CDN: источник=<node-domain>:8443, HTTPS-to-origin ON,
+#    кэш off для /api/stream*, WebSocket ON. Домен раздачи → в sing-box client.
+```
+
 ## Будущие улучшения (Phase 2)
 
 После того как Phase 1 (drop-in replacement) стабилизируется, можно:

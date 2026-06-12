@@ -31,10 +31,94 @@ interface XrayConfig {
   }>;
 }
 
+/** Одна запись для multi-inbound snapshot. */
+export interface SnapshotEntry {
+  inboundTag: string;
+  desiredClients: XrayClient[];
+  /**
+   * Если true — отсутствие inbound в config.json фатально (throw).
+   * Если false — просто пропускаем эту запись (warn). Используется для
+   * опционального CDN-inbound, который может быть ещё не добавлен на ноду.
+   */
+  required: boolean;
+}
+
+/**
+ * Применяет clients[] к указанному inbound внутри уже распарсенного
+ * config. Возвращает true если запись применена, false если пропущена
+ * (inbound не найден при required=false, либо сработал sanity-guard).
+ */
+function applyInboundClients(
+  config: XrayConfig,
+  entry: SnapshotEntry,
+): boolean {
+  const { inboundTag, desiredClients, required } = entry;
+  const target = config.inbounds?.find((i) => i.tag === inboundTag);
+  if (!target) {
+    if (required) {
+      throw new Error(`Inbound ${inboundTag} not found in config.json`);
+    }
+    log.warn('writeConfigSnapshot: optional inbound not found, skipping', {
+      inboundTag,
+    });
+    return false;
+  }
+
+  // Sanity guard — та же логика что в bash xray-sync.sh: refuse to
+  // wipe a non-trivial running set with an empty/tiny snapshot. Защита
+  // от race-condition где fetchClients вернул [] непосредственно перед
+  // тем как мы пишем (хотя API теперь сам отдаёт 503 для empty pool,
+  // defence-in-depth).
+  const oldCount = target.settings?.clients?.length ?? 0;
+  const newCount = desiredClients.length;
+  if (newCount < 1) {
+    log.warn('writeConfigSnapshot: refusing to write empty clients[]', {
+      inboundTag,
+      oldCount,
+      newCount,
+    });
+    return false;
+  }
+  if (oldCount > 100 && newCount < oldCount / 2) {
+    log.warn('writeConfigSnapshot: refusing >50% drop', {
+      inboundTag,
+      oldCount,
+      newCount,
+    });
+    return false;
+  }
+
+  // Replace clients[] only — leave streamSettings / sniffing / port etc untouched.
+  if (!target.settings) target.settings = {};
+  target.settings.clients = desiredClients.map((c) => ({
+    id: c.id,
+    flow: c.flow,
+    email: c.email,
+  }));
+  return true;
+}
+
+/**
+ * Backward-compatible single-inbound snapshot. Делегирует в multi-вариант.
+ */
 export async function writeConfigSnapshot(
   configPath: string,
   inboundTag: string,
   desiredClients: XrayClient[],
+): Promise<void> {
+  await writeConfigSnapshotMulti(configPath, [
+    { inboundTag, desiredClients, required: true },
+  ]);
+}
+
+/**
+ * Пишет clients[] сразу для нескольких inbound'ов одним атомарным
+ * write + одним `xray -test`. Используется когда включён CDN-inbound:
+ * primary (Reality) + cdn (WS) синхронизируются в один snapshot.
+ */
+export async function writeConfigSnapshotMulti(
+  configPath: string,
+  entries: SnapshotEntry[],
 ): Promise<void> {
   let raw: string;
   try {
@@ -59,37 +143,17 @@ export async function writeConfigSnapshot(
     throw new Error('config.json has no inbounds array');
   }
 
-  const target = config.inbounds.find((i) => i.tag === inboundTag);
-  if (!target) {
-    throw new Error(`Inbound ${inboundTag} not found in config.json`);
+  let appliedAny = false;
+  for (const entry of entries) {
+    if (applyInboundClients(config, entry)) appliedAny = true;
   }
 
-  // Sanity guard — та же логика что в bash xray-sync.sh: refuse to
-  // wipe a non-trivial running set with an empty/tiny snapshot. Защита
-  // от race-condition где fetchClients вернул [] непосредственно перед
-  // тем как мы пишем (хотя API теперь сам отдаёт 503 для empty pool,
-  // defence-in-depth).
-  const oldCount = target.settings?.clients?.length ?? 0;
-  const newCount = desiredClients.length;
-  if (newCount < 1) {
-    log.warn('writeConfigSnapshot: refusing to write empty clients[]', {
-      oldCount,
-      newCount,
-    });
+  // Если ни одна запись не применилась (все пропущены sanity-guard'ом или
+  // optional-inbound отсутствует) — не трогаем файл вообще.
+  if (!appliedAny) {
+    log.warn('writeConfigSnapshot: nothing applied, leaving config.json as-is');
     return;
   }
-  if (oldCount > 100 && newCount < oldCount / 2) {
-    log.warn('writeConfigSnapshot: refusing >50% drop', { oldCount, newCount });
-    return;
-  }
-
-  // Replace clients[] only — leave streamSettings / sniffing / port etc untouched.
-  if (!target.settings) target.settings = {};
-  target.settings.clients = desiredClients.map((c) => ({
-    id: c.id,
-    flow: c.flow,
-    email: c.email,
-  }));
 
   // Atomic write: temp file → xray -test → rename. Same convention as
   // xray-sync.sh used `${XRAY_CONFIG%.json}.new.json` because Xray v26
@@ -110,7 +174,9 @@ export async function writeConfigSnapshot(
   }
 
   await fs.rename(tmpPath, configPath);
-  log.info('config.json snapshot written', { newCount, oldCount, inboundTag });
+  log.info('config.json snapshot written', {
+    inboundTags: entries.map((e) => e.inboundTag),
+  });
 }
 
 async function validateXrayConfig(
