@@ -147,6 +147,7 @@ export type ReferralModalProps = {
  */
 export default function ReferralModal({ open, onClose, referralCode, t, lang, userIdentifier }: ReferralModalProps) {
   const [copied, setCopied] = useState(false);
+  const [copiedSite, setCopiedSite] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [referrals, setReferrals] = useState<ReferralRow[]>([]);
   const [referralsLoading, setReferralsLoading] = useState(false);
@@ -224,14 +225,27 @@ export default function ReferralModal({ open, onClose, referralCode, t, lang, us
     prevWithdrawalOpenRef.current = withdrawalOpen;
   }, [withdrawalOpen, open, userIdentifier]);
 
-  // Site-format referral link (2026-06-12). Was a Telegram deep link
-  // (t.me/<bot>?startapp=ref_<code>); now points at the website so it also
-  // works for email/Google signups — those attribute the inviter for the
-  // 10% cash reward. The TG Mini App still accepts startapp=ref_<code> for
-  // in-Telegram signups, and the web landing reads `?ref=<code>`.
-  const referralUrl = referralCode
+  // Two referral links coexist (2026-06-12):
+  //   - TG link  (t.me/<bot>?startapp=ref_<code>) — friend registers inside
+  //     Telegram → inviter gets bonus DAYS + 10% cash.
+  //   - Site link (hundlervpn.xyz/?ref=<code>)    — friend registers via the
+  //     website (email / Google) → inviter gets the 10% CASH reward only
+  //     (no days for non-Telegram signups, by design).
+  // The site link is a SCOPED PILOT for now: only allowlisted referral codes
+  // see the second (site) link; everyone else keeps just the TG link as
+  // before. To widen the pilot, add codes here (or later swap to an env/db
+  // flag). `referralCode` is the canonical code: `u<base36(telegramId)>`.
+  const SITE_REFERRAL_PILOT_CODES = new Set<string>(['u2qollr0']); // user id 5700 (@All_exx)
+  const sitePilot = !!referralCode && SITE_REFERRAL_PILOT_CODES.has(referralCode);
+
+  const tgReferralUrl = referralCode
+    ? `https://t.me/${process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || 'hundlervpnbot'}?startapp=ref_${referralCode}`
+    : '';
+  const siteReferralUrl = referralCode
     ? `${process.env.NEXT_PUBLIC_APP_URL || 'https://hundlervpn.xyz'}/?ref=${referralCode}`
     : '';
+  // Primary link used by copy/share + the friends-panel share button.
+  const referralUrl = tgReferralUrl;
 
   const friendsCount = referrals.length;
   const friendsLabel = useMemo(
@@ -250,6 +264,19 @@ export default function ReferralModal({ open, onClose, referralCode, t, lang, us
       await navigator.clipboard.writeText(referralUrl);
       setCopied(true);
       setTimeout(() => setCopied(false), 2500);
+    } catch {
+      /* clipboard might be blocked; ignore silently */
+    }
+  };
+
+  // Pilot-only: copy the website (email/Google) referral link.
+  const handleCopySite = async () => {
+    haptic('light');
+    if (!siteReferralUrl) return;
+    try {
+      await navigator.clipboard.writeText(siteReferralUrl);
+      setCopiedSite(true);
+      setTimeout(() => setCopiedSite(false), 2500);
     } catch {
       /* clipboard might be blocked; ignore silently */
     }
@@ -420,7 +447,16 @@ export default function ReferralModal({ open, onClose, referralCode, t, lang, us
                 transition={{ delay: 0.1, duration: 0.3 }}
                 className="rounded-2xl border border-white/[0.07] bg-gradient-to-br from-white/[0.03] to-white/[0.01] p-4 lg:p-5"
               >
-                <p className="text-zinc-500 text-[10px] lg:text-[11px] uppercase tracking-[0.15em] font-semibold mb-2.5">{t.referralYourLink}</p>
+                <p className="text-zinc-500 text-[10px] lg:text-[11px] uppercase tracking-[0.15em] font-semibold mb-2.5">
+                  {sitePilot ? (lang === 'ru' ? 'Ссылка для Telegram' : 'Telegram link') : t.referralYourLink}
+                </p>
+                {sitePilot && (
+                  <p className="text-zinc-500 text-[10px] lg:text-[11px] leading-relaxed mb-2.5">
+                    {lang === 'ru'
+                      ? 'Друг регистрируется в Telegram — тебе идут бонусные дни + 10 % с его оплат.'
+                      : 'Friend signs up inside Telegram — you get bonus days + 10% of their payments.'}
+                  </p>
+                )}
                 <div className="rounded-xl border border-white/[0.08] bg-black/30 px-3 py-2.5 mb-3">
                   <p className="text-white/90 text-[11px] lg:text-sm font-mono break-all leading-relaxed">
                     {referralUrl || '—'}
@@ -458,6 +494,51 @@ export default function ReferralModal({ open, onClose, referralCode, t, lang, us
                   </button>
                 </div>
               </motion.div>
+
+              {/* ========== Site / email link (pilot only) ========== */}
+              {sitePilot && (
+                <motion.div
+                  initial={{ y: 8, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  transition={{ delay: 0.11, duration: 0.3 }}
+                  className="rounded-2xl border border-white/[0.07] bg-gradient-to-br from-white/[0.03] to-white/[0.01] p-4 lg:p-5"
+                >
+                  <p className="text-zinc-500 text-[10px] lg:text-[11px] uppercase tracking-[0.15em] font-semibold mb-2.5">
+                    {lang === 'ru' ? 'Ссылка для почты / сайта' : 'Email / website link'}
+                  </p>
+                  <p className="text-zinc-500 text-[10px] lg:text-[11px] leading-relaxed mb-2.5">
+                    {lang === 'ru'
+                      ? 'Друг регистрируется на сайте через почту или Google — тебе идут 10 % с его оплат (бонусные дни в этом случае не начисляются).'
+                      : 'Friend signs up on the website via email or Google — you get 10% of their payments (no bonus days in this case).'}
+                  </p>
+                  <div className="rounded-xl border border-white/[0.08] bg-black/30 px-3 py-2.5 mb-3">
+                    <p className="text-white/90 text-[11px] lg:text-sm font-mono break-all leading-relaxed">
+                      {siteReferralUrl || '—'}
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleCopySite}
+                    disabled={!siteReferralUrl}
+                    className={`w-full flex items-center justify-center gap-1.5 py-3 rounded-xl text-sm font-medium whitespace-nowrap transition-all active:scale-[0.98] disabled:opacity-40 ${
+                      copiedSite
+                        ? 'bg-emerald-500/15 border border-emerald-500/30 text-emerald-300'
+                        : 'bg-white/[0.05] border border-white/10 text-white hover:bg-white/[0.08]'
+                    }`}
+                  >
+                    {copiedSite ? (
+                      <>
+                        <ClipboardCheck size={15} strokeWidth={2} className="shrink-0" />
+                        <span className="truncate">{t.referralCopied}</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy size={15} strokeWidth={2} className="shrink-0" />
+                        <span className="truncate">{t.referralCopyBtn}</span>
+                      </>
+                    )}
+                  </button>
+                </motion.div>
+              )}
 
               {/* ========== Friends CTA (opens inner panel) ========== */}
               <motion.button
