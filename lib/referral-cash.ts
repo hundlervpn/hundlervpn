@@ -32,6 +32,20 @@ export function referralCashPercentForInviter(inviterUserId: number): number {
   return REFERRAL_CASH_PILOT_RATES.get(Number(inviterUserId)) ?? REFERRAL_CASH_PERCENT;
 }
 
+// A "partner" is an inviter we manage explicitly — currently anyone with a
+// negotiated (non-default) cash deal in REFERRAL_CASH_PILOT_RATES. Used by the
+// admin panel to flag and surface these accounts (badge, links, invitees,
+// balance). If partners and rate-overrides ever diverge, split this into its
+// own Set.
+export function isReferralPartner(inviterUserId: number): boolean {
+  return REFERRAL_CASH_PILOT_RATES.has(Number(inviterUserId));
+}
+
+/** All partner inviter ids (for admin list filtering). */
+export function referralPartnerIds(): number[] {
+  return Array.from(REFERRAL_CASH_PILOT_RATES.keys());
+}
+
 export const REFERRAL_WITHDRAWAL_MIN_RUB = 500;
 
 export type WithdrawalMethod = 'sbp_card' | 'crypto' | 'telegram_stars';

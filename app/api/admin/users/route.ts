@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { dbQuery } from '@/lib/db';
 import { isAdmin } from '@/lib/admin';
+import { isReferralPartner, referralCashPercentForInviter, referralPartnerIds } from '@/lib/referral-cash';
 
 type AdminUser = {
   id: string;
@@ -30,6 +31,16 @@ type AdminUser = {
   // (paying but giving the subscription away to other people).
   total_lifetime_days: string;
   device_count: string;
+  // 2026-06-13 (admin partner view): referral fields so the admin can see a
+  // partner's code/links, how many users they invited and their cash balance
+  // straight from the user card.
+  referral_code: string | null;
+  referral_balance_rub: string;
+  referred_count: string;
+  // Computed server-side (not DB columns): is this inviter a managed partner
+  // and at what cash percent.
+  is_partner?: boolean;
+  partner_cash_percent?: number;
 };
 
 export async function GET(req: Request) {
@@ -55,6 +66,10 @@ export async function GET(req: Request) {
     // sorts by total_lifetime_days DESC — used by admins to surface heavy-
     // usage accounts when looking for abuse patterns.
     const sortBy = (url.searchParams.get('sort') || 'recent').toLowerCase();
+    // 2026-06-13: when partner=1 the list is restricted to managed partner
+    // accounts (inviters with a negotiated cash deal). Lets the admin jump
+    // straight to them without searching.
+    const partnersOnly = ['1', 'true', 'yes'].includes((url.searchParams.get('partner') || '').toLowerCase());
     const page = Math.max(1, Number(url.searchParams.get('page') || 1));
     const limit = 50;
     const offset = (page - 1) * limit;
@@ -109,6 +124,17 @@ export async function GET(req: Request) {
       )`);
     }
 
+    if (partnersOnly) {
+      const partnerIds = referralPartnerIds();
+      if (partnerIds.length === 0) {
+        // No partners configured — short-circuit to an empty result.
+        return NextResponse.json({ ok: true, users: [], total: 0, page: 1, totalPages: 0 });
+      }
+      whereParts.push(`u.id = ANY($${paramIndex}::bigint[])`);
+      params.push(partnerIds);
+      paramIndex += 1;
+    }
+
     const whereClause = whereParts.length > 0 ? `WHERE ${whereParts.join(' AND ')}` : '';
 
     const countResult = await dbQuery<{ count: string }>(
@@ -160,7 +186,15 @@ export async function GET(req: Request) {
           FROM device_sessions ds
           WHERE ds.user_id = u.id
             AND ds.kicked_at IS NULL
-        ), 0) AS device_count
+        ), 0) AS device_count,
+        -- 2026-06-13 (partner view): referral identity + reach + balance.
+        u.referral_code AS referral_code,
+        COALESCE(u.referral_balance_rub, 0)::text AS referral_balance_rub,
+        COALESCE((
+          SELECT COUNT(*)::int
+          FROM users inv
+          WHERE inv.referred_by_user_id = u.id
+        ), 0)::text AS referred_count
       FROM users u
       LEFT JOIN payments p ON p.user_id = u.id
       LEFT JOIN LATERAL (
@@ -171,16 +205,28 @@ export async function GET(req: Request) {
         LIMIT 1
       ) s ON TRUE
       ${whereClause}
-      GROUP BY u.id, u.telegram_id, u.username, u.first_name, u.last_name, u.email, u.email_verified, u.auth_type, u.status, u.is_banned, u.ban_reason, u.ban_type, u.created_at, u.last_seen_at, s.status, s.end_date
+      GROUP BY u.id, u.telegram_id, u.username, u.first_name, u.last_name, u.email, u.email_verified, u.auth_type, u.status, u.is_banned, u.ban_reason, u.ban_type, u.created_at, u.last_seen_at, s.status, s.end_date, u.referral_code, u.referral_balance_rub
       ${orderClause}
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1};
       `,
       [...params, limit, offset]
     );
 
+    // Flag managed partners (and their negotiated cash rate) so the admin UI
+    // can highlight them and show the right percent.
+    const users = result.rows.map((u) => {
+      const idNum = Number(u.id);
+      const partner = isReferralPartner(idNum);
+      return {
+        ...u,
+        is_partner: partner,
+        partner_cash_percent: partner ? referralCashPercentForInviter(idNum) : undefined,
+      };
+    });
+
     return NextResponse.json({
       ok: true,
-      users: result.rows,
+      users,
       total,
       page,
       totalPages: Math.ceil(total / limit),
