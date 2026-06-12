@@ -16,6 +16,22 @@ import type { Pool, PoolClient } from 'pg';
 // ────────────────────────────────────────────────────────────────────────────
 
 export const REFERRAL_CASH_PERCENT = 10; // 10% of every referred-user RUB payment
+
+// Per-inviter elevated cash rates (2026-06-12 pilot). A small allowlist of
+// inviter `users.id` → custom percent. Applies to ALL of that inviter's
+// referred users regardless of how they signed up (Telegram OR email/Google),
+// because cash accrues on every referred-user RUB payment. Anyone not listed
+// here keeps the default REFERRAL_CASH_PERCENT. To widen/adjust, edit this map
+// (or later move it to an env/DB-backed config).
+export const REFERRAL_CASH_PILOT_RATES = new Map<number, number>([
+  [5700, 30], // user 5700 (@All_exx) — 30% pilot
+]);
+
+/** Resolve the cash percent for a given inviter (custom pilot rate or default). */
+export function referralCashPercentForInviter(inviterUserId: number): number {
+  return REFERRAL_CASH_PILOT_RATES.get(Number(inviterUserId)) ?? REFERRAL_CASH_PERCENT;
+}
+
 export const REFERRAL_WITHDRAWAL_MIN_RUB = 500;
 
 export type WithdrawalMethod = 'sbp_card' | 'crypto' | 'telegram_stars';
@@ -176,10 +192,15 @@ export async function applyReferralCashReward(
   if (!Number.isFinite(paidAmountRub) || paidAmountRub <= 0) {
     return { credited: false, amountRub: 0 };
   }
+  // Per-inviter rate: most inviters get REFERRAL_CASH_PERCENT (10%), but a
+  // small pilot allowlist (e.g. user 5700) earns a higher share on EVERY
+  // referred-user payment (TG + email/Google alike). The journal stores the
+  // actual `percent` used so the audit trail stays correct per-row.
+  const cashPercent = referralCashPercentForInviter(inviterUserId);
   // Round to 2 decimals after percentage. NUMERIC CHECK in the table
-  // rejects ≤ 0 so we also short-circuit when 10% rounds away to zero
+  // rejects ≤ 0 so we also short-circuit when the cut rounds away to zero
   // for tiny test payments (< 0.01 ₽).
-  const accrual = Math.round((paidAmountRub * REFERRAL_CASH_PERCENT) / 100 * 100) / 100;
+  const accrual = Math.round((paidAmountRub * cashPercent) / 100 * 100) / 100;
   if (accrual <= 0) {
     return { credited: false, amountRub: 0 };
   }
@@ -193,7 +214,7 @@ export async function applyReferralCashReward(
      VALUES ($1, $2, $3, $4, $5, $6)
      ON CONFLICT (payment_id) WHERE payment_id IS NOT NULL DO NOTHING
      RETURNING id::text AS id;`,
-    [inviterUserId, payerId, pid, paidAmountRub, REFERRAL_CASH_PERCENT, accrual],
+    [inviterUserId, payerId, pid, paidAmountRub, cashPercent, accrual],
   );
   if (journal.rowCount === 0) {
     return { credited: false, amountRub: 0 };

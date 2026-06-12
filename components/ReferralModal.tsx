@@ -237,6 +237,11 @@ export default function ReferralModal({ open, onClose, referralCode, t, lang, us
   // flag). `referralCode` is the canonical code: `u<base36(telegramId)>`.
   const SITE_REFERRAL_PILOT_CODES = new Set<string>(['u2qollr0']); // user id 5700 (@All_exx)
   const sitePilot = !!referralCode && SITE_REFERRAL_PILOT_CODES.has(referralCode);
+  // Cash share shown in the UI. Default is 10%; pilot users earn a higher cut
+  // (see REFERRAL_CASH_PILOT_RATES in lib/referral-cash.ts — kept in sync by
+  // hand). Currently the 30% cash pilot and the two-link site pilot are the
+  // same single user (5700), so we key both off `sitePilot`.
+  const cashPercent = sitePilot ? 30 : 10;
 
   const tgReferralUrl = referralCode
     ? `https://t.me/${process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME || 'hundlervpnbot'}?startapp=ref_${referralCode}`
@@ -435,8 +440,8 @@ export default function ReferralModal({ open, onClose, referralCode, t, lang, us
                 </button>
                 <p className="text-zinc-500 text-[10px] mt-2 leading-relaxed">
                   {lang === 'ru'
-                    ? '10 % с каждой оплаты приглашённого друга. Минимум для вывода — 500 ₽.'
-                    : '10% from every paid friend. Min withdrawal — 500 ₽.'}
+                    ? `${cashPercent} % с каждой оплаты приглашённого друга. Минимум для вывода — 500 ₽.`
+                    : `${cashPercent}% from every paid friend. Min withdrawal — 500 ₽.`}
                 </p>
               </motion.div>
 
@@ -453,8 +458,8 @@ export default function ReferralModal({ open, onClose, referralCode, t, lang, us
                 {sitePilot && (
                   <p className="text-zinc-500 text-[10px] lg:text-[11px] leading-relaxed mb-2.5">
                     {lang === 'ru'
-                      ? 'Друг регистрируется в Telegram — тебе идут бонусные дни + 10 % с его оплат.'
-                      : 'Friend signs up inside Telegram — you get bonus days + 10% of their payments.'}
+                      ? `Друг регистрируется в Telegram — тебе идут бонусные дни + ${cashPercent} % с его оплат.`
+                      : `Friend signs up inside Telegram — you get bonus days + ${cashPercent}% of their payments.`}
                   </p>
                 )}
                 <div className="rounded-xl border border-white/[0.08] bg-black/30 px-3 py-2.5 mb-3">
@@ -508,8 +513,8 @@ export default function ReferralModal({ open, onClose, referralCode, t, lang, us
                   </p>
                   <p className="text-zinc-500 text-[10px] lg:text-[11px] leading-relaxed mb-2.5">
                     {lang === 'ru'
-                      ? 'Друг регистрируется на сайте через почту или Google — тебе идут 10 % с его оплат (бонусные дни в этом случае не начисляются).'
-                      : 'Friend signs up on the website via email or Google — you get 10% of their payments (no bonus days in this case).'}
+                      ? `Друг регистрируется на сайте через почту или Google — тебе идут ${cashPercent} % с его оплат (бонусные дни в этом случае не начисляются).`
+                      : `Friend signs up on the website via email or Google — you get ${cashPercent}% of their payments (no bonus days in this case).`}
                   </p>
                   <div className="rounded-xl border border-white/[0.08] bg-black/30 px-3 py-2.5 mb-3">
                     <p className="text-white/90 text-[11px] lg:text-sm font-mono break-all leading-relaxed">
@@ -786,6 +791,7 @@ export default function ReferralModal({ open, onClose, referralCode, t, lang, us
             balanceRub={referralBalanceRub}
             userIdentifier={userIdentifier ?? null}
             lang={lang}
+            cashPercent={cashPercent}
           />
         </motion.div>
       )}

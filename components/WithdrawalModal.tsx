@@ -164,6 +164,9 @@ export type WithdrawalModalProps = {
   balanceRub: number;
   userIdentifier: WithdrawalUserIdentifier | null;
   lang: 'ru' | 'en';
+  /** Cash share shown in the empty-state hint. Defaults to 10%; pilot
+   *  inviters (e.g. user 5700) pass a higher value. */
+  cashPercent?: number;
 };
 
 const MIN_AMOUNT = 500;
@@ -229,7 +232,7 @@ function formatRelative(iso: string, lang: 'ru' | 'en') {
   return new Date(ts).toLocaleDateString(lang === 'ru' ? 'ru-RU' : 'en-US');
 }
 
-export default function WithdrawalModal({ open, onClose, balanceRub, userIdentifier, lang }: WithdrawalModalProps) {
+export default function WithdrawalModal({ open, onClose, balanceRub, userIdentifier, lang, cashPercent = 10 }: WithdrawalModalProps) {
   const [tab, setTab] = useState<'new' | 'list'>('new');
   const [list, setList] = useState<WithdrawalRow[]>([]);
   const [listLoading, setListLoading] = useState(false);
@@ -468,6 +471,7 @@ export default function WithdrawalModal({ open, onClose, balanceRub, userIdentif
                 <NewWithdrawalForm
                   lang={lang}
                   balanceRub={balanceRub}
+                  cashPercent={cashPercent}
                   formStep={formStep}
                   setFormStep={setFormStep}
                   amount={amount}
@@ -526,9 +530,11 @@ function NewWithdrawalForm({
   formError,
   onSubmit,
   starsRate,
+  cashPercent,
 }: {
   lang: 'ru' | 'en';
   balanceRub: number;
+  cashPercent: number;
   formStep: number;
   setFormStep: (n: number) => void;
   amount: string;
@@ -554,8 +560,8 @@ function NewWithdrawalForm({
         </p>
         <p className="text-zinc-500 text-[12px] leading-relaxed">
           {lang === 'ru'
-            ? `Минимальная сумма — ${MIN_AMOUNT} ₽. Приглашайте друзей и копите 10 % с каждой их оплаты.`
-            : `Minimum withdrawal is ${MIN_AMOUNT} ₽. Invite friends and earn 10% of each payment.`}
+            ? `Минимальная сумма — ${MIN_AMOUNT} ₽. Приглашайте друзей и копите ${cashPercent} % с каждой их оплаты.`
+            : `Minimum withdrawal is ${MIN_AMOUNT} ₽. Invite friends and earn ${cashPercent}% of each payment.`}
         </p>
       </div>
     );
