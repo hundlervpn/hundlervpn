@@ -46,6 +46,22 @@ export function referralPartnerIds(): number[] {
   return Array.from(REFERRAL_CASH_PILOT_RATES.keys());
 }
 
+// Allowlist of inviter `users.id` permitted to earn from the SITE / email
+// referral flow (`?ref=<code>` on the website → email/Google signup).
+// Per owner (2026-06-13): the email referral link must work for user 5700 ONLY.
+// Everyone else keeps Telegram-only referrals — their site `?ref=` codes do
+// NOT attribute email/Google signups (so no cash from email payers). Both the
+// two-link UI (ReferralModal) and the backend attribution (attachSiteReferral)
+// gate on this list. Widen it the same way as the cash pilot if needed.
+export const SITE_REFERRAL_INVITER_IDS = new Set<number>([
+  5700, // user 5700 (@All_exx) — email referral pilot
+]);
+
+/** Whether the given inviter may attribute/earn from site (email/Google) referrals. */
+export function isSiteReferralInviter(inviterUserId: number): boolean {
+  return SITE_REFERRAL_INVITER_IDS.has(Number(inviterUserId));
+}
+
 export const REFERRAL_WITHDRAWAL_MIN_RUB = 500;
 
 export type WithdrawalMethod = 'sbp_card' | 'crypto' | 'telegram_stars';

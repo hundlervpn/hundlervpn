@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
 import type { PoolClient } from 'pg';
+import { isSiteReferralInviter } from '@/lib/referral-cash';
 import { buildVlessLink, getSubscriptionUrl, getSubscriptionUrlForUser } from '@/lib/sub-token';
 import { claimUuid } from '@/lib/uuid-pool';
 import { triggerXraySync } from '@/lib/xray-webhook';
@@ -1082,6 +1083,13 @@ export async function attachSiteReferral(
   const inviterRaw = inviterRes.rows[0]?.id;
   const inviterUserId = inviterRaw === undefined || inviterRaw === null ? null : Number(inviterRaw);
   if (!inviterUserId || inviterUserId === Number(inviteeUserId)) {
+    return { attached: false, inviterUserId: null };
+  }
+
+  // Site / email referral is an allowlisted pilot — currently user 5700 ONLY
+  // (see SITE_REFERRAL_INVITER_IDS). Any other inviter's `?ref=` code must NOT
+  // attribute email/Google signups, so they never earn cash from email payers.
+  if (!isSiteReferralInviter(inviterUserId)) {
     return { attached: false, inviterUserId: null };
   }
 
