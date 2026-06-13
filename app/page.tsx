@@ -70,6 +70,7 @@ const translations = {
     devices: 'Устройства',
     extend: 'Продлить',
     install: 'Установить и настроить VPN',
+    installShort: 'Установить',
     promo: 'Промокоды',
     myDevices: 'Мои устройства',
     months: 'мес.', perMonth: 'в мес.', total: 'Итого:', daysLabel: 'дн.', perDay: '/день',
@@ -450,6 +451,7 @@ const translations = {
     devices: 'Devices',
     extend: 'Extend',
     install: 'Install & Setup VPN',
+    installShort: 'Install',
     promo: 'Promo codes',
     myDevices: 'My devices',
     months: 'mo.', perMonth: '/mo', total: 'Total:', daysLabel: 'd.', perDay: '/day',
@@ -2109,7 +2111,7 @@ function HomeView({ t, direction, subscriptionEndDateLabel, subscriptionDaysLabe
                               </div>
                               <div className="min-w-0">
                                 <p className={`font-semibold text-sm ${selected ? 'text-white' : 'text-zinc-300'}`}>{meta.title}</p>
-                                <p className="text-zinc-500 text-[10px] truncate">{meta.subtitle}</p>
+                                <p className="text-zinc-500 text-[10px] leading-tight break-words">{meta.subtitle}</p>
                               </div>
                             </div>
                           </button>
@@ -2471,7 +2473,8 @@ function HomeView({ t, direction, subscriptionEndDateLabel, subscriptionDaysLabe
               className="w-full mb-3 bg-white/[0.04] hover:bg-white/[0.08] border border-white/15 hover:border-white/25 text-white font-medium py-3 rounded-xl flex items-center justify-center gap-2 active:scale-[0.99] transition-all"
             >
               <Settings size={15} strokeWidth={1.75} className="text-zinc-300" />
-              <span className="truncate">{t.install}</span>
+              <span className="lg:hidden truncate">{t.installShort}</span>
+              <span className="hidden lg:inline truncate">{t.install}</span>
               <ChevronRight size={14} strokeWidth={1.75} className="text-zinc-400 ml-0.5 shrink-0" />
             </button>
 
