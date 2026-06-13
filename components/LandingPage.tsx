@@ -250,12 +250,7 @@ export default function LandingPage() {
               </span>
             </h2>
 
-            <p className="text-zinc-400 text-base lg:text-xl leading-relaxed max-w-2xl mx-auto mb-8">
-              Hundler VPN — это <span className="text-white font-medium">скорость, анонимность и обход любых блокировок</span>.
-              Собственная инфраструктура и поддержка 24/7.
-            </p>
-
-            <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
+            <div className="flex flex-col sm:flex-row gap-3 justify-center items-center mt-8">
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
