@@ -2098,20 +2098,20 @@ function HomeView({ t, direction, subscriptionEndDateLabel, subscriptionDaysLabe
                           <button
                             key={client}
                             onClick={() => { haptic('light'); setSetupClient(client); }}
-                            className={`relative rounded-xl border px-3 py-3 transition-all text-left ${selected ? 'border-white/60 bg-white/[0.06] shadow-[0_0_16px_rgba(255,255,255,0.18)]' : 'border-white/10 bg-zinc-900/50 hover:border-white/20'}`}
+                            className={`relative rounded-xl border px-3 py-3 backdrop-blur-sm transition-all text-left ${selected ? 'border-white/60 bg-white/[0.1] shadow-[0_0_16px_rgba(255,255,255,0.18)]' : 'border-white/10 bg-zinc-900/90 hover:border-white/20'}`}
                           >
                             {recommended && (
                               <div className="absolute -top-1.5 right-2 rounded-full bg-black border border-white/80 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-white">
                                 {t.setupClientRecommended}
                               </div>
                             )}
-                            <div className="flex items-center gap-2.5">
-                              <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border ${selected ? 'border-white/40 bg-white/10' : 'border-white/10 bg-zinc-800/80'}`}>
+                            <div className="flex flex-col gap-2">
+                              <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border ${selected ? 'border-white/40 bg-white/10' : 'border-white/10 bg-zinc-800/80'}`}>
                                 {meta.icon}
                               </div>
                               <div className="min-w-0">
-                                <p className={`font-semibold text-sm ${selected ? 'text-white' : 'text-zinc-300'}`}>{meta.title}</p>
-                                <p className="text-zinc-500 text-[10px] leading-tight break-words">{meta.subtitle}</p>
+                                <p className={`font-semibold text-[13px] leading-tight truncate ${selected ? 'text-white' : 'text-zinc-200'}`}>{meta.title}</p>
+                                <p className="text-zinc-500 text-[10px] leading-tight truncate">{meta.subtitle}</p>
                               </div>
                             </div>
                           </button>
