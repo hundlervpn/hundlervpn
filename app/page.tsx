@@ -70,7 +70,7 @@ const translations = {
     devices: 'Устройства',
     extend: 'Продлить',
     install: 'Установить и настроить VPN',
-    installShort: 'Установить',
+    installShort: 'Установить VPN',
     promo: 'Промокоды',
     myDevices: 'Мои устройства',
     months: 'мес.', perMonth: 'в мес.', total: 'Итого:', daysLabel: 'дн.', perDay: '/день',
@@ -451,7 +451,7 @@ const translations = {
     devices: 'Devices',
     extend: 'Extend',
     install: 'Install & Setup VPN',
-    installShort: 'Install',
+    installShort: 'Install VPN',
     promo: 'Promo codes',
     myDevices: 'My devices',
     months: 'mo.', perMonth: '/mo', total: 'Total:', daysLabel: 'd.', perDay: '/day',
@@ -5440,6 +5440,9 @@ type AdminUser = {
   referred_count?: string | number;
   is_partner?: boolean;
   partner_cash_percent?: number;
+  // Only allowlisted inviters earn from website/email (?ref=) signups;
+  // for everyone else the site link does nothing, so we hide it.
+  is_site_referral_inviter?: boolean;
 };
 
 // 2026-06-13: invitee list returned by /api/admin/users/<id>/referrals.
@@ -7783,8 +7786,16 @@ function AdminView({ t, direction, tgUser, navigate, lang, onHideNav, onLockAdmi
                         const pct = u.partner_cash_percent ?? 10;
                         const expanded = expandedReferralsUserId === u.id;
                         const detail = referralsDetail[u.id];
+                        // The TG deep link works for every referrer, but the website/email
+                        // (?ref=) link only attributes signups for allowlisted inviters
+                        // (e.g. 5700). Hide the dead «Сайт» link for everyone else.
                         const links = refCode
-                          ? [{ k: 'tg', label: 'TG', value: tgLink }, { k: 'site', label: lang === 'ru' ? 'Сайт' : 'Site', value: siteLink }]
+                          ? [
+                              { k: 'tg', label: 'TG', value: tgLink },
+                              ...(u.is_site_referral_inviter
+                                ? [{ k: 'site', label: lang === 'ru' ? 'Сайт' : 'Site', value: siteLink }]
+                                : []),
+                            ]
                           : [];
                         return (
                           <div className={u.is_partner
