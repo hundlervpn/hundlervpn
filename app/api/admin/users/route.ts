@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { dbQuery } from '@/lib/db';
 import { isAdmin } from '@/lib/admin';
-import { isReferralPartner, referralCashPercentForInviter, referralPartnerIds } from '@/lib/referral-cash';
+import { isReferralPartner, referralCashPercentForInviter, referralPartnerIds, isSiteReferralInviter } from '@/lib/referral-cash';
 
 type AdminUser = {
   id: string;
@@ -41,6 +41,10 @@ type AdminUser = {
   // and at what cash percent.
   is_partner?: boolean;
   partner_cash_percent?: number;
+  // Whether this inviter's website/email (?ref=) link actually attributes
+  // signups. Only allowlisted inviters (e.g. 5700) earn from site/email refs;
+  // for everyone else the site link is dead, so the admin UI hides it.
+  is_site_referral_inviter?: boolean;
 };
 
 export async function GET(req: Request) {
@@ -221,6 +225,7 @@ export async function GET(req: Request) {
         ...u,
         is_partner: partner,
         partner_cash_percent: partner ? referralCashPercentForInviter(idNum) : undefined,
+        is_site_referral_inviter: isSiteReferralInviter(idNum),
       };
     });
 
