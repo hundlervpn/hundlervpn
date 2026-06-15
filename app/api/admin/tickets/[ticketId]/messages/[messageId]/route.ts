@@ -1,11 +1,59 @@
 import { NextResponse } from 'next/server';
 import { getDbPool } from '@/lib/db';
 import { isAdmin } from '@/lib/admin';
+import { isAllowedReactionEmoji, toggleReaction } from '@/lib/ticket-message-actions';
 
 function parsePositiveNumber(raw: string) {
   const value = Number(raw);
   if (!Number.isFinite(value) || value < 1) return null;
   return value;
+}
+
+type ReactionBody = {
+  telegramId?: number | string;
+  emoji?: string;
+};
+
+// Set / replace / toggle-off the admin's reaction on a message.
+export async function POST(
+  req: Request,
+  { params }: { params: Promise<{ ticketId: string; messageId: string }> }
+) {
+  try {
+    const { ticketId: ticketIdRaw, messageId: messageIdRaw } = await params;
+    const ticketId = parsePositiveNumber(ticketIdRaw);
+    const messageId = parsePositiveNumber(messageIdRaw);
+
+    if (!ticketId || !messageId) {
+      return NextResponse.json({ error: 'Invalid ticketId or messageId' }, { status: 400 });
+    }
+
+    const body = (await req.json()) as ReactionBody;
+
+    if (!isAdmin(body.telegramId)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    if (!isAllowedReactionEmoji(body.emoji)) {
+      return NextResponse.json({ error: 'Unsupported emoji' }, { status: 400 });
+    }
+
+    const pool = getDbPool();
+    const client = await pool.connect();
+
+    try {
+      const result = await toggleReaction(client, ticketId, messageId, 'admin', body.emoji);
+      if (!result.ok) {
+        return NextResponse.json({ error: result.error }, { status: result.status });
+      }
+      return NextResponse.json({ ok: true, messageId: String(messageId), reactions: result.reactions });
+    } finally {
+      client.release();
+    }
+  } catch (error) {
+    console.error('Admin ticket reaction error:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
 }
 
 export async function DELETE(
