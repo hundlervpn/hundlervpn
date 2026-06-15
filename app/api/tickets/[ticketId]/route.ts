@@ -6,6 +6,11 @@ import {
   fetchAttachmentsByMessage,
   type AttachmentMeta,
 } from '@/lib/ticket-attachments';
+import {
+  fetchReactionsByMessage,
+  resolveReplyToId,
+  type ReactionMeta,
+} from '@/lib/ticket-message-actions';
 
 type IdentityResolution =
   | { ok: true; field: 'telegram_id' | 'id'; value: number }
@@ -25,6 +30,7 @@ type TicketMessageRow = {
   sender_type: 'user' | 'admin' | 'system';
   message: string;
   created_at: string;
+  reply_to_id: string | null;
 };
 
 function hasValue(value: unknown) {
@@ -108,14 +114,15 @@ export async function GET(
       return NextResponse.json({ error: 'Ticket not found' }, { status: 404 });
     }
 
-    const [messagesResult, attachmentsByMessage] = await Promise.all([
+    const [messagesResult, attachmentsByMessage, reactionsByMessage] = await Promise.all([
       dbQuery<TicketMessageRow>(
         `
         SELECT
           id::text AS id,
           sender_type,
           message,
-          created_at
+          created_at,
+          reply_to_id::text AS reply_to_id
         FROM support_ticket_messages
         WHERE ticket_id = $1
         ORDER BY created_at ASC;
@@ -123,11 +130,13 @@ export async function GET(
         [ticketId]
       ),
       fetchAttachmentsByMessage(dbQuery, ticketId),
+      fetchReactionsByMessage(dbQuery, ticketId),
     ]);
 
     const messages = messagesResult.rows.map((msg) => ({
       ...msg,
       attachments: attachmentsByMessage.get(msg.id) ?? ([] as AttachmentMeta[]),
+      reactions: reactionsByMessage.get(msg.id) ?? ([] as ReactionMeta[]),
     }));
 
     return NextResponse.json({
@@ -146,6 +155,7 @@ type UserReplyBody = {
   userId?: number | string;
   message?: string;
   attachments?: unknown;
+  replyToId?: number | string | null;
 };
 
 export async function POST(
@@ -207,13 +217,19 @@ export async function POST(
         return NextResponse.json({ error: 'Ticket not found' }, { status: 404 });
       }
 
+      const replyResolution = await resolveReplyToId(client, ticketId, body.replyToId);
+      if (!replyResolution.ok) {
+        await client.query('ROLLBACK');
+        return NextResponse.json({ error: replyResolution.error }, { status: 400 });
+      }
+
       const messageResult = await client.query<TicketMessageRow>(
         `
-        INSERT INTO support_ticket_messages (ticket_id, sender_type, message)
-        VALUES ($1, 'user', $2)
-        RETURNING id::text AS id, sender_type, message, created_at;
+        INSERT INTO support_ticket_messages (ticket_id, sender_type, message, reply_to_id)
+        VALUES ($1, 'user', $2, $3)
+        RETURNING id::text AS id, sender_type, message, created_at, reply_to_id::text AS reply_to_id;
         `,
-        [ticketId, message]
+        [ticketId, message, replyResolution.replyToId]
       );
 
       await insertAttachments(client, ticketId, messageResult.rows[0].id, attachments);

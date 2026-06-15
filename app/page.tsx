@@ -4,7 +4,7 @@ import { useState, memo, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Shield, CreditCard, User, Zap, Check, ChevronRight, ChevronLeft, ChevronDown, HelpCircle, Star, Bitcoin, Wallet, Calendar, Smartphone, Settings, Gift, MonitorSmartphone, Globe, X, Monitor, FileText, Lock, Download, ArrowRight, ArrowUp, CheckCircle2, Laptop, Smartphone as SmartphoneIcon, ShieldAlert, Users, Ban, Tag, Search, Plus, Trash2, Copy, ClipboardCheck, Key, Mail, Send, Pencil, LogOut, RefreshCw, AlertCircle, Link2, Home, Crown, MessageCircle, Server, Package, Sparkles, Flame, Trophy, Clock, Paperclip, Image as ImageIcon } from 'lucide-react';
+import { Shield, CreditCard, User, Zap, Check, ChevronRight, ChevronLeft, ChevronDown, HelpCircle, Star, Bitcoin, Wallet, Calendar, Smartphone, Settings, Gift, MonitorSmartphone, Globe, X, Monitor, FileText, Lock, Download, ArrowRight, ArrowUp, CheckCircle2, Laptop, Smartphone as SmartphoneIcon, ShieldAlert, Users, Ban, Tag, Search, Plus, Trash2, Copy, ClipboardCheck, Key, Mail, Send, Pencil, LogOut, RefreshCw, AlertCircle, Link2, Home, Crown, MessageCircle, Server, Package, Sparkles, Flame, Trophy, Clock, Paperclip, Image as ImageIcon, Reply, MoreHorizontal } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import ParticlesBackground from '@/components/ParticlesBackground';
 import SparkEffect from '@/components/SparkEffect';
@@ -3357,7 +3357,208 @@ function TicketAttachmentGrid({
   );
 }
 
-// Horizontal strip of picked-but-unsent images with a remove (×) button.
+// ---------------------------------------------------------------------------
+// Message-level actions for the support-ticket chat (mini-app + admin):
+// swipe-left / long-press / hover-button to reply, copy text, and one emoji
+// reaction per side. Backend: db/migrations/2026-06-16-ticket-message-actions.
+// ---------------------------------------------------------------------------
+const TICKET_REACTION_EMOJIS = ['\U0001f44d', '\U0001f44e', '\u2764\ufe0f', '\U0001f60a', '\U0001f62e', '\U0001f389'] as const;
+
+type TicketReaction = { reactor_type: 'user' | 'admin'; emoji: string };
+
+type TicketChatMsg = {
+  id: string;
+  sender_type: 'user' | 'admin' | 'system';
+  message: string;
+  created_at: string;
+  attachments?: TicketAttachmentMeta[];
+  reply_to_id?: string | null;
+  reactions?: TicketReaction[];
+};
+
+function TicketMessageRow({
+  msg,
+  isOwn,
+  mySide,
+  quotedLabel,
+  quotedText,
+  bubbleClassName,
+  meta,
+  attachmentsNode,
+  onReply,
+  onReact,
+  onCopy,
+  onJumpToQuoted,
+  lang,
+}: {
+  msg: TicketChatMsg;
+  isOwn: boolean;
+  mySide: 'user' | 'admin';
+  quotedLabel: string | null;
+  quotedText: string | null;
+  bubbleClassName: string;
+  meta: React.ReactNode;
+  attachmentsNode?: React.ReactNode;
+  onReply: (msg: TicketChatMsg) => void;
+  onReact: (messageId: string, emoji: string) => void;
+  onCopy: (text: string) => void;
+  onJumpToQuoted?: (id: string) => void;
+  lang: 'ru' | 'en';
+}) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [dragX, setDragX] = useState(0);
+  const startX = useRef(0);
+  const startY = useRef(0);
+  const dragging = useRef(false);
+  const swiped = useRef(false);
+  const longPress = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const isSystem = msg.sender_type === 'system';
+  const actionable = !isSystem;
+
+  const clearLongPress = () => {
+    if (longPress.current) { clearTimeout(longPress.current); longPress.current = null; }
+  };
+  const closeMenu = () => setMenuOpen(false);
+
+  const doReply = () => { haptic('light'); onReply(msg); closeMenu(); };
+  const doCopy = () => { onCopy(msg.message); closeMenu(); };
+  const doReact = (emoji: string) => { onReact(msg.id, emoji); closeMenu(); };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (!actionable) return;
+    startX.current = e.touches[0].clientX;
+    startY.current = e.touches[0].clientY;
+    dragging.current = true;
+    swiped.current = false;
+    clearLongPress();
+    longPress.current = setTimeout(() => {
+      dragging.current = false;
+      setDragX(0);
+      haptic('medium');
+      setMenuOpen(true);
+    }, 450);
+  };
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!dragging.current) return;
+    const dx = e.touches[0].clientX - startX.current;
+    const dy = e.touches[0].clientY - startY.current;
+    if (Math.abs(dx) > 8 || Math.abs(dy) > 8) clearLongPress();
+    if (Math.abs(dy) > Math.abs(dx)) { dragging.current = false; setDragX(0); return; }
+    const clamped = Math.max(-72, Math.min(0, dx));
+    setDragX(clamped);
+    if (clamped <= -52 && !swiped.current) {
+      swiped.current = true;
+      dragging.current = false;
+      setDragX(0);
+      doReply();
+    }
+  };
+  const handleTouchEnd = () => {
+    clearLongPress();
+    dragging.current = false;
+    setDragX(0);
+  };
+
+  const myReaction = msg.reactions?.find((r) => r.reactor_type === mySide)?.emoji ?? null;
+
+  return (
+    <div id={`tmsg-${msg.id}`} className={`group relative flex ${isOwn ? 'justify-end' : 'justify-start'}`}>
+      {actionable && dragX < -8 && (
+        <div className="absolute right-1 top-1/2 -translate-y-1/2 text-zinc-400" style={{ opacity: Math.min(1, -dragX / 52) }}>
+          <Reply size={16} />
+        </div>
+      )}
+
+      <div
+        className="relative max-w-[85%]"
+        style={{ transform: dragX ? `translateX(${dragX}px)` : undefined, transition: dragX ? 'none' : 'transform 0.18s ease' }}
+      >
+        {actionable && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); haptic('light'); setMenuOpen((v) => !v); }}
+            aria-label="Actions"
+            className={`hidden md:flex absolute -top-2 ${isOwn ? '-left-7' : '-right-7'} w-6 h-6 rounded-full bg-zinc-800/90 border border-white/10 text-zinc-300 items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:text-white z-10`}
+          >
+            <MoreHorizontal size={14} />
+          </button>
+        )}
+
+        <div
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+          className={bubbleClassName}
+        >
+          {msg.reply_to_id && (quotedText || quotedLabel) && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onJumpToQuoted?.(msg.reply_to_id as string); }}
+              className="mb-1.5 w-full text-left rounded-md border-l-2 border-white/40 bg-black/20 px-2 py-1"
+            >
+              {quotedLabel && <span className="block text-[10px] font-medium text-white/70">{quotedLabel}</span>}
+              <span className="block text-[11px] text-white/60 truncate">{quotedText || (lang === 'ru' ? '\U0001f4f7 \u0424\u043e\u0442\u043e' : '\U0001f4f7 Photo')}</span>
+            </button>
+          )}
+
+          {msg.message && (
+            <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">{msg.message}</p>
+          )}
+          {attachmentsNode}
+          {meta}
+        </div>
+
+        {msg.reactions && msg.reactions.length > 0 && (
+          <div className={`mt-1 flex gap-1 ${isOwn ? 'justify-end' : 'justify-start'}`}>
+            {msg.reactions.map((r) => (
+              <button
+                key={r.reactor_type}
+                type="button"
+                onClick={(e) => { e.stopPropagation(); if (r.reactor_type === mySide) onReact(msg.id, r.emoji); }}
+                className={`px-1.5 py-0.5 rounded-full text-xs border ${r.reactor_type === mySide ? 'bg-white/15 border-white/30' : 'bg-black/30 border-white/10'}`}
+              >
+                {r.emoji}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {menuOpen && (
+          <>
+            <div className="fixed inset-0 z-20" onClick={closeMenu} onTouchStart={closeMenu} />
+            <div className={`absolute z-30 top-full mt-1 ${isOwn ? 'right-0' : 'left-0'} rounded-2xl border border-white/10 bg-zinc-900/95 backdrop-blur-md shadow-xl p-2 w-max`}>
+              <div className="flex gap-1 mb-1">
+                {TICKET_REACTION_EMOJIS.map((emoji) => (
+                  <button
+                    key={emoji}
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); doReact(emoji); }}
+                    className={`w-8 h-8 rounded-full text-lg flex items-center justify-center hover:bg-white/10 ${myReaction === emoji ? 'bg-white/15' : ''}`}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+              <div className="flex flex-col">
+                <button type="button" onClick={(e) => { e.stopPropagation(); doReply(); }} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-zinc-200 hover:bg-white/10">
+                  <Reply size={15} /> {lang === 'ru' ? '\u041e\u0442\u0432\u0435\u0442\u0438\u0442\u044c' : 'Reply'}
+                </button>
+                {msg.message && (
+                  <button type="button" onClick={(e) => { e.stopPropagation(); doCopy(); }} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-zinc-200 hover:bg-white/10">
+                    <Copy size={15} /> {lang === 'ru' ? '\u041a\u043e\u043f\u0438\u0440\u043e\u0432\u0430\u0442\u044c' : 'Copy'}
+                  </button>
+                )}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Horizontal strip of picked-but-unsent images with a remove (\u00d7) button.
 function PendingImagesStrip({
   images,
   onRemove,
@@ -3405,6 +3606,8 @@ type SupportTicketMessage = {
   message: string;
   created_at: string;
   attachments?: TicketAttachmentMeta[];
+  reply_to_id?: string | null;
+  reactions?: TicketReaction[];
 };
 
 function SupportView({ t, direction, userIdentifier, lang, onHideNav, onMarkRead }: { t: any; direction: number; userIdentifier: UserIdentifier | null; lang: 'ru' | 'en'; onHideNav?: (hide: boolean) => void; onMarkRead?: () => void }) {
@@ -3417,6 +3620,7 @@ function SupportView({ t, direction, userIdentifier, lang, onHideNav, onMarkRead
   const [ticketMessages, setTicketMessages] = useState<SupportTicketMessage[]>([]);
   const [ticketDetailsLoading, setTicketDetailsLoading] = useState(false);
   const [replyMessage, setReplyMessage] = useState('');
+  const [replyTo, setReplyTo] = useState<SupportTicketMessage | null>(null);
   const [replySending, setReplySending] = useState(false);
   const [statusUpdating, setStatusUpdating] = useState(false);
   const [subject, setSubject] = useState('');
@@ -3625,6 +3829,7 @@ function SupportView({ t, direction, userIdentifier, lang, onHideNav, onMarkRead
           ...requestBody,
           message: messageValue,
           attachments: attachments.length > 0 ? attachments : undefined,
+          replyToId: replyTo?.id ?? null,
         }),
       });
 
@@ -3634,6 +3839,7 @@ function SupportView({ t, direction, userIdentifier, lang, onHideNav, onMarkRead
       }
 
       setReplyMessage('');
+      setReplyTo(null);
       replyImages.forEach((img) => URL.revokeObjectURL(img.previewUrl));
       setReplyImages([]);
       await Promise.all([loadTicketDetails(selectedTicketId), loadTickets()]);
@@ -3642,6 +3848,47 @@ function SupportView({ t, direction, userIdentifier, lang, onHideNav, onMarkRead
     } finally {
       setReplySending(false);
     }
+  };
+
+  const handleReactMessage = async (messageId: string, emoji: string) => {
+    if (!requestBody || !selectedTicketId) return;
+    haptic('light');
+    try {
+      const res = await fetch(`/api/tickets/${selectedTicketId}/messages/${messageId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...requestBody, emoji }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || t.supportTicketActionError);
+      setTicketMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, reactions: data.reactions ?? [] } : m)));
+    } catch (error) {
+      setTicketsError(error instanceof Error ? error.message : t.supportTicketActionError);
+    }
+  };
+
+  const handleCopyMessage = async (text: string) => {
+    if (!text) return;
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      haptic('light');
+    } catch { /* ignore */ }
+  };
+
+  const jumpToMessage = (id: string) => {
+    const el = document.getElementById(`tmsg-${id}`);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
   };
 
   const handleTicketStatus = async (status: 'open' | 'closed') => {
@@ -3855,33 +4102,56 @@ function SupportView({ t, direction, userIdentifier, lang, onHideNav, onMarkRead
                     <div className="text-zinc-600 text-sm py-8 text-center">{t.supportTicketNoMessages}</div>
                   ) : (
                     <div className="space-y-2.5">
-                      {ticketMessages.map((msg) => (
-                        <div key={msg.id} className={`flex ${msg.sender_type === 'user' ? 'justify-end' : 'justify-start'}`}>
-                          <div className={`max-w-[85%] px-4 py-2.5 ${
-                            msg.sender_type === 'user'
-                              ? 'rounded-2xl rounded-br-md bg-red-500/15 border border-red-500/30 text-white'
-                              : 'rounded-2xl rounded-bl-md bg-white/[0.04] border border-white/10 text-zinc-100'
-                          }`}>
-                            {msg.message && (
-                              <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">{msg.message}</p>
-                            )}
-                            <TicketAttachmentGrid
-                              attachments={msg.attachments}
-                              buildUrl={(att) => buildAttachmentUrl(selectedTicket.id, att)}
-                              onOpen={setLightboxUrl}
-                            />
-                            <p className={`text-[10px] mt-1.5 ${msg.sender_type === 'user' ? 'text-red-200/60' : 'text-zinc-500'}`}>
-                              {senderLabel(msg.sender_type)} · {formatDate(msg.created_at)}
-                            </p>
-                          </div>
-                        </div>
-                      ))}
+                      {ticketMessages.map((msg) => {
+                        const quoted = msg.reply_to_id ? ticketMessages.find((m) => m.id === msg.reply_to_id) : null;
+                        const isOwn = msg.sender_type === 'user';
+                        return (
+                          <TicketMessageRow
+                            key={msg.id}
+                            msg={msg}
+                            isOwn={isOwn}
+                            mySide="user"
+                            quotedLabel={quoted ? senderLabel(quoted.sender_type) : null}
+                            quotedText={quoted ? quoted.message : null}
+                            bubbleClassName={`px-4 py-2.5 ${isOwn ? 'rounded-2xl rounded-br-md bg-red-500/15 border border-red-500/30 text-white' : 'rounded-2xl rounded-bl-md bg-white/[0.04] border border-white/10 text-zinc-100'}`}
+                            attachmentsNode={
+                              <TicketAttachmentGrid
+                                attachments={msg.attachments}
+                                buildUrl={(att) => buildAttachmentUrl(selectedTicket.id, att)}
+                                onOpen={setLightboxUrl}
+                              />
+                            }
+                            meta={
+                              <p className={`text-[10px] mt-1.5 ${isOwn ? 'text-red-200/60' : 'text-zinc-500'}`}>
+                                {senderLabel(msg.sender_type)} · {formatDate(msg.created_at)}
+                              </p>
+                            }
+                            onReply={(m) => { setReplyTo(m as SupportTicketMessage); }}
+                            onReact={handleReactMessage}
+                            onCopy={handleCopyMessage}
+                            onJumpToQuoted={jumpToMessage}
+                            lang={lang}
+                          />
+                        );
+                      })}
                     </div>
                   )}
                 </div>
 
                 {/* Fixed input at bottom — premium pill textarea + circular ArrowUp send (no airplane) */}
                 <div className="shrink-0 px-4 pt-3 border-t border-white/10 bg-zinc-950/95 backdrop-blur-md" style={{ paddingBottom: 'calc(var(--sab) + 0.75rem)' }}>
+                  {replyTo && (
+                    <div className="flex items-center gap-2 mb-2 rounded-xl border-l-2 border-red-400/70 bg-white/[0.04] px-3 py-2">
+                      <Reply size={14} className="text-red-300 shrink-0" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[10px] font-medium text-red-300">{lang === 'ru' ? 'Ответ' : 'Reply'} · {senderLabel(replyTo.sender_type)}</p>
+                        <p className="text-[11px] text-zinc-400 truncate">{replyTo.message || (lang === 'ru' ? '📷 Фото' : '📷 Photo')}</p>
+                      </div>
+                      <button type="button" onClick={() => setReplyTo(null)} aria-label="Cancel reply" className="shrink-0 text-zinc-400 hover:text-white">
+                        <X size={16} />
+                      </button>
+                    </div>
+                  )}
                   <PendingImagesStrip images={replyImages} onRemove={(k) => removePendingImage(k, 'reply')} />
                   <div className="flex items-end gap-2">
                     <input
@@ -5526,6 +5796,8 @@ type AdminTicketMessage = {
   message: string;
   created_at: string;
   attachments?: TicketAttachmentMeta[];
+  reply_to_id?: string | null;
+  reactions?: TicketReaction[];
 };
 
 function AdminTicketsView({
@@ -5554,6 +5826,7 @@ function AdminTicketsView({
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
   const [selectedTicket, setSelectedTicket] = useState<AdminTicketDetails | null>(null);
   const [ticketMessages, setTicketMessages] = useState<AdminTicketMessage[]>([]);
+  const [replyTo, setReplyTo] = useState<AdminTicketMessage | null>(null);
   const [ticketDetailsLoading, setTicketDetailsLoading] = useState(false);
   const [replyMessage, setReplyMessage] = useState('');
   const [replySending, setReplySending] = useState(false);
@@ -5734,6 +6007,7 @@ function AdminTicketsView({
           telegramId: tgId,
           message,
           attachments: attachments.length > 0 ? attachments : undefined,
+          replyToId: replyTo?.id ?? null,
         }),
       });
 
@@ -5743,6 +6017,7 @@ function AdminTicketsView({
       }
 
       setReplyMessage('');
+      setReplyTo(null);
       replyImages.forEach((img) => URL.revokeObjectURL(img.previewUrl));
       setReplyImages([]);
       await Promise.all([
@@ -5754,6 +6029,47 @@ function AdminTicketsView({
     } finally {
       setReplySending(false);
     }
+  };
+
+  const handleReactMessage = async (messageId: string, emoji: string) => {
+    if (!tgId || !selectedTicketId) return;
+    haptic('light');
+    try {
+      const res = await fetch(`/api/admin/tickets/${selectedTicketId}/messages/${messageId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ telegramId: tgId, emoji }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || t.adminTicketActionError);
+      setTicketMessages((prev) => prev.map((m) => (m.id === messageId ? { ...m, reactions: data.reactions ?? [] } : m)));
+    } catch (error) {
+      setTicketsError(error instanceof Error ? error.message : t.adminTicketActionError);
+    }
+  };
+
+  const handleCopyMessage = async (text: string) => {
+    if (!text) return;
+    try {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      haptic('light');
+    } catch { /* ignore */ }
+  };
+
+  const jumpToMessage = (id: string) => {
+    const el = document.getElementById(`tmsg-${id}`);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
   };
 
   const handleTicketStatus = async (status: 'open' | 'closed') => {
@@ -6174,45 +6490,66 @@ function AdminTicketsView({
                   <div className="text-zinc-600 text-sm py-8 text-center">{t.adminTicketNoMessages}</div>
                 ) : (
                   <div className="space-y-3">
-                    {ticketMessages.map((msg) => (
-                      <div key={msg.id} className={`flex ${msg.sender_type === 'admin' ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-[85%] rounded-2xl px-4 py-3 ${
-                          msg.sender_type === 'admin' 
-                            ? 'bg-gradient-to-br from-red-500/20 to-red-600/10 border border-red-500/25 text-white' 
-                            : 'bg-zinc-800/80 border border-white/10 text-zinc-200'
-                        }`}>
-                          <div className="flex items-start gap-2">
-                            <div className="flex-1 min-w-0">
-                              {msg.message && (
-                                <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">{msg.message}</p>
-                              )}
-                              <TicketAttachmentGrid
-                                attachments={msg.attachments}
-                                buildUrl={(att) => buildAttachmentUrl(selectedTicket.id, att)}
-                                onOpen={setLightboxUrl}
-                              />
+                    {ticketMessages.map((msg) => {
+                      const quoted = msg.reply_to_id ? ticketMessages.find((m) => m.id === msg.reply_to_id) : null;
+                      const isOwn = msg.sender_type === 'admin';
+                      return (
+                        <TicketMessageRow
+                          key={msg.id}
+                          msg={msg}
+                          isOwn={isOwn}
+                          mySide="admin"
+                          quotedLabel={quoted ? senderLabel(quoted.sender_type) : null}
+                          quotedText={quoted ? quoted.message : null}
+                          bubbleClassName={`rounded-2xl px-4 py-3 ${isOwn ? 'bg-gradient-to-br from-red-500/20 to-red-600/10 border border-red-500/25 text-white' : 'bg-zinc-800/80 border border-white/10 text-zinc-200'}`}
+                          attachmentsNode={
+                            <TicketAttachmentGrid
+                              attachments={msg.attachments}
+                              buildUrl={(att) => buildAttachmentUrl(selectedTicket.id, att)}
+                              onOpen={setLightboxUrl}
+                            />
+                          }
+                          meta={
+                            <div className="mt-2 flex items-center justify-between gap-2">
+                              <p className={`text-[10px] ${isOwn ? 'text-red-300/60' : 'text-zinc-500'}`}>
+                                {senderLabel(msg.sender_type)} · {formatDate(msg.created_at)}
+                              </p>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); handleDeleteMessage(msg.id); }}
+                                disabled={deletingMessageId === msg.id}
+                                className="text-zinc-500 hover:text-red-300 transition-colors disabled:opacity-40 shrink-0"
+                                title={t.adminTicketDeleteMessage}
+                              >
+                                <Trash2 size={12} />
+                              </button>
                             </div>
-                            <button
-                              onClick={() => handleDeleteMessage(msg.id)}
-                              disabled={deletingMessageId === msg.id}
-                              className="mt-0.5 text-zinc-500 hover:text-red-300 transition-colors disabled:opacity-40 shrink-0"
-                              title={t.adminTicketDeleteMessage}
-                            >
-                              <Trash2 size={12} />
-                            </button>
-                          </div>
-                          <p className={`text-[10px] mt-2 ${msg.sender_type === 'admin' ? 'text-red-300/60' : 'text-zinc-500'}`}>
-                            {senderLabel(msg.sender_type)} · {formatDate(msg.created_at)}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
+                          }
+                          onReply={(m) => { setReplyTo(m as AdminTicketMessage); }}
+                          onReact={handleReactMessage}
+                          onCopy={handleCopyMessage}
+                          onJumpToQuoted={jumpToMessage}
+                          lang={lang}
+                        />
+                      );
+                    })}
                   </div>
                 )}
               </div>
 
               {/* Fixed input at bottom */}
               <div className="shrink-0 px-4 pt-3 border-t border-white/10 bg-zinc-950" style={{ paddingBottom: 'calc(var(--sab) + 0.75rem)' }}>
+                {replyTo && (
+                  <div className="flex items-center gap-2 mb-2 rounded-xl border-l-2 border-red-400/70 bg-white/[0.04] px-3 py-2">
+                    <Reply size={14} className="text-red-300 shrink-0" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] font-medium text-red-300">{lang === 'ru' ? 'Ответ' : 'Reply'} · {senderLabel(replyTo.sender_type)}</p>
+                      <p className="text-[11px] text-zinc-400 truncate">{replyTo.message || (lang === 'ru' ? '📷 Фото' : '📷 Photo')}</p>
+                    </div>
+                    <button type="button" onClick={() => setReplyTo(null)} aria-label="Cancel reply" className="shrink-0 text-zinc-400 hover:text-white">
+                      <X size={16} />
+                    </button>
+                  </div>
+                )}
                 <PendingImagesStrip images={replyImages} onRemove={(k) => removePendingImage(k, 'reply')} />
                 <div className="flex gap-2">
                   <input
