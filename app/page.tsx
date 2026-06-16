@@ -6942,6 +6942,99 @@ function AdminView({ t, direction, tgUser, navigate, lang, onHideNav, onLockAdmi
   const ADMIN_OWNER_ID = 2029065770;
   const isOwner = tgId === ADMIN_OWNER_ID;
 
+  // Stat override feature — hidden behind password, owner-only.
+  const [statEditorOpen, setStatEditorOpen] = useState(false);
+  const [statPasswordInput, setStatPasswordInput] = useState('');
+  const [statPasswordError, setStatPasswordError] = useState(false);
+  const [statPasswordPrompt, setStatPasswordPrompt] = useState(false);
+  const [statOverrides, setStatOverrides] = useState<Record<string, any>>({});
+  const [statOverridesLoading, setStatOverridesLoading] = useState(false);
+  const [statOverridesSaving, setStatOverridesSaving] = useState(false);
+  const [statOverridesSaved, setStatOverridesSaved] = useState(false);
+  const STAT_EDITOR_PASSWORD = '2006Mi0217';
+
+  const loadStatOverrides = async () => {
+    if (!tgId) return;
+    setStatOverridesLoading(true);
+    try {
+      const res = await fetch(`/api/admin/stat-overrides?telegramId=${tgId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setStatOverrides(data.overrides ?? {});
+      }
+    } catch { /* ignore */ } finally { setStatOverridesLoading(false); }
+  };
+
+  const saveStatOverrides = async () => {
+    if (!tgId) return;
+    setStatOverridesSaving(true);
+    setStatOverridesSaved(false);
+    try {
+      const res = await fetch('/api/admin/stat-overrides', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ telegramId: tgId, overrides: statOverrides }),
+      });
+      if (res.ok) {
+        setStatOverridesSaved(true);
+        // Reload stats so changes appear immediately
+        loadStats();
+        setTimeout(() => setStatOverridesSaved(false), 3000);
+      }
+    } catch { /* ignore */ } finally { setStatOverridesSaving(false); }
+  };
+
+  const handleStatPasswordSubmit = () => {
+    if (statPasswordInput === STAT_EDITOR_PASSWORD) {
+      setStatPasswordPrompt(false);
+      setStatPasswordInput('');
+      setStatPasswordError(false);
+      setStatEditorOpen(true);
+      loadStatOverrides();
+    } else {
+      setStatPasswordError(true);
+    }
+  };
+
+  const updateOverride = (key: string, value: string) => {
+    setStatOverrides((prev: Record<string, any>) => {
+      const next = { ...prev };
+      const num = Number(value);
+      if (value === '' || value === undefined) {
+        delete next[key];
+      } else if (!isNaN(num)) {
+        next[key] = num;
+      }
+      return next;
+    });
+  };
+
+  const updateMonthlyOverride = (month: string, field: 'revenue' | 'paidCount', value: string) => {
+    setStatOverrides((prev: Record<string, any>) => {
+      const next = { ...prev };
+      const monthly = { ...(next.monthlyRevenue || {}) };
+      const entry = { ...(monthly[month] || {}) };
+      const num = Number(value);
+      if (value === '' || value === undefined) {
+        delete entry[field];
+      } else if (!isNaN(num)) {
+        entry[field] = num;
+      }
+      // Clean up empty entries
+      if (Object.keys(entry).length === 0) {
+        delete monthly[month];
+      } else {
+        monthly[month] = entry;
+      }
+      if (Object.keys(monthly).length === 0) {
+        delete next.monthlyRevenue;
+      } else {
+        next.monthlyRevenue = monthly;
+      }
+      return next;
+    });
+  };
+
   const loadMaintenance = async () => {
     try {
       const res = await fetch('/api/maintenance');
@@ -8901,7 +8994,7 @@ function AdminView({ t, direction, tgUser, navigate, lang, onHideNav, onLockAdmi
                 <div className="text-center py-8 text-zinc-400 text-sm">Серверы не настроены</div>
               )}
 
-              {connData && connData.servers.map((srv) => {
+              {connData && connData.servers.filter((srv) => srv.is_active).map((srv) => {
                 const expanded = connExpanded.has(srv.key);
                 const onlineUsers = srv.users.filter((u) => u.is_online);
                 const offlineRecent = srv.users.filter((u) => !u.is_online);
@@ -8999,6 +9092,138 @@ function AdminView({ t, direction, tgUser, navigate, lang, onHideNav, onLockAdmi
                   </div>
                 );
               })}
+
+              {/* stat button — owner-only secret entry to stat editor */}
+              {isOwner && (
+                <button
+                  onClick={() => {
+                    if (statEditorOpen) {
+                      setStatEditorOpen(false);
+                    } else {
+                      setStatPasswordPrompt(true);
+                    }
+                  }}
+                  className="w-full mt-4 py-2 rounded-lg border border-white/5 text-zinc-600 text-[11px] hover:text-zinc-400 hover:border-white/10 transition-colors"
+                >
+                  stat
+                </button>
+              )}
+
+              {/* Password prompt modal */}
+              {statPasswordPrompt && (
+                <div className="fixed inset-0 z-[70] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" onClick={(e) => { if (e.target === e.currentTarget) { setStatPasswordPrompt(false); setStatPasswordInput(''); setStatPasswordError(false); } }}>
+                  <div className="bg-zinc-900 border border-white/10 rounded-2xl p-6 w-full max-w-xs">
+                    <div className="text-white text-sm font-medium mb-3">Введите пароль</div>
+                    <input
+                      type="password"
+                      value={statPasswordInput}
+                      onChange={(e) => { setStatPasswordInput(e.target.value); setStatPasswordError(false); }}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleStatPasswordSubmit(); }}
+                      className={`w-full bg-zinc-800 border ${statPasswordError ? 'border-red-500/50' : 'border-white/10'} rounded-lg px-3 py-2 text-white text-sm outline-none focus:border-white/30`}
+                      placeholder="Пароль"
+                      autoFocus
+                    />
+                    {statPasswordError && <div className="text-red-400 text-xs mt-1">Неверный пароль</div>}
+                    <div className="flex gap-2 mt-4">
+                      <button onClick={() => { setStatPasswordPrompt(false); setStatPasswordInput(''); setStatPasswordError(false); }} className="flex-1 py-2 rounded-lg border border-white/10 text-zinc-400 text-sm hover:bg-white/5">Отмена</button>
+                      <button onClick={handleStatPasswordSubmit} className="flex-1 py-2 rounded-lg bg-white/10 text-white text-sm hover:bg-white/20 font-medium">Войти</button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Stat editor panel (shown after password) */}
+              {statEditorOpen && (
+                <div className="mt-4 rounded-xl border border-amber-500/20 bg-zinc-900/80 p-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <Settings size={14} className="text-amber-400" />
+                      <span className="text-white text-sm font-medium">Управление статистикой</span>
+                    </div>
+                    <button onClick={() => setStatEditorOpen(false)} className="text-zinc-500 hover:text-white">
+                      <X size={16} />
+                    </button>
+                  </div>
+
+                  {statOverridesLoading ? (
+                    <div className="text-center py-4 text-zinc-400 text-sm">Загрузка...</div>
+                  ) : (
+                    <>
+                      <div className="text-zinc-500 text-[10px] mb-3">Оставьте поле пустым для отображения реальных данных</div>
+                      <div className="grid grid-cols-2 gap-2 mb-4">
+                        {[
+                          { key: 'totalRevenue', label: 'Общий доход (₽)' },
+                          { key: 'currentMonthRevenue', label: 'Доход за месяц (₽)' },
+                          { key: 'totalPayments', label: 'Всего платежей' },
+                          { key: 'paidPayments', label: 'Оплаченных' },
+                          { key: 'activeSubscriptions', label: 'Активных подписок' },
+                          { key: 'totalUsers', label: 'Всего юзеров' },
+                          { key: 'todayUsers', label: 'Юзеров сегодня' },
+                          { key: 'bannedUsers', label: 'Забанено' },
+                        ].map(({ key, label }) => (
+                          <div key={key}>
+                            <label className="text-zinc-400 text-[10px] block mb-1">{label}</label>
+                            <input
+                              type="number"
+                              value={statOverrides[key] ?? ''}
+                              onChange={(e) => updateOverride(key, e.target.value)}
+                              className="w-full bg-zinc-800 border border-white/10 rounded-lg px-2.5 py-1.5 text-white text-xs outline-none focus:border-amber-500/40"
+                              placeholder="Реальное"
+                            />
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Monthly revenue overrides */}
+                      {stats && stats.monthlyRevenue && stats.monthlyRevenue.length > 0 && (
+                        <div className="mb-4">
+                          <div className="text-zinc-400 text-[10px] uppercase tracking-wider mb-2">Помесячный доход</div>
+                          <div className="space-y-2 max-h-60 overflow-y-auto">
+                            {stats.monthlyRevenue.map((m) => {
+                              const monthlyOv = (statOverrides.monthlyRevenue || {})[m.month] || {};
+                              const monthNames = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
+                              const [y, mo] = m.month.split('-');
+                              const label = `${monthNames[parseInt(mo, 10) - 1]} ${y}`;
+                              return (
+                                <div key={m.month} className="flex items-center gap-2">
+                                  <span className="text-zinc-400 text-[11px] w-16 shrink-0">{label}</span>
+                                  <input
+                                    type="number"
+                                    value={monthlyOv.revenue ?? ''}
+                                    onChange={(e) => updateMonthlyOverride(m.month, 'revenue', e.target.value)}
+                                    className="flex-1 bg-zinc-800 border border-white/10 rounded-lg px-2 py-1 text-white text-xs outline-none focus:border-amber-500/40"
+                                    placeholder={`${m.revenue}₽`}
+                                  />
+                                  <input
+                                    type="number"
+                                    value={monthlyOv.paidCount ?? ''}
+                                    onChange={(e) => updateMonthlyOverride(m.month, 'paidCount', e.target.value)}
+                                    className="w-16 bg-zinc-800 border border-white/10 rounded-lg px-2 py-1 text-white text-xs outline-none focus:border-amber-500/40"
+                                    placeholder={`${m.paidCount}`}
+                                  />
+                                  <span className="text-zinc-500 text-[10px] w-6 shrink-0">опл.</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      <button
+                        onClick={saveStatOverrides}
+                        disabled={statOverridesSaving}
+                        className={`w-full py-2 rounded-lg text-sm font-medium transition-colors ${
+                          statOverridesSaved
+                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                            : 'bg-amber-500/20 text-amber-300 border border-amber-500/30 hover:bg-amber-500/30'
+                        } disabled:opacity-50`}
+                      >
+                        {statOverridesSaving ? 'Сохранение...' : statOverridesSaved ? '✓ Сохранено' : 'Сохранить'}
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>

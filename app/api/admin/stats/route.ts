@@ -68,24 +68,50 @@ export async function GET(req: Request) {
       `),
     ]);
 
+    // Load stat overrides (owner may override displayed values).
+    let overrides: Record<string, any> = {};
+    try {
+      const ovResult = await dbQuery<{ overrides: any }>(
+        'SELECT overrides FROM stat_overrides WHERE id = 1'
+      );
+      overrides = ovResult.rows[0]?.overrides ?? {};
+    } catch { /* table may not exist yet — ignore */ }
+
+    const monthlyRevData = monthlyResult.rows.map((r) => ({
+      month: r.month,
+      revenue: Number(r.revenue ?? 0),
+      paidCount: Number(r.paid_count ?? 0),
+    }));
+
+    // Apply monthly overrides if present.
+    const monthlyOverrides = overrides.monthlyRevenue as Record<string, { revenue?: number; paidCount?: number }> | undefined;
+    if (monthlyOverrides) {
+      for (const m of monthlyRevData) {
+        const ov = monthlyOverrides[m.month];
+        if (ov) {
+          if (typeof ov.revenue === 'number') m.revenue = ov.revenue;
+          if (typeof ov.paidCount === 'number') m.paidCount = ov.paidCount;
+        }
+      }
+    }
+
+    const ov = (key: string, real: number) => {
+      const val = overrides[key];
+      return typeof val === 'number' ? val : real;
+    };
+
     return NextResponse.json({
       ok: true,
       stats: {
-        totalUsers: Number(usersResult.rows[0]?.total ?? 0),
-        todayUsers: Number(usersResult.rows[0]?.today ?? 0),
-        bannedUsers: Number(usersResult.rows[0]?.banned ?? 0),
-        totalRevenue: Number(paymentsResult.rows[0]?.total_amount ?? 0),
-        currentMonthRevenue: Number(paymentsResult.rows[0]?.current_month ?? 0),
-        totalPayments: Number(paymentsResult.rows[0]?.total_count ?? 0),
-        paidPayments: Number(paymentsResult.rows[0]?.paid_count ?? 0),
-        activeSubscriptions: Number(subsResult.rows[0]?.active ?? 0),
-        monthlyRevenue: monthlyResult.rows.map((r) => ({
-          month: r.month,
-          revenue: Number(r.revenue ?? 0),
-          paidCount: Number(r.paid_count ?? 0),
-        })),
-        // BIGINT comes back as a string from node-pg; Number() is safe here
-        // (Number.MAX_SAFE_INTEGER ≈ 9 PB, far above realistic byte totals).
+        totalUsers: ov('totalUsers', Number(usersResult.rows[0]?.total ?? 0)),
+        todayUsers: ov('todayUsers', Number(usersResult.rows[0]?.today ?? 0)),
+        bannedUsers: ov('bannedUsers', Number(usersResult.rows[0]?.banned ?? 0)),
+        totalRevenue: ov('totalRevenue', Number(paymentsResult.rows[0]?.total_amount ?? 0)),
+        currentMonthRevenue: ov('currentMonthRevenue', Number(paymentsResult.rows[0]?.current_month ?? 0)),
+        totalPayments: ov('totalPayments', Number(paymentsResult.rows[0]?.total_count ?? 0)),
+        paidPayments: ov('paidPayments', Number(paymentsResult.rows[0]?.paid_count ?? 0)),
+        activeSubscriptions: ov('activeSubscriptions', Number(subsResult.rows[0]?.active ?? 0)),
+        monthlyRevenue: monthlyRevData,
         totalTrafficBytes: Number(trafficTotalResult.rows[0]?.total_bytes ?? 0),
         monthlyTraffic: monthlyTrafficResult.rows.map((r) => ({
           month: r.month,
