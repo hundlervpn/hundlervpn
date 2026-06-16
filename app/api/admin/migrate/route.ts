@@ -104,6 +104,15 @@ CREATE TABLE IF NOT EXISTS support_ticket_message_reactions (
 );
 CREATE INDEX IF NOT EXISTS idx_support_ticket_message_reactions_message ON support_ticket_message_reactions(message_id);
 CREATE INDEX IF NOT EXISTS idx_support_ticket_message_reactions_ticket ON support_ticket_message_reactions(ticket_id);
+
+-- 2026-06-16: stat overrides — owner can override displayed dashboard statistics.
+-- Single-row table with JSONB blob. Empty field = show real DB value.
+CREATE TABLE IF NOT EXISTS stat_overrides (
+  id INTEGER PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+  overrides JSONB NOT NULL DEFAULT '{}',
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+INSERT INTO stat_overrides (id, overrides) VALUES (1, '{}') ON CONFLICT DO NOTHING;
 `;
 
 export async function POST(req: Request) {
