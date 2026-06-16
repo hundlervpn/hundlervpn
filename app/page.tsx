@@ -7608,12 +7608,16 @@ function AdminView({ t, direction, tgUser, navigate, lang, onHideNav, onLockAdmi
             <button onClick={() => setAdminTab('tickets')} className={`text-xs font-medium py-2 px-3 rounded-lg border transition-all whitespace-nowrap shrink-0 ${adminTab === 'tickets' ? 'bg-white/10 border-white/25 text-white' : 'border-white/5 text-zinc-400 hover:text-white'}`}>
               {t.adminTickets}
             </button>
-            <button onClick={() => setAdminTab('broadcasts')} className={`text-xs font-medium py-2 px-3 rounded-lg border transition-all whitespace-nowrap shrink-0 ${adminTab === 'broadcasts' ? 'bg-white/10 border-white/25 text-white' : 'border-white/5 text-zinc-400 hover:text-white'}`}>
-              {t.adminBroadcasts}
-            </button>
-            <button onClick={() => setAdminTab('servers')} className={`text-xs font-medium py-2 px-3 rounded-lg border transition-all whitespace-nowrap shrink-0 ${adminTab === 'servers' ? 'bg-emerald-500/15 border-emerald-500/40 text-white' : 'border-white/5 text-zinc-400 hover:text-white'}`}>
-              🟢 Серверы
-            </button>
+            {isOwner && (
+              <button onClick={() => setAdminTab('broadcasts')} className={`text-xs font-medium py-2 px-3 rounded-lg border transition-all whitespace-nowrap shrink-0 ${adminTab === 'broadcasts' ? 'bg-white/10 border-white/25 text-white' : 'border-white/5 text-zinc-400 hover:text-white'}`}>
+                {t.adminBroadcasts}
+              </button>
+            )}
+            {isOwner && (
+              <button onClick={() => setAdminTab('servers')} className={`text-xs font-medium py-2 px-3 rounded-lg border transition-all whitespace-nowrap shrink-0 ${adminTab === 'servers' ? 'bg-emerald-500/15 border-emerald-500/40 text-white' : 'border-white/5 text-zinc-400 hover:text-white'}`}>
+                🟢 Серверы
+              </button>
+            )}
             <button onClick={() => setAdminTab('referrals')} className={`text-xs font-medium py-2 px-3 rounded-lg border transition-all whitespace-nowrap shrink-0 ${adminTab === 'referrals' ? 'bg-white/10 border-white/25 text-white' : 'border-white/5 text-zinc-400 hover:text-white'}`}>
               Рефералы
             </button>
@@ -8051,29 +8055,35 @@ function AdminView({ t, direction, tgUser, navigate, lang, onHideNav, onLockAdmi
                             <Smartphone size={10} /> {lang === 'ru' ? 'Устройства' : 'Devices'}
                           </button>
                           {u.is_banned ? (
-                            <button
-                              onClick={() => handleBan(u.id, false)}
-                              disabled={banningId === Number(u.id)}
-                              className="text-[10px] px-2.5 py-1.5 rounded-lg bg-green-500/20 text-green-300 border border-green-500/30 hover:bg-green-500/30 disabled:opacity-50"
-                            >
-                              {t.adminUnban}
-                            </button>
+                            isOwner ? (
+                              <button
+                                onClick={() => handleBan(u.id, false)}
+                                disabled={banningId === Number(u.id)}
+                                className="text-[10px] px-2.5 py-1.5 rounded-lg bg-green-500/20 text-green-300 border border-green-500/30 hover:bg-green-500/30 disabled:opacity-50"
+                              >
+                                {t.adminUnban}
+                              </button>
+                            ) : null
                           ) : (
                             <>
-                              <button
-                                onClick={() => handleBan(u.id, true, 'login')}
-                                disabled={banningId === Number(u.id)}
-                                className="text-[10px] px-2.5 py-1.5 rounded-lg bg-red-500/20 text-red-300 border border-red-500/30 hover:bg-red-500/30 disabled:opacity-50"
-                              >
-                                {t.adminBanLogin}
-                              </button>
-                              <button
-                                onClick={() => handleBan(u.id, true, 'subscription')}
-                                disabled={banningId === Number(u.id)}
-                                className="text-[10px] px-2.5 py-1.5 rounded-lg bg-orange-500/20 text-orange-300 border border-orange-500/30 hover:bg-orange-500/30 disabled:opacity-50"
-                              >
-                                {t.adminBanSubscription}
-                              </button>
+                              {isOwner && (
+                                <button
+                                  onClick={() => handleBan(u.id, true, 'login')}
+                                  disabled={banningId === Number(u.id)}
+                                  className="text-[10px] px-2.5 py-1.5 rounded-lg bg-red-500/20 text-red-300 border border-red-500/30 hover:bg-red-500/30 disabled:opacity-50"
+                                >
+                                  {t.adminBanLogin}
+                                </button>
+                              )}
+                              {isOwner && (
+                                <button
+                                  onClick={() => handleBan(u.id, true, 'subscription')}
+                                  disabled={banningId === Number(u.id)}
+                                  className="text-[10px] px-2.5 py-1.5 rounded-lg bg-orange-500/20 text-orange-300 border border-orange-500/30 hover:bg-orange-500/30 disabled:opacity-50"
+                                >
+                                  {t.adminBanSubscription}
+                                </button>
+                              )}
                             </>
                           )}
                       </div>
@@ -8503,7 +8513,7 @@ function AdminView({ t, direction, tgUser, navigate, lang, onHideNav, onLockAdmi
           )}
 
           {/* Broadcasts Tab */}
-          {adminTab === 'broadcasts' && (
+          {adminTab === 'broadcasts' && isOwner && (
             <div>
               <button
                 onClick={() => setShowBroadcastForm(!showBroadcastForm)}
@@ -8821,7 +8831,7 @@ function AdminView({ t, direction, tgUser, navigate, lang, onHideNav, onLockAdmi
           {/* Servers Tab (v62, 2026-05-15) — кто сейчас на каком VPN-сервере.
               Источник — user_server_traffic (xray-traffic.sh push raз в 5 мин
               на NL VPS). active_now = updated_at < 10 мин назад. */}
-          {adminTab === 'servers' && (
+          {adminTab === 'servers' && isOwner && (
             <div>
               <div className="mb-3 flex items-center justify-between gap-2">
                 <div className="text-zinc-400 text-xs flex-1 min-w-0">
