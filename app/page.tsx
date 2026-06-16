@@ -4,7 +4,7 @@ import { useState, memo, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Shield, CreditCard, User, Zap, Check, ChevronRight, ChevronLeft, ChevronDown, HelpCircle, Star, Bitcoin, Wallet, Calendar, Smartphone, Settings, Gift, MonitorSmartphone, Globe, X, Monitor, FileText, Lock, Download, ArrowRight, ArrowUp, CheckCircle2, Laptop, Smartphone as SmartphoneIcon, ShieldAlert, Users, Ban, Tag, Search, Plus, Trash2, Copy, ClipboardCheck, Key, Mail, Send, Pencil, LogOut, RefreshCw, AlertCircle, Link2, Home, Crown, MessageCircle, Server, Package, Sparkles, Flame, Trophy, Clock, Paperclip, Image as ImageIcon, Reply, MoreHorizontal } from 'lucide-react';
+import { Shield, CreditCard, User, Zap, Check, ChevronRight, ChevronLeft, ChevronDown, HelpCircle, Star, Bitcoin, Wallet, Calendar, Smartphone, Settings, Gift, MonitorSmartphone, Globe, X, Monitor, FileText, Lock, Download, ArrowRight, ArrowUp, CheckCircle2, Laptop, Smartphone as SmartphoneIcon, ShieldAlert, Users, Ban, Tag, Search, Plus, Trash2, Copy, ClipboardCheck, Key, Mail, Send, Pencil, LogOut, RefreshCw, AlertCircle, Link2, Home, Crown, MessageCircle, Server, Package, Sparkles, Flame, Trophy, Clock, Paperclip, Image as ImageIcon, Reply, MoreHorizontal, Smile } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import ParticlesBackground from '@/components/ParticlesBackground';
 import SparkEffect from '@/components/SparkEffect';
@@ -3362,7 +3362,7 @@ function TicketAttachmentGrid({
 // swipe-left / long-press / hover-button to reply, copy text, and one emoji
 // reaction per side. Backend: db/migrations/2026-06-16-ticket-message-actions.
 // ---------------------------------------------------------------------------
-const TICKET_REACTION_EMOJIS = ['\U0001f44d', '\U0001f44e', '\u2764\ufe0f', '\U0001f60a', '\U0001f62e', '\U0001f389'] as const;
+const TICKET_REACTION_EMOJIS = ['👍', '👎', '❤️', '😊', '😮', '🎉'] as const;
 
 type TicketReaction = { reactor_type: 'user' | 'admin'; emoji: string };
 
@@ -3498,7 +3498,7 @@ function TicketMessageRow({
               className="mb-1.5 w-full text-left rounded-md border-l-2 border-white/40 bg-black/20 px-2 py-1"
             >
               {quotedLabel && <span className="block text-[10px] font-medium text-white/70">{quotedLabel}</span>}
-              <span className="block text-[11px] text-white/60 truncate">{quotedText || (lang === 'ru' ? '\U0001f4f7 \u0424\u043e\u0442\u043e' : '\U0001f4f7 Photo')}</span>
+              <span className="block text-[11px] text-white/60 truncate">{quotedText || (lang === 'ru' ? '📷 Фото' : '📷 Photo')}</span>
             </button>
           )}
 
@@ -3506,7 +3506,18 @@ function TicketMessageRow({
             <p className="text-sm whitespace-pre-wrap break-words leading-relaxed">{msg.message}</p>
           )}
           {attachmentsNode}
-          {meta}
+          <div className="flex items-center gap-1 mt-1.5">
+            <div className="flex-1 min-w-0">{meta}</div>
+            {actionable && (
+              <div className="flex items-center gap-2 shrink-0">
+                {msg.message && (
+                  <button type="button" onClick={(e) => { e.stopPropagation(); doCopy(); }} className="text-zinc-500 hover:text-zinc-300 transition-colors" aria-label="Copy"><Copy size={13} /></button>
+                )}
+                <button type="button" onClick={(e) => { e.stopPropagation(); doReply(); }} className="text-zinc-500 hover:text-zinc-300 transition-colors" aria-label="Reply"><Reply size={13} /></button>
+                <button type="button" onClick={(e) => { e.stopPropagation(); haptic('light'); setMenuOpen((v) => !v); }} className="text-zinc-500 hover:text-zinc-300 transition-colors" aria-label="React"><Smile size={13} /></button>
+              </div>
+            )}
+          </div>
         </div>
 
         {msg.reactions && msg.reactions.length > 0 && (
