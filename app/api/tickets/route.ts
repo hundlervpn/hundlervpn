@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { dbQuery, getDbPool } from '@/lib/db';
 import { parseIncomingAttachments, insertAttachments } from '@/lib/ticket-attachments';
+import { notifyAdminNewTicket } from '@/lib/admin-notify';
 
 type IdentityResolution =
   | { ok: true; field: 'telegram_id' | 'id'; value: number }
@@ -190,6 +191,14 @@ export async function POST(req: Request) {
       await client.query('UPDATE support_tickets SET updated_at = NOW() WHERE id = $1;', [ticket.id]);
 
       await client.query('COMMIT');
+
+      await notifyAdminNewTicket({
+        ticketId: ticket.id,
+        subject: subject || null,
+        message: message || (attachments.length > 0 ? '📷 Фото' : ''),
+        senderTelegramId: identity.field === 'telegram_id' ? identity.value : null,
+        senderUserId: identity.field === 'id' ? identity.value : userResult.rows[0].id,
+      });
 
       return NextResponse.json({
         ok: true,
