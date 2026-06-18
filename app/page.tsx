@@ -8926,6 +8926,41 @@ function AdminView({ t, direction, tgUser, navigate, lang, onHideNav, onLockAdmi
               на NL VPS). active_now = updated_at < 10 мин назад. */}
           {adminTab === 'servers' && isOwner && (
             <div>
+              {/* Сводная плашка — суммарный online по всем активным серверам,
+                  чтобы не складывать вручную с каждой карточки. active_now —
+                  та же цифра, что показана как «● N online» на карточке. */}
+              {connData && (() => {
+                const activeServers = connData.servers.filter((s) => s.is_active);
+                const totalOnline = activeServers.reduce((sum, s) => sum + (s.active_now || 0), 0);
+                const totalBytes24h = activeServers.reduce((sum, s) => sum + s.total_bytes_24h, 0);
+                const totalGb24h = totalBytes24h / (1024 * 1024 * 1024);
+                return (
+                  <div className="mb-3 rounded-2xl border border-emerald-500/30 bg-gradient-to-br from-emerald-500/15 to-emerald-500/5 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <span className="relative flex h-2.5 w-2.5 shrink-0">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-400"></span>
+                        </span>
+                        <div>
+                          <div className="text-[10px] uppercase tracking-wider text-emerald-300/80">Всего онлайн</div>
+                          <div className="text-2xl font-bold text-white leading-tight tabular-nums">{totalOnline}</div>
+                        </div>
+                      </div>
+                      <div className="flex gap-4 text-right">
+                        <div>
+                          <div className="text-[10px] uppercase tracking-wider text-zinc-400">Серверов</div>
+                          <div className="text-sm font-semibold text-zinc-200 tabular-nums">{activeServers.length}</div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] uppercase tracking-wider text-zinc-400">Трафик 24ч</div>
+                          <div className="text-sm font-semibold text-zinc-200 tabular-nums">{totalGb24h >= 1 ? `${totalGb24h.toFixed(1)} ГБ` : `${(totalBytes24h / (1024 * 1024)).toFixed(0)} МБ`}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
               <div className="mb-3 flex items-center justify-between gap-2">
                 <div className="text-zinc-400 text-xs flex-1 min-w-0">
                   {connData ? (
