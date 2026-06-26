@@ -17,18 +17,21 @@
 #
 # Идемпотентно. Безопасно прогонять повторно.
 #
-# Run on DE VPS (213.182.213.183):
+# Run on DE VPS (<DE_SERVER_IP>):
 #   curl -fsSL https://raw.githubusercontent.com/hundlervpn/hundlervpn/main/scripts/install-hy2-traffic-collector.sh | bash
 # или scp + bash.
 
 set -euo pipefail
+
+# SYNC_TOKEN подаётся через env или /opt/.sync-token (НЕ хранится в git).
+SYNC_TOKEN="${SYNC_TOKEN:-$(cat /opt/.sync-token 2>/dev/null || true)}"
 
 # ── Configurable ───────────────────────────────────────────────────────────
 HY2_DIR="${HY2_DIR:-/etc/hysteria}"
 HY2_CONFIG="${HY2_CONFIG:-${HY2_DIR}/config.yaml}"
 HY2_TRAFFIC_PORT="${HY2_TRAFFIC_PORT:-7653}"
 HY2_TRAFFIC_SECRET_FILE="${HY2_TRAFFIC_SECRET_FILE:-${HY2_DIR}/.traffic-secret}"
-API_URL="${API_URL:-https://hundlervpn.xyz/api/xray/traffic?token=hVpN2026sEcReT_xR4y}"
+API_URL="${API_URL:-https://hundlervpn.xyz/api/xray/traffic?token=${SYNC_TOKEN}}"
 SERVER_HOST="${SERVER_HOST:-}"
 
 # ── Sanity ─────────────────────────────────────────────────────────────────

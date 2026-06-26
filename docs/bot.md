@@ -24,7 +24,7 @@
 Historical: until v68 the bots reached the old Timeweb Postgres through an
 SSH tunnel via a cloud VM in RU (workaround for Timeweb's hidden GeoIP
 filter that silently dropped SSLRequest from foreign IPs). After the DB
-migration to Hostman managed PG (`132.243.242.196`, `sslmode=require`) the
+migration to Hostman managed PG (`<DB_HOST>`, `sslmode=require`) the
 bots connect directly; the tunnel service and the bridge VM are deleted.
 Remaining TODO from that era: rotate the DB password (it appeared in chat
 logs and sits in cleartext inside the bot systemd units).
@@ -385,14 +385,14 @@ sister bot). User report 2026-05-07: «оплачивал с чат бота п�
   APP_URL=https://hundlervpn.xyz
   POSTGRESQL_HOST=127.0.0.1     # via db-tunnel.service (SAME tunnel as bot/)
   POSTGRESQL_PORT=5433
-  POSTGRESQL_USER=gen_user
+  POSTGRESQL_USER=<DB_USER>
   POSTGRESQL_PASSWORD=...
-  POSTGRESQL_DBNAME=default_db
+  POSTGRESQL_DBNAME=<DB_NAME>
   POSTGRESQL_SSLMODE=require
   XRAY_SYNC_TOKEN=...           # MUST match Hostman / VPN-VPS value
   ```
 - ⚠️ **v68 (2026-05-17)**: bot-chat now talks directly to Hostman managed PG
-  at `132.243.242.196:5432` (`sslmode=require`). The previous tunnel setup
+  at `<DB_HOST>:5432` (`sslmode=require`). The previous tunnel setup
   through `127.0.0.1:5433` (SSH bridge, removed) is no longer used. The
   Timeweb GeoIP-filter constraint that forced the tunnel has been retired
   along with the Timeweb host itself.

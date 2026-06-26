@@ -5,7 +5,9 @@ Wants=xray.service
 
 [Service]
 Type=simple
-Environment=SYNC_TOKEN=hVpN2026sEcReT_xR4y
+# SYNC_TOKEN задаётся в /opt/xray-webhook.env (НЕ хранится в git):
+#   SYNC_TOKEN=<your-token>
+EnvironmentFile=/opt/xray-webhook.env
 Environment=SYNC_SCRIPT=/opt/xray-sync.sh
 Environment=LISTEN_HOST=0.0.0.0
 Environment=LISTEN_PORT=9999

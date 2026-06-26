@@ -200,7 +200,7 @@ export function clientHost(server: Pick<ServerConfig, 'host' | 'display_host'>):
  *
  * Why rotate SNIs:
  *   DPI (TSPU, ISP-level) increasingly fingerprints by the (server-IP, SNI)
- *   pair: "all connections to 158.160.254.104 advertise SNI=www.microsoft.com"
+ *   pair: "all connections to <NL_BRIDGE_IP> advertise SNI=www.microsoft.com"
  *   is a recognisable pattern even though each individual TLS handshake looks
  *   legit. Spreading users across 4 SNIs per node breaks the pattern.
  *

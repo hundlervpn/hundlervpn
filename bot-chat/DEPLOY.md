@@ -34,14 +34,14 @@ in parallel without conflict.
    silently blocked.
 
    ```
-   TELEGRAM_BOT_TOKEN=8756410167:AAFMeGw9zCe3PMtnKF2_wwRV7y-MXDW-GtE
+   TELEGRAM_BOT_TOKEN=<TELEGRAM_BOT_TOKEN>
    TELEGRAM_BOT_USERNAME=hundlervpn_bot
    APP_URL=https://hundlervpn.xyz
    POSTGRESQL_HOST=127.0.0.1
    POSTGRESQL_PORT=5433
-   POSTGRESQL_USER=gen_user
+   POSTGRESQL_USER=<DB_USER>
    POSTGRESQL_PASSWORD=...
-   POSTGRESQL_DBNAME=default_db
+   POSTGRESQL_DBNAME=<DB_NAME>
    POSTGRESQL_SSLMODE=require
    XRAY_SYNC_TOKEN=...
    # Optional — comma-separated TG IDs that can run admin handlers

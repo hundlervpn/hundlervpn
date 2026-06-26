@@ -16,7 +16,10 @@
 
 set -euo pipefail
 
-API_URL="https://hundlervpn.xyz/api/xray/clients?token=hVpN2026sEcReT_xR4y"
+# SYNC_TOKEN подаётся через env или /opt/.sync-token (НЕ хранится в git).
+SYNC_TOKEN="${SYNC_TOKEN:-$(cat /opt/.sync-token 2>/dev/null || true)}"
+
+API_URL="https://hundlervpn.xyz/api/xray/clients?token=${SYNC_TOKEN}"
 XRAY_CONFIG="/usr/local/etc/xray/config.json"
 # 2026-05-09 (XUDP migration, v60): placeholder client now has NO flow.
 # Vision is incompatible with XUDP — clients connect with `flow=""` (empty)

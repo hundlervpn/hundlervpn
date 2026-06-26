@@ -36,16 +36,16 @@ CHAT_BOT_USERNAME = os.getenv("CHAT_BOT_USERNAME", "hundlervpn_bot").lstrip("@")
 # v66 (2026-04-28): `sslmode=require` default. Originally needed because the
 # old Timeweb-hosted Postgres silently DROPPED plain-TCP startup packets and
 # psycopg2 hung for 10s on every poll. v68 (2026-05-17): we migrated off
-# Timeweb to Hostman managed PG at 132.243.242.196, which still requires
+# Timeweb to Hostman managed PG at <DB_HOST>, which still requires
 # `sslmode=require` (TLSv1.3 mandatory at the listener). Keep the default
 # even if you swap hosts — it's free at this point and prevents accidental
 # plaintext connections on any future managed-PG move.
 DB_CONFIG = {
-    "host": os.getenv("POSTGRESQL_HOST", "132.243.242.196"),
+    "host": os.getenv("POSTGRESQL_HOST", ""),
     "port": int(os.getenv("POSTGRESQL_PORT", "5432")),
-    "user": os.getenv("POSTGRESQL_USER", "gen_user"),
+    "user": os.getenv("POSTGRESQL_USER", ""),
     "password": os.getenv("POSTGRESQL_PASSWORD", ""),
-    "database": os.getenv("POSTGRESQL_DBNAME", "default_db"),
+    "database": os.getenv("POSTGRESQL_DBNAME", ""),
     "sslmode": os.getenv("POSTGRESQL_SSLMODE", "require"),
 }
 

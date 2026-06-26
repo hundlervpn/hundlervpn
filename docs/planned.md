@@ -5,7 +5,7 @@ Goal: serve hundlervpn.xyz fast and reliably both for RU users and for users out
   1. **Stage 1 — Cloudflare Free in front of hundlervpn.xyz.** Proxy A-record (orange cloud), origin stays on Timeweb. Static assets cached at edge POPs (Moscow, Amsterdam, Frankfurt, etc.). Hides origin IP. Zero cost, ~15 min to set up.
   2. **Stage 2 — NL web mirror + geo-routing.** Deploy the Next.js app on a separate NL VPS (NOT the NL Xray node — use a dedicated NL web VPS). Use Cloudflare Load Balancer ($5/mo) with Geo Steering: country=RU → Timeweb origin, else → NL mirror. Alternative: Cloudflare Worker that routes by `req.cf.country` (free up to 100k req/day).
 - Constraints to handle for Stage 2:
-  - DB stays in Hostman managed PG (132.243.242.196, v68). NL mirror must reach it over internet → IP whitelist in the Hostman Postgres dashboard for the NL mirror's egress IP, or tunnel via WireGuard. Adds ~70ms latency per DB query if the mirror sits on a non-EU exit.
+  - DB stays in Hostman managed PG (<DB_HOST>, v68). NL mirror must reach it over internet → IP whitelist in the Hostman Postgres dashboard for the NL mirror's egress IP, or tunnel via WireGuard. Adds ~70ms latency per DB query if the mirror sits on a non-EU exit.
   - All env vars (XRAY_SYNC_TOKEN, PLATEGA_SECRET_KEY, OXAPAY_API_KEY, RESEND_API_KEY, etc.) must be synced to both origins.
   - Payment callbacks (/api/payments/sbp/callback, /api/payments/crypto/callback) hit whichever origin Cloudflare routes the callback IP to — both origins must be able to process them (same DB, same secrets).
   - Xray sync script (/opt/xray-sync.sh on VPN servers) calls APP_URL which is behind Cloudflare — both origins must expose /api/xray/clients identically.
@@ -82,7 +82,7 @@ Architecture:
 ```
 DNS:
   obxod.hundlervpn.xyz  A  195.216.169.154  (NL direct IP)
-  de.hundlervpn.xyz   A   213.182.213.183   (DE direct IP)
+  de.hundlervpn.xyz   A   <DE_SERVER_IP>   (DE direct IP)
   it.hundlervpn.xyz   A   <next server>     (etc.)
 
 Per VPS:

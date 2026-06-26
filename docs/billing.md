@@ -478,10 +478,10 @@ by a 1-minute external cron.
 needed):
 1. **External free service** (recommended — zero infra). cron-job.org or
    EasyCron: configure a job to GET
-   `https://hundlervpn.xyz/api/cron/sweep-expired?token=hVpN2026sEcReT_xR4y`
+   `https://hundlervpn.xyz/api/cron/sweep-expired?token=<XRAY_SYNC_TOKEN>`
    every 1 minute.
 2. **Existing VPN VPS cron**. SSH to NL (195.216.169.154) and DE
-   (213.182.213.183) and edit the line in `crontab -e` from
+   (<DE_SERVER_IP>) and edit the line in `crontab -e` from
    `*/5 * * * * /opt/xray-sync.sh …` to `* * * * * /opt/xray-sync.sh …`
    so the existing GC in `/api/xray/clients` runs every minute. This
    doesn't go through `/api/cron/sweep-expired` but achieves the same

@@ -1,6 +1,6 @@
 ## Tech Stack
 - Frontend + API: Next.js (App Router), React, TypeScript, TailwindCSS
-- DB: PostgreSQL **on Hostman managed PG** (host: `132.243.242.196`, user: `gen_user`, db: `default_db`, sslmode=require). **v68 (2026-05-17) migration**: moved off Timeweb (`5.42.118.215`) due to GeoIP filtering and ongoing reliability issues. The old IP is dead — do not connect to it. All scripts and bot fallbacks already point to the new IP. Real credentials live in Hostman env vars; never paste them into committed files.
+- DB: PostgreSQL **on Hostman managed PG** (host: `<DB_HOST>`, user: `<DB_USER>`, db: `<DB_NAME>`, sslmode=require). **v68 (2026-05-17) migration**: moved off Timeweb (`5.42.118.215`) due to GeoIP filtering and ongoing reliability issues. The old IP is dead — do not connect to it. All scripts and bot fallbacks already point to the new IP. Real credentials live in Hostman env vars; never paste them into committed files.
 - Web hosting: **Hostman** (env vars managed in Hostman Dashboard).
   Deploy is Dockerfile-based — `Dockerfile` at the repo root uses
   Next.js `output: 'standalone'`, builds in 3 stages (deps → builder →

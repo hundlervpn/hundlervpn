@@ -31,7 +31,7 @@ Plus indexes and `updated_at` triggers.
 ### Windows PowerShell + psql
 ```powershell
 $env:PGPASSWORD = "<your_password>"
-psql -h <host> -p 5432 -U gen_user -d default_db -f db/schema.sql
+psql -h <host> -p 5432 -U <DB_USER> -d <DB_NAME> -f db/schema.sql
 ```
 
 ### SSL certificate mode (domain)

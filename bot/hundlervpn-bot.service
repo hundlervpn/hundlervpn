@@ -6,14 +6,9 @@ After=network.target
 Type=simple
 User=root
 WorkingDirectory=/root/hundlervpn/bot
-Environment=TELEGRAM_BOT_TOKEN=your_bot_token_here
-Environment=APP_URL=https://hundlervpn.xyz/
-Environment=POSTGRESQL_HOST=132.243.242.196
-Environment=POSTGRESQL_PORT=5432
-Environment=POSTGRESQL_USER=gen_user
-Environment=POSTGRESQL_PASSWORD=your_password_here
-Environment=POSTGRESQL_DBNAME=default_db
-Environment=POSTGRESQL_SSLMODE=require
+# Все секреты/конфиг берутся из env-файла, который НЕ коммитится в git.
+# Создай /root/hundlervpn/bot/.env из .env.example и впиши реальные значения.
+EnvironmentFile=-/root/hundlervpn/bot/.env
 ExecStart=/root/hundlervpn/bot/venv/bin/python /root/hundlervpn/bot/main.py
 Restart=always
 RestartSec=10

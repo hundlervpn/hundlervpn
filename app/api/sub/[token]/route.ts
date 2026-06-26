@@ -647,7 +647,7 @@ function buildSingboxConfig(
   //     Default for all clients. Available on every active server.
   //   • Hysteria2 — secondary path, QUIC over UDP/8443. Only emitted for
   //     servers with all four hysteria2_* columns populated (currently
-  //     only DE 213.182.213.183). Strict TLS pin via tls.pin_sha256.
+  //     only DE <DE_SERVER_IP>). Strict TLS pin via tls.pin_sha256.
   //
   // Why both: VLESS+XUDP works on most ISPs but a few mobile networks
   // throttle long-lived TCP/443 streams. Hy2's QUIC congestion control
@@ -755,7 +755,7 @@ function buildSingboxConfig(
   return {
     log: { level: 'warn', timestamp: true },
     // DNS configuration. v68.2 (2026-05-17): the NL exit ("Обход Глушилок")
-    // is CDN-fronted via the YC bridge (158.160.254.104, Moscow, AS200350),
+    // is CDN-fronted via the YC bridge (<NL_BRIDGE_IP>, Moscow, AS200350),
     // because the ScalaXY NL IP isn't on RU operators' MTProto-style
     // whitelist and direct connections to it get throttled. On that path
     // the DoH chain (HTTPS to 8.8.8.8 via proxy outbound) goes:
@@ -1241,7 +1241,7 @@ function buildHappRoutingRules(
  * Happ DNS block — DoH via Cloudflare with FNS hosts overrides.
  *
  * v68.3 (2026-05-17): per-country DNS plane. The NL exit ("Обход Глушилок")
- * is CDN-fronted via the YC bridge (158.160.254.104, Moscow); on that path
+ * is CDN-fronted via the YC bridge (<NL_BRIDGE_IP>, Moscow); on that path
  * the DoH chain `https://1.1.1.1/dns-query` via the proxy outbound has to
  * traverse client → YC bridge → NL VPS → 1.1.1.1:443, and any hop dropping
  * outbound HTTPS to Cloudflare IPs silently kills all non-RU resolution.

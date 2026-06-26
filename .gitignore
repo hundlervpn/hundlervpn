@@ -4,6 +4,7 @@ coverage/
 .DS_Store
 *.log
 .env*
+!.env.example
 .scripts/
 
 # Python build artifacts (bot/ and bot-chat/)

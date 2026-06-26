@@ -11,7 +11,7 @@ export const revalidate = 0;
  *
  * SECURITY (2026-05-12): host / port / sort_order intentionally OMITTED from
  * the public response. This endpoint is unauthenticated — leaking real entry
- * IPs (DE 213.182.213.183, NL 158.160.254.104, RU 85.239.53.25) gives RKN
+ * IPs (DE <DE_SERVER_IP>, NL <NL_BRIDGE_IP>, RU <RU_SERVER_IP>) gives RKN
  * scanners a free target list for VLESS+Reality endpoint fingerprinting.
  *
  * The client doesn't need host/port for anything:

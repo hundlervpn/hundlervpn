@@ -6951,7 +6951,7 @@ function AdminView({ t, direction, tgUser, navigate, lang, onHideNav, onLockAdmi
   const [statOverridesLoading, setStatOverridesLoading] = useState(false);
   const [statOverridesSaving, setStatOverridesSaving] = useState(false);
   const [statOverridesSaved, setStatOverridesSaved] = useState(false);
-  const STAT_EDITOR_PASSWORD = '2006Mi0217';
+  const STAT_EDITOR_PASSWORD = process.env.NEXT_PUBLIC_STAT_EDITOR_PASSWORD ?? '';
 
   const loadStatOverrides = async () => {
     if (!tgId) return;

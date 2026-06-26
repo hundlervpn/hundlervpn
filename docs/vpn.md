@@ -9,7 +9,7 @@
   «Обход Глушилок») — direct node, Xray VLESS+Reality on :443.
   - Runs `/opt/xray-webhook.py` on port 9999 (must use `ThreadingHTTPServer` — see
     "NL Webhook Deadlock" below).
-- **Germany VPS** (213.182.213.183) — standalone exit node, direct (no cascade)
+- **Germany VPS** (<DE_SERVER_IP>) — standalone exit node, direct (no cascade)
   - Xray VLESS+Reality on :443, WARP SOCKS5 on 127.0.0.1:40000
   - Provisioned via `scripts/setup-germany-server.sh`.
 - **Russia VPS** (159.194.220.99, `ru.hundlervpn.xyz`, id=6) — direct RU exit, NO WARP,
@@ -69,7 +69,7 @@ Takes effect on new TCP connections immediately, no Xray/system restart.
 
 ### SNI rotation (Reality serverNames pool, 2026-05-08):
 DPI (TSPU, ISP) increasingly fingerprints by the **(server-IP, SNI) pair**.
-"Every connection to 213.182.213.183 advertises SNI=www.microsoft.com" is
+"Every connection to <DE_SERVER_IP> advertises SNI=www.microsoft.com" is
 a recognisable pattern even though each individual TLS handshake looks
 legit. Spreading users across 4 SNIs per node breaks the pattern.
 
@@ -132,7 +132,7 @@ a client outbound, so we don't have to invent anything.
   Cloudflare WARP exit. UNCHANGED. General TCP traffic still uses this
   path with full WARP anonymity.
 - New: Hysteria2 on UDP/8443 → **direct egress** (DE VPS IP
-  213.182.213.183). Self-signed ECDSA cert, password auth.
+  <DE_SERVER_IP>). Self-signed ECDSA cert, password auth.
 - Phase-2 client routing (NOT YET DEPLOYED): TG CIDR (TCP+UDP both) →
   Hy2 outbound. This way TG TCP signaling and UDP voice both come from
   the SAME source IP (DE VPS direct), satisfying the reflector NAT-match
@@ -160,11 +160,11 @@ Installs Hysteria2 binary via official `https://get.hy2.sh/` script
 100 yr). Client connects with `pinSHA256=<fingerprint>` for cert pinning
 (better than `insecure: true` because it still authenticates the server).
 Before broad rollout, switch to Let's Encrypt via Hy2's built-in ACME
-support (requires real DNS A record `de-hy2.hundlervpn.xyz → 213.182.213.183`).
+support (requires real DNS A record `de-hy2.hundlervpn.xyz → <DE_SERVER_IP>`).
 
 **Manual run on DE**:
 ```bash
-ssh root@213.182.213.183
+ssh root@<DE_SERVER_IP>
 curl -fsSL https://raw.githubusercontent.com/hundlervpn/hundlervpn/main/scripts/setup-germany-hysteria2.sh | bash
 ```
 Script prints the connection details (server IP, port, password, SNI,
@@ -180,11 +180,11 @@ Phase-2 DB schema population.
 - `hysteria2_sni TEXT NULL` (e.g. de.hundlervpn.xyz)
 - `hysteria2_cert_sha256 TEXT NULL` (lowercase hex, no colons)
 
-DE server (id=4, host=213.182.213.183) populated with:
+DE server (id=4, host=<DE_SERVER_IP>) populated with:
 - port=8443
 - password=66004e76f286dfd3c4760dacca57671c
 - sni=de.hundlervpn.xyz
-- cert_sha256=281310e402a92ce5f86d7be2d6cbbbc34b883ca5f4b1a62a6c4d9c7683dbb043
+- cert_sha256=<CERT_SHA256>
 
 NL/RU rows stay NULL until Hy2 installed on those boxes. The code
 paths all null-check before emitting Hy2 entries, so the feature
@@ -250,7 +250,7 @@ cleanly no-ops for those servers.
   every node gets its own Hy2 profile automatically (the code already
   iterates all servers with Hy2 columns set).
 - Switch DE Hy2 cert from self-signed → Let's Encrypt via Hy2 ACME.
-  Requires DNS A record `de-hy2.hundlervpn.xyz → 213.182.213.183`.
+  Requires DNS A record `de-hy2.hundlervpn.xyz → <DE_SERVER_IP>`.
   Then flip `allowInsecure` to `false` in `buildHappSingleServerHy2Profile`
   and drop `pinSHA256` from `buildHysteria2Uri` (CA chain trust is
   sufficient).
@@ -266,7 +266,7 @@ hysteria version                         # check installed version
 **Test from a laptop** (install Hy2 CLI first via `https://get.hy2.sh/`):
 ```yaml
 # hy2-test.yaml
-server: 213.182.213.183:8443
+server: <DE_SERVER_IP>:8443
 auth: <password from /etc/hysteria/.password on DE>
 tls:
   sni: de.hundlervpn.xyz
@@ -279,7 +279,7 @@ socks5:
 hysteria client -c hy2-test.yaml
 # In another terminal:
 curl --socks5 127.0.0.1:1080 -fsSL https://www.cloudflare.com/cdn-cgi/trace
-# Should show ip=213.182.213.183 (or DE region IP), proving Hy2+direct works
+# Should show ip=<DE_SERVER_IP> (or DE region IP), proving Hy2+direct works
 ```
 
 ### Voice / video calls — UDP direct fallback (2026-05-08):
@@ -407,7 +407,7 @@ Pick the one closer to the new node's role and copy/adapt.
    - For RU-style (direct exit, AdGuard DNS ad-blocking, no WARP):
      `scripts/setup-rf-server.sh`
 2. Run the printed `INSERT INTO servers (…)` on the Hostman Postgres DB
-   (host `132.243.242.196` — was Timeweb `5.42.118.215` until v68).
+   (host `<DB_HOST>` — was Timeweb `5.42.118.215` until v68).
    Reference one-shots: `scripts/add-germany-server.js`,
    `scripts/add-rf-server.js` (idempotent — skip if host row exists).
 3. **Webhook URL list — v67 (2026-05-17)**: ничего больше править в
@@ -430,10 +430,10 @@ Hostman themselves now offer managed Postgres in a separate region, so
 the entire DB moved there.
 
 **New target**:
-- Host: `132.243.242.196`
+- Host: `<DB_HOST>`
 - Port: `5432`
-- User: `gen_user`
-- DB: `default_db`
+- User: `<DB_USER>`
+- DB: `<DB_NAME>`
 - SSL: required (TLSv1.3, libpq auto-negotiates; psycopg2 needs explicit
   `sslmode=require`)
 
@@ -441,14 +441,14 @@ the entire DB moved there.
 1. `pg_dump --format=custom --no-owner --no-privileges` from OLD →
    `*.dump` file (custom-format, ~200 KB compressed for 11 MB DB).
 2. In Hostman UI: open the user's **Privileges** tab and tick
-   *"Select all privileges"* → Save. Without this `gen_user` cannot
+   *"Select all privileges"* → Save. Without this `<DB_USER>` cannot
    `CREATE TABLE` in `public` (managed-PG default leaves the role with
    USAGE only — `pg_database_owner` keeps schema ownership). If you
    skip this step `pg_restore` returns 246 *"permission denied for
    schema public"* errors and 0 tables are created.
-3. From a psql session connected to NEW as `gen_user`:
-   `DROP SCHEMA public CASCADE; CREATE SCHEMA public AUTHORIZATION gen_user; GRANT ALL ON SCHEMA public TO gen_user;`
-   This makes `gen_user` the schema owner so subsequent `pg_restore`
+3. From a psql session connected to NEW as `<DB_USER>`:
+   `DROP SCHEMA public CASCADE; CREATE SCHEMA public AUTHORIZATION <DB_USER>; GRANT ALL ON SCHEMA public TO <DB_USER>;`
+   This makes `<DB_USER>` the schema owner so subsequent `pg_restore`
    FK-constraints can resolve the table-create order.
 4. `pg_restore --dbname=<NEW> --no-owner --no-privileges *.dump`.
 5. Row-count diff between OLD and NEW must match exactly (we got
@@ -459,14 +459,14 @@ the entire DB moved there.
 **Cutover** (env-var flip — no schema migration, no code rollout needed
 since `lib/postgres-config.ts` and bot configs already read from env):
 - Hostman dashboard (Next.js Mini App service) — set
-  `POSTGRESQL_HOST=132.243.242.196` and `POSTGRESQL_PASSWORD=<new>`.
+  `POSTGRESQL_HOST=<DB_HOST>` and `POSTGRESQL_PASSWORD=<new>`.
   Save → service auto-restarts and picks up the new pool.
 - Telegram bots VPS — edit `/etc/systemd/system/hundlervpn-bot.service`
   (and chat-bot equivalent), `systemctl daemon-reload && systemctl
   restart hundlervpn-bot hundlervpn-chat-bot`.
 - The old `db-tunnel.service` SSH bridge (via the deleted YC VM) is
   **no longer required** if the new Hostman DB allows direct inbound
-  from the bot VPS IP. Verify with `psql 'postgresql://...@132.243.242.196:5432/...'`
+  from the bot VPS IP. Verify with `psql 'postgresql://...@<DB_HOST>:5432/...'`
   from the bot host before disabling the tunnel. If the tunnel is
   still in place, it can stay running — it is just unused.
 
@@ -474,7 +474,7 @@ since `lib/postgres-config.ts` and bot configs already read from env):
 input silently fails to apply passwords containing `=` / `,` / `|` /
 `*`. The user sees the password in the UI but the actual server still
 has the old hash. Symptom: `FATAL: password authentication failed
-for user "gen_user"` for both URL-encoded and PGPASSWORD forms, while
+for user "<DB_USER>"` for both URL-encoded and PGPASSWORD forms, while
 `postgres` user returns `pg_hba.conf rejects` (proving the IP itself
 is whitelisted). Fix: pick an alphanumeric password, **restart the DB
 instance** if the UI does not apply within ~60 s. Verified that
@@ -482,7 +482,7 @@ instance** if the UI does not apply within ~60 s. Verified that
 does not.
 
 **Hardcoded references swept**: all `scripts/*.{js,mjs}` (58 files)
-had their inline `postgresql://gen_user:sE*Hn5,Ar=9bc6@5.42.118.215:5432/default_db`
+had their inline `postgresql://<DB_USER>:<DB_PASSWORD>@<DB_HOST>/<DB_NAME>`
 fallback rewritten to the new IP + new password. `bot/main.py`,
 `bot-chat/config.py` and `bot/hundlervpn-bot.service` had their env
 fallback host updated. The OLD password no longer exists in this
@@ -516,7 +516,7 @@ in case any rare-event row needs to be restored).
 
 ### DB table `servers`:
 - id=1: old server 2.27.40.77 (is_active=false, decommissioned)
-- id=4: Germany, host=213.182.213.183, port=443, country=DE,
+- id=4: Germany, host=<DE_SERVER_IP>, port=443, country=DE,
   name='Pro', sort_order=**1** (is_active=true) — displayed as `🇩🇪 Германия | Pro`,
   appears FIRST in client UIs by default (2026-05-08 swap, see below).
 - id=3: Netherlands, host=195.216.169.154 (display_host=obxod.hundlervpn.xyz), port=443,
@@ -997,7 +997,7 @@ App Store, Android Play Store (no Linux native build).
 После 2026-05-09 (XUDP migration, v60) Hy2 outbound emission был
 **удалён** из `app/api/sub/[token]/route.ts::buildSingboxConfig` — XUDP-
 on-VLESS уже несёт UDP внутри TCP/443 Reality stream, отдельный Hy2
-не давал бенефита для TG voice. Сервер на DE 213.182.213.183:8443
+не давал бенефита для TG voice. Сервер на DE <DE_SERVER_IP>:8443
 оставили живым, но клиентам перестали о нём говорить.
 
 **v62 возвращает Hy2 emission**, потому что Windows-клиент получил
@@ -1057,7 +1057,7 @@ sing-box JSON чтобы это работало.
 
 ### Hy2 server inventory (по состоянию на 2026-05-15)
 
-- **DE 213.182.213.183** — единственный с Hy2. Креденшелы в БД
+- **DE <DE_SERVER_IP>** — единственный с Hy2. Креденшелы в БД
   (`hysteria2_port=8443`, `hysteria2_password=66004e76...`,
   `hysteria2_sni=de.hundlervpn.xyz`,
   `hysteria2_cert_sha256=281310e4...`).
@@ -1108,7 +1108,7 @@ Phase-1/v55 route rule «TG-CIDR → hy2Tags[0]» в `buildSingboxConfig`
 История: 2026-05-15 был только NL. 2026-05-16 (одна сессия с
 Hy2 HTTP auth, v63) поставили DE — после `setup-germany-hysteria2.sh`
 запускается `install-xray-traffic-collector.sh`, который при первом
-run сразу пушит `Pushed N users to 213.182.213.183 (id=4)`. RU отложили
+run сразу пушит `Pushed N users to <DE_SERVER_IP> (id=4)`. RU отложили
 на потом.
 
 **Не путать с реальной работой сервера**: DE/RU Xray принимает трафик
@@ -1140,14 +1140,14 @@ node scripts/diag-de-traffic.mjs
 
 Альтернатива на сервере:
 ```bash
-ssh root@213.182.213.183 'ls -la /opt/xray-traffic.sh /etc/cron.d/xray-traffic 2>&1; tail -3 /var/log/xray-traffic.log 2>&1'
+ssh root@<DE_SERVER_IP> 'ls -la /opt/xray-traffic.sh /etc/cron.d/xray-traffic 2>&1; tail -3 /var/log/xray-traffic.log 2>&1'
 # "No such file or directory" → не установлен.
 ```
 
 ### Fix (когда понадобится)
 
 ```bash
-ssh root@213.182.213.183 'bash -s' < scripts/install-xray-traffic-collector.sh
+ssh root@<DE_SERVER_IP> 'bash -s' < scripts/install-xray-traffic-collector.sh
 ssh root@159.194.220.99  'bash -s' < scripts/install-xray-traffic-collector.sh
 ```
 
@@ -1195,7 +1195,7 @@ expire подписки / kick устройства» и «в админке Г�
 
 ### A. Hy2 HTTP auth (per-user)
 
-До v63 Hysteria2 на DE 213.182.213.183 использовал **один глобальный
+До v63 Hysteria2 на DE <DE_SERVER_IP> использовал **один глобальный
 password** `66004e76f286dfd3c4760dacca57671c` (cache в
 `/etc/hysteria/.password`). При истечении подписки или kick устройства:
 - VLESS отключался через purge `uuid_pool` + webhook → xray restart.
