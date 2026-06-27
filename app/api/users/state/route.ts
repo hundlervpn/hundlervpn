@@ -170,18 +170,16 @@ export async function GET(req: Request) {
     const { status, hasActiveKey, telegramId: tgId } = result.rows[0];
     console.log('User state check:', { status, hasActiveKey, telegramId: tgId });
     
-    let subscriptionUrl: string | null = null;
-    
-    // Show subscription URL if user has active subscription OR any key (regardless of subscription status)
-    if (status === 'active' || hasActiveKey) {
-      if (tgId) {
-        subscriptionUrl = getSubscriptionUrl(Number(tgId));
-      } else {
-        // Email-only user: generate userId-based subscription URL
-        subscriptionUrl = getSubscriptionUrlForUser(result.rows[0].userId);
-      }
-      console.log('Subscription URL:', subscriptionUrl);
-    }
+    // Every user is handed a Remnawave subscription link. The /api/sub/[token]
+    // proxy provisions the user into the panel on first poll (idempotent), and
+    // Remnawave gates real access via expireAt/status — a user without an active
+    // subscription is provisioned DISABLED and receives an empty config. So it is
+    // safe (and intended) to always issue the link instead of falling back to a
+    // legacy per-device VLESS key.
+    let subscriptionUrl: string | null = tgId
+      ? getSubscriptionUrl(Number(tgId))
+      : getSubscriptionUrlForUser(result.rows[0].userId);
+    console.log('Subscription URL:', subscriptionUrl);
 
     return NextResponse.json({
       ok: true,
