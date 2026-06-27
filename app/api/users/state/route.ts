@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { dbQuery } from '@/lib/db';
 import { getSubscriptionUrl, getSubscriptionUrlForUser } from '@/lib/sub-token';
+import { ensureRemnawaveUser } from '@/lib/remnawave-sync';
 
 type UserState = {
   userId: number;
@@ -14,6 +15,7 @@ type UserState = {
   hasActiveKey: boolean;
   unreadSupportCount: number;
   referralCode: string | null;
+  remnawaveSyncedAt: string | null;
   subscriptionUrl?: string | null;
 };
 
@@ -113,6 +115,7 @@ export async function GET(req: Request) {
         u.ban_reason AS "banReason",
         u.ban_type AS "banType",
         u.referral_code AS "referralCode",
+        u.remnawave_synced_at AS "remnawaveSyncedAt",
         CASE
           WHEN s.status = 'active' AND s.end_date > NOW() THEN 'active'
           WHEN s.status IS NULL THEN 'none'
@@ -180,6 +183,19 @@ export async function GET(req: Request) {
       ? getSubscriptionUrl(Number(tgId))
       : getSubscriptionUrlForUser(result.rows[0].userId);
     console.log('Subscription URL:', subscriptionUrl);
+
+    // Best-effort: provision the user into the Remnawave panel on first app
+    // open, so they show up in the panel immediately (not only when their VPN
+    // client first fetches the config). Fires once per user (gated by
+    // remnawaveSyncedAt). ensureRemnawaveUser is idempotent and reuses any
+    // existing panel record, so the user's subscription LINK never changes.
+    if (!result.rows[0].remnawaveSyncedAt) {
+      try {
+        await ensureRemnawaveUser(result.rows[0].userId);
+      } catch (err) {
+        console.error('[users/state] ensureRemnawaveUser failed (best-effort):', err);
+      }
+    }
 
     return NextResponse.json({
       ok: true,
