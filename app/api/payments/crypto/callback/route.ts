@@ -10,6 +10,7 @@ import {
   ensureVpnKey,
 } from '@/lib/access';
 import { applyReferralCashReward } from '@/lib/referral-cash';
+import { syncRemnawaveUser } from '@/lib/remnawave-sync';
 
 // OxaPay требует вернуть просто "ok" с HTTP 200
 function okResponse() {
@@ -175,6 +176,10 @@ export async function POST(req: Request) {
       } finally {
         client.release();
       }
+
+      // Reconcile Remnawave with the freshly-extended subscription (best-effort,
+      // post-COMMIT — must not fail an already-credited crypto payment).
+      await syncRemnawaveUser(dbUserId, 'crypto-payment');
 
       await notifyUserViaTelegram(pool, dbUserId);
     } else if (statusLower === 'expired' || statusLower === 'underpaid' || statusLower === 'refunded' || statusLower === 'failed') {

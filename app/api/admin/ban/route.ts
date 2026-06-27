@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getDbPool } from '@/lib/db';
+import { syncRemnawaveUser } from '@/lib/remnawave-sync';
 import { isAdmin } from '@/lib/admin';
 import { banUserAccess, banUserSubscription, reactivatePaidAccessIfEligible } from '@/lib/access';
 
@@ -79,6 +80,10 @@ export async function POST(req: Request) {
       }
 
       await client.query('COMMIT');
+
+      // Reconcile the Remnawave VPN identity after ban/unban (best-effort, post-COMMIT).
+      // desiredStatus() maps a banned local user to DISABLED in the panel.
+      await syncRemnawaveUser(normalizedTargetUserId, shouldBan ? 'admin-ban' : 'admin-unban');
 
       return NextResponse.json({
         ok: true,

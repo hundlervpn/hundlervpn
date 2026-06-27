@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getDbPool } from '@/lib/db';
+import { syncRemnawaveUser } from '@/lib/remnawave-sync';
 import { applyPromoCode, deactivateExpiredAccess, upsertTelegramUser } from '@/lib/access';
 
 type ApplyPromoBody = {
@@ -67,6 +68,12 @@ export async function POST(req: Request) {
       });
 
       await client.query('COMMIT');
+
+      // Reconcile Remnawave only when the promo actually extended the subscription
+      // (discount-only promos add no days). Best-effort, post-COMMIT.
+      if (result.days && dbUserId != null) {
+        await syncRemnawaveUser(dbUserId, 'promo');
+      }
 
       return NextResponse.json({
         ok: true,

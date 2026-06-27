@@ -7,6 +7,7 @@ import {
   ensureVpnKey,
 } from '@/lib/access';
 import { applyReferralCashReward } from '@/lib/referral-cash';
+import { syncRemnawaveUser } from '@/lib/remnawave-sync';
 import { getSubscriptionUrl } from '@/lib/sub-token';
 
 export type SbpPaymentRow = {
@@ -122,6 +123,10 @@ export async function confirmSbpPayment(
     await applyReferralCashReward(client, payment.user_id, payment.id);
 
     await client.query('COMMIT');
+
+    // Reconcile Remnawave with the freshly-extended subscription (best-effort,
+    // post-COMMIT — must not fail an already-credited payment).
+    await syncRemnawaveUser(payment.user_id, 'sbp-payment');
 
     console.log(
       `SBP payment confirmed: user=${payment.user_id}, days=${effectiveDays}, sub=${activeSubId}, payment=${payment.id}`

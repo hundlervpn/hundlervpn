@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getDbPool } from '@/lib/db';
+import { syncRemnawaveUser } from '@/lib/remnawave-sync';
 import { deactivateExpiredAccess } from '@/lib/access';
 import { assertTelegramLinked, BoxCooldownError, BoxTelegramRequiredError, openBox } from '@/lib/boxes';
 
@@ -82,6 +83,12 @@ export async function POST(req: Request) {
       const result = await openBox(client, dbUserId);
 
       await client.query('COMMIT');
+
+      // Reconcile Remnawave after a box reward that may extend the subscription
+      // (best-effort, post-COMMIT).
+      if (dbUserId != null) {
+        await syncRemnawaveUser(dbUserId, 'box-reward');
+      }
 
       return NextResponse.json({ ok: true, ...result });
     } catch (error) {

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getDbPool } from '@/lib/db';
+import { syncRemnawaveUser } from '@/lib/remnawave-sync';
 import { getSubscriptionUrl } from '@/lib/sub-token';
 import {
   deactivateExpiredAccess,
@@ -126,6 +127,13 @@ export async function POST(req: Request) {
       await deactivateExpiredAccess(client, userId);
 
       await client.query('COMMIT');
+
+      // Reconcile Remnawave for the inviter whose subscription was just extended by
+      // the referral signup bonus. The brand-new user is provisioned lazily on first
+      // subscription fetch (see app/api/sub/[token]).
+      if (shouldCreateTrial && inviterId && inviterId !== userId) {
+        await syncRemnawaveUser(inviterId, 'referral-signup-bonus');
+      }
 
       const subUrl = getSubscriptionUrl(telegramId);
       return NextResponse.json({ ok: true, userId, referralCode: syncedUser.referralCode ?? ownReferralCode, subscriptionUrl: subUrl });

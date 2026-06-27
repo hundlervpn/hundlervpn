@@ -11,6 +11,7 @@ import {
   ensureVpnKey,
   upsertTelegramUser,
 } from '@/lib/access';
+import { syncRemnawaveUser } from '@/lib/remnawave-sync';
 
 function parseMonthsFromPayload(payload: string): number {
   const match = payload.match(/vpn_premium_(\d+)_months_/);
@@ -152,6 +153,10 @@ export async function POST(req: Request) {
         await applyReferralReward(client, dbUserId, months * 30, paymentRowId);
 
         await client.query('COMMIT');
+
+        // Reconcile Remnawave with the freshly-extended subscription (best-effort,
+        // post-COMMIT — must not fail an already-credited Telegram Stars payment).
+        await syncRemnawaveUser(dbUserId, 'telegram-stars');
       } catch (dbError) {
         await client.query('ROLLBACK');
         throw dbError;
