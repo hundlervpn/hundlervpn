@@ -115,7 +115,7 @@ export async function ensureRemnawaveUser(userId: number): Promise<EnsureResult>
   const access = await loadLocalUserAccess(userId);
   if (!access) throw new Error('Local user ' + userId + ' not found');
 
-  const username = 'u' + access.id;
+  const username = 'u' + String(access.id).padStart(4, '0'); // Remnawave requires username length >= 3
   const expireAt = access.expiresAt && access.expiresAt.getTime() > Date.now()
     ? access.expiresAt
     : new Date(Date.now() + 60_000); // just-future -> panel marks EXPIRED -> DISABLED
