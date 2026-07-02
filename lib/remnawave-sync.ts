@@ -26,6 +26,7 @@ import {
 export interface LocalUserAccess {
   id: number;
   telegramId: number | null;
+  email: string | null;
   banned: boolean;
   expiresAt: Date | null;
   trafficLimitBytes: number;
@@ -34,6 +35,7 @@ export interface LocalUserAccess {
 type AccessRow = {
   id: string | number;
   telegram_id: string | number | null;
+  email: string | null;
   status: string | null;
   ban_reason: string | null;
   remnawave_uuid: string | null;
@@ -44,7 +46,7 @@ type AccessRow = {
 };
 
 const ACCESS_SQL = [
-  'SELECT u.id, u.telegram_id, u.status, u.ban_reason,',
+  'SELECT u.id, u.telegram_id, u.email, u.status, u.ban_reason,',
   '       u.remnawave_uuid, u.remnawave_short_uuid,',
   '       s.end_date, s.status AS sub_status, p.traffic_limit',
   '  FROM users u',
@@ -73,6 +75,7 @@ export async function loadLocalUserAccess(userId: number): Promise<LocalUserAcce
   return {
     id: Number(row.id),
     telegramId: row.telegram_id != null ? Number(row.telegram_id) : null,
+    email: row.email ?? null,
     banned,
     expiresAt: subActive ? end : null,
     trafficLimitBytes: Number.isFinite(traffic) ? traffic : 0,
@@ -136,6 +139,7 @@ export async function ensureRemnawaveUser(userId: number): Promise<EnsureResult>
       username,
       expireAt,
       telegramId: access.telegramId,
+      email: access.email,
       trafficLimitBytes: access.trafficLimitBytes,
       status,
     });
@@ -146,6 +150,7 @@ export async function ensureRemnawaveUser(userId: number): Promise<EnsureResult>
       expireAt,
       status,
       telegramId: access.telegramId,
+      email: access.email,
       trafficLimitBytes: access.trafficLimitBytes,
     });
   }
