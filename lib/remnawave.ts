@@ -25,6 +25,7 @@ export interface RwUser {
   status: RwUserStatus;
   expireAt: string;
   telegramId: number | null;
+  email: string | null;
   subscriptionUrl: string;
   trafficLimitBytes: number;
   usedTrafficBytes?: number;
@@ -100,6 +101,7 @@ export interface CreateUserInput {
   username: string;
   expireAt: Date;
   telegramId?: number | null;
+  email?: string | null;
   /** 0 = unlimited */
   trafficLimitBytes?: number;
   squadUuids?: string[];
@@ -114,6 +116,7 @@ export async function createUser(input: CreateUserInput): Promise<RwUser> {
     trafficLimitBytes: input.trafficLimitBytes ?? 0,
     trafficLimitStrategy: 'NO_RESET',
     telegramId: input.telegramId ?? undefined,
+    email: input.email ?? undefined,
     activeInternalSquads: input.squadUuids && input.squadUuids.length ? input.squadUuids : (DEFAULT_SQUAD ? [DEFAULT_SQUAD] : []),
   });
 }
@@ -123,6 +126,7 @@ export interface UpdateUserInput {
   expireAt?: Date;
   status?: RwUserStatus;
   telegramId?: number | null;
+  email?: string | null;
   trafficLimitBytes?: number;
   squadUuids?: string[];
 }
@@ -132,6 +136,7 @@ export async function updateUser(input: UpdateUserInput): Promise<RwUser> {
   if (input.expireAt) body.expireAt = input.expireAt.toISOString();
   if (input.status) body.status = input.status;
   if (input.telegramId !== undefined) body.telegramId = input.telegramId;
+  if (input.email !== undefined) body.email = input.email;
   if (input.trafficLimitBytes !== undefined) body.trafficLimitBytes = input.trafficLimitBytes;
   if (input.squadUuids) body.activeInternalSquads = input.squadUuids;
   return rw<RwUser>('PATCH', '/api/users', body);
