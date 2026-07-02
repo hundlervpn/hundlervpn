@@ -12,7 +12,7 @@
 # 02 = the Remnawave bridge columns (NOT included in schema.sql).
 services:
   postgres:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     container_name: hundler-postgres
     restart: unless-stopped
     environment:
@@ -20,7 +20,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRESQL_PASSWORD}
       POSTGRES_DB: ${POSTGRESQL_DBNAME}
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql
       - ./db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
       - ./db/2026-06-27-remnawave-bridge.sql:/docker-entrypoint-initdb.d/02-remnawave-bridge.sql:ro
     healthcheck:
