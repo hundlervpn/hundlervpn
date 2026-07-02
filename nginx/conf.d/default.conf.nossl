@@ -1,6 +1,6 @@
 server {
     listen 80;
-    server_name hundlervpn.xyz www.hundlervpn.xyz;
+    server_name hundlervpn.xyz;
 
     location /.well-known/acme-challenge/ {
         root /var/www/certbot;
