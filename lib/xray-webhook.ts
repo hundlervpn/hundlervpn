@@ -34,6 +34,7 @@
  */
 
 import { dbQuery } from '@/lib/db';
+import { remnawaveConfigured } from '@/lib/remnawave';
 
 const WEBHOOK_URL_RAW = process.env.XRAY_WEBHOOK_URL;
 const WEBHOOK_TOKEN = process.env.XRAY_WEBHOOK_TOKEN || process.env.XRAY_SYNC_TOKEN;
@@ -114,7 +115,32 @@ export type TriggerMode = 'wait' | 'fire-and-forget';
  *             'fire-and-forget' — returns immediately without awaiting the
  *             network round-trip.
  */
+/**
+ * Whether the legacy self-built Xray-sync (this module) should run at all.
+ *
+ * After the Phase B migration to the Remnawave panel, node client-list sync
+ * is owned by Remnawave. The self-built webhook sync is then dead code: the
+ * `servers` rows point at decommissioned nodes and, with XRAY_WEBHOOK_PORT
+ * unset, the URLs come out as `http://<host>:0/sync`, which just times out
+ * (10s x MAX_RETRIES) on every call — spamming logs and adding ~20s latency
+ * to device deletes / expiry sweeps.
+ *
+ * So: when Remnawave is configured, the legacy sync is disabled by default.
+ * Set XRAY_SYNC_FORCE_LEGACY=1 to force it back on (pre-migration / rollback).
+ */
+function legacyXraySyncEnabled(): boolean {
+  if (process.env.XRAY_SYNC_FORCE_LEGACY === '1') return true;
+  return !remnawaveConfigured();
+}
+
 export async function triggerXraySync(mode: TriggerMode = 'wait'): Promise<boolean> {
+  // Remnawave owns node sync post-migration — skip the dead self-built sync
+  // (avoids the `http://<host>:0/sync` timeouts). Report success so callers
+  // that gate on this (e.g. ensureVpnKey) proceed normally.
+  if (!legacyXraySyncEnabled()) {
+    return true;
+  }
+
   // Capture short stack so we know who called this (debugging restart-storm
   // incidents). Anything after `triggerXraySync` is the real caller chain.
   const callerStack = new Error().stack
@@ -226,6 +252,11 @@ export async function triggerTrafficRefresh(): Promise<{
   ok: boolean;
   servers: TrafficRefreshResult[];
 }> {
+  if (!legacyXraySyncEnabled()) {
+    // Remnawave owns traffic accounting post-migration; nothing to refresh here.
+    return { ok: true, servers: [] };
+  }
+
   const targets = await getWebhookTargets();
   if (targets.length === 0 || targets.some((t) => !t.token)) {
     console.error(
