@@ -33,7 +33,7 @@ function resolveUserParams(url: URL) {
   const userId = userIdRaw ? Number(userIdRaw) : null;
   if ((telegramIdRaw && !Number.isFinite(telegramId)) || (userIdRaw && !Number.isFinite(userId))) return null;
   const whereClause = telegramId ? 'u.telegram_id = $1' : 'u.id = $1';
-  const param = telegramId ?? userId;
+  const param = (telegramId ?? userId) as number;
   return { whereClause, param };
 }
 
