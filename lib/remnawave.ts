@@ -154,4 +154,33 @@ export async function deleteUser(uuid: string): Promise<void> {
   await rw('DELETE', '/api/users/' + encodeURIComponent(uuid));
 }
 
+export interface HwidDevice {
+  hwid: string;
+  userId: number;
+  platform: string | null;
+  osVersion: string | null;
+  deviceModel: string | null;
+  userAgent: string | null;
+  requestIp: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface HwidDevicesResponse {
+  total: number;
+  devices: HwidDevice[];
+}
+
+/** List the HWID devices Remnawave has recorded for a user (by RW uuid). */
+export async function getUserHwidDevices(userUuid: string): Promise<HwidDevice[]> {
+  const res = await rw<HwidDevicesResponse>('GET', '/api/hwid/devices/' + encodeURIComponent(userUuid));
+  return res?.devices ?? [];
+}
+
+/** Delete a single HWID device for a user. Returns the remaining devices. */
+export async function deleteUserHwidDevice(userUuid: string, hwid: string): Promise<HwidDevice[]> {
+  const res = await rw<HwidDevicesResponse>('POST', '/api/hwid/devices/delete', { userUuid, hwid });
+  return res?.devices ?? [];
+}
+
 export const remnawaveConfigured = (): boolean => Boolean(API_URL && API_TOKEN);
