@@ -6762,7 +6762,13 @@ function AdminView({ t, direction, tgUser, navigate, lang, onHideNav, onLockAdmi
   const [promoMaxUses, setPromoMaxUses] = useState('100');
   const [promoCreating, setPromoCreating] = useState(false);
   const [banningId, setBanningId] = useState<number | null>(null);
-  
+  // Manual "add subscription days" control (owner-only). `grantOpenId` is the
+  // user card whose inline days input is expanded; `grantValue` holds the typed
+  // number of days; `grantingId` disables the button while a grant is in flight.
+  const [grantOpenId, setGrantOpenId] = useState<string | null>(null);
+  const [grantValue, setGrantValue] = useState('30');
+  const [grantingId, setGrantingId] = useState<string | null>(null);
+
   // Broadcast state
   const [broadcasts, setBroadcasts] = useState<{ id: string; title: string | null; message: string; status: string; total_users: number; sent_count: number; failed_count: number; created_at: string; sent_at: string | null }[]>([]);
   const [broadcastsLoading, setBroadcastsLoading] = useState(false);
@@ -7284,6 +7290,35 @@ function AdminView({ t, direction, tgUser, navigate, lang, onHideNav, onLockAdmi
 
       await loadUsers(usersPage, usersSearch, usersSubFilter, usersSortBy);
     } catch { /* ignore */ } finally { setBanningId(null); }
+  };
+
+  // Manually add (days > 0) or remove (days < 0) subscription days for a user.
+  // Hits POST /api/admin/users/[id]/grant-days, then refreshes the list so the
+  // card's "N days left" badge reflects the new expiry immediately.
+  const handleGrantDays = async (userId: number | string, rawDays: string) => {
+    haptic('medium');
+    if (!tgId) return;
+    const days = Math.trunc(Number(rawDays));
+    if (!Number.isFinite(days) || days === 0) {
+      alert(lang === 'ru' ? 'Введите ненулевое число дней' : 'Enter a non-zero number of days');
+      return;
+    }
+    const key = String(userId);
+    setGrantingId(key);
+    try {
+      const res = await fetch(`/api/admin/users/${userId}/grant-days`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ telegramId: tgId, days }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: 'Error' }));
+        alert(data.error || 'Error');
+        return;
+      }
+      setGrantOpenId(null);
+      await loadUsers(usersPage, usersSearch, usersSubFilter, usersSortBy);
+    } catch { /* ignore */ } finally { setGrantingId(null); }
   };
 
   const handleCreatePromo = async () => {
@@ -7824,6 +7859,39 @@ function AdminView({ t, direction, tgUser, navigate, lang, onHideNav, onLockAdmi
                           >
                             <Smartphone size={10} /> {lang === 'ru' ? 'Устройства' : 'Devices'}
                           </button>
+                          {isOwner && (
+                            <button
+                              onClick={() => { haptic('light'); setGrantValue('30'); setGrantOpenId(grantOpenId === String(u.id) ? null : String(u.id)); }}
+                              className="text-[10px] px-2.5 py-1.5 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 inline-flex items-center gap-1"
+                            >
+                              <Plus size={10} /> {lang === 'ru' ? 'Дни' : 'Days'}
+                            </button>
+                          )}
+                          {isOwner && grantOpenId === String(u.id) && (
+                            <div className="w-full flex items-center gap-1.5 mt-1">
+                              <input
+                                type="number"
+                                inputMode="numeric"
+                                value={grantValue}
+                                onChange={(e) => setGrantValue(e.target.value)}
+                                placeholder={lang === 'ru' ? 'дней (можно −)' : 'days (± ok)'}
+                                className="w-24 text-[11px] px-2 py-1.5 rounded-lg bg-black/40 border border-white/10 text-white outline-none focus:border-emerald-500/50"
+                              />
+                              <button
+                                onClick={() => handleGrantDays(u.id, grantValue)}
+                                disabled={grantingId === String(u.id)}
+                                className="text-[10px] px-3 py-1.5 rounded-lg bg-emerald-500/30 text-emerald-200 border border-emerald-500/40 hover:bg-emerald-500/40 disabled:opacity-50"
+                              >
+                                {grantingId === String(u.id) ? '…' : (lang === 'ru' ? 'Начислить' : 'Apply')}
+                              </button>
+                              <button
+                                onClick={() => setGrantOpenId(null)}
+                                className="text-[10px] px-2.5 py-1.5 rounded-lg bg-white/5 text-zinc-400 border border-white/10 hover:bg-white/10"
+                              >
+                                {lang === 'ru' ? 'Отмена' : 'Cancel'}
+                              </button>
+                            </div>
+                          )}
                           {u.is_banned ? (
                             isOwner ? (
                               <button
