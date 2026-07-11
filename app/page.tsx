@@ -21,84 +21,13 @@ import SparkyButton from '@/components/SparkyButton';
 import { SbpIcon, CryptoBotIcon } from '@/components/PaymentIcons';
 import MatrixRain, { type MatrixRainHandle } from '@/components/MatrixRain';
 import { useTelegramBackButton, isInTelegramMiniApp } from '@/lib/use-telegram-back-button';
+import NavItem from '@/components/ui/NavItem';
+import PaymentMethodBtn from '@/components/ui/PaymentMethodBtn';
+import FeatureItem from '@/components/ui/FeatureItem';
 
-// Telegram WebApp types
-interface TelegramWebApp {
-  initDataUnsafe: {
-    start_param?: string;
-    user?: {
-      id: number;
-      first_name: string;
-      last_name?: string;
-      username?: string;
-      photo_url?: string;
-    };
-  };
-  close: () => void;
-  openInvoice: (url: string) => Promise<{ status: 'paid' | 'cancelled' | 'failed' | 'pending' }>;
-  openLink: (url: string) => void;
-  // Open a Telegram t.me/... link inside the Telegram app (preferred for
-  // share / deep links). Optional because older clients may not expose it.
-  openTelegramLink?: (url: string) => void;
-  expand: () => void;
-  requestFullscreen?: () => void;
-  ready: () => void;
-  version: string;
-  platform: string;
-  isFullscreen?: boolean;
-}
-
-declare global {
-  interface Window {
-    Telegram?: {
-      WebApp?: TelegramWebApp;
-      Login?: {
-        auth: (options: { client_id: string; request_access: string[]; lang?: string }, callback: (data: { id_token?: string; user?: any; error?: string }) => void) => void;
-        open: (callback?: (data: { id_token?: string; user?: any; error?: string }) => void) => void;
-        init: (options: { client_id: string; request_access?: string[]; lang?: string }, callback: (data: { id_token?: string; user?: any; error?: string }) => void) => void;
-      };
-    };
-  }
-}
-
-
-const ADMIN_TELEGRAM_IDS = [2029065770, 1483598839];
-
-const tabs = ['home', 'support', 'profile', 'account', 'payment', 'payments', 'admin', 'servers', 'tgstore', 'services', 'boxes', 'boxes-history'] as const;
-type Tab = typeof tabs[number];
-
-const pageVariants = {
-  initial: (direction: number) => ({
-    opacity: 0,
-    x: direction > 0 ? 20 : -20
-  }),
-  animate: {
-    opacity: 1,
-    x: 0,
-    transition: { duration: 0.25, ease: [0, 0, 0.2, 1] as const }
-  },
-  exit: (direction: number) => ({
-    opacity: 0,
-    x: direction < 0 ? 20 : -20,
-    transition: { duration: 0.2, ease: [0.4, 0, 1, 1] as const }
-  })
-};
-
-const listVariants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.1, delayChildren: 0.1 }
-  }
-};
-
-const itemVariants = {
-  hidden: { opacity: 0, x: -10 },
-  visible: { opacity: 1, x: 0, transition: { duration: 0.3 } }
-};
-
-type AuthMode = 'telegram' | 'email' | 'none';
-type UserIdentifier = { type: 'telegram'; telegramId: number } | { type: 'email'; userId: number };
+import { ADMIN_TELEGRAM_IDS, tabs, pageVariants, listVariants, itemVariants } from './_shared/constants';
+import type { Tab } from './_shared/constants';
+import type { AuthMode, UserIdentifier } from './_shared/types';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('home');
@@ -2432,25 +2361,7 @@ function PaymentView({ t, direction, tgUser, onSubscriptionChange, userIdentifie
   );
 }
 
-const PaymentMethodBtn = memo(function PaymentMethodBtn({ icon, label, isActive, onClick }: { icon: React.ReactNode; label: string; isActive: boolean; onClick: () => void }) {
-  return (
-    <button onClick={onClick} className={`flex flex-col items-center justify-center p-2.5 rounded-lg border transition-all gap-1 active:scale-95 ${isActive ? 'bg-gradient-to-br from-red-500/15 to-red-500/5 border-red-500/40 shadow-[0_0_16px_rgba(239,68,68,0.2)]' : 'bg-zinc-950/50 border-white/5 hover:bg-zinc-900/50 hover:border-red-500/20'}`}>
-      {icon}
-      <span className={`text-[8px] font-medium uppercase tracking-wider text-center ${isActive ? 'text-white' : 'text-zinc-500'}`}>{label}</span>
-    </button>
-  );
-});
 
-function FeatureItem({ text }: { text: string }) {
-  return (
-    <div className="flex items-center gap-1.5">
-      <div className="w-3.5 h-3.5 rounded-full bg-red-500/12 flex items-center justify-center shrink-0 border border-red-500/30">
-        <Check size={8} strokeWidth={2.5} className="text-red-400" />
-      </div>
-      <span className="text-zinc-300 text-xs">{text}</span>
-    </div>
-  );
-}
 
 type SupportTicket = {
   id: string;
@@ -11665,25 +11576,3 @@ function BoxesHistoryView({ t, direction, lang, tgUser, userIdentifier, navigate
     </motion.div>
   );
 }
-
-const NavItem = memo(function NavItem({ icon, label, isActive, onClick, badge }: { icon: React.ReactNode; label: string; isActive: boolean; onClick: () => void; badge?: number }) {
-  const hasBadge = typeof badge === 'number' && badge > 0;
-  const badgeText = hasBadge ? (badge > 99 ? '99+' : String(badge)) : '';
-  return (
-    <button onClick={onClick} className={`flex flex-col items-center justify-center w-14 h-12 gap-0.5 transition-colors relative active:scale-90 ${isActive ? 'text-red-500' : 'text-zinc-600 hover:text-zinc-400'}`}>
-      <div className={`relative ${isActive ? 'drop-shadow-[0_0_4px_rgba(239,68,68,0.5)]' : ''}`}>
-        {icon}
-        {hasBadge && (
-          <span
-            className="absolute -top-1.5 -right-2 min-w-[16px] h-[16px] px-1 rounded-full bg-red-500 text-[9px] font-bold text-white flex items-center justify-center shadow-[0_0_8px_rgba(239,68,68,0.6)] border border-zinc-950"
-            aria-label={`${badge} unread`}
-          >
-            {badgeText}
-          </span>
-        )}
-      </div>
-      <span className="text-[8px] font-medium tracking-wider uppercase">{label}</span>
-      {isActive && <div className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-5 h-0.5 bg-red-500 rounded-full shadow-[0_0_4px_rgba(239,68,68,0.6)]" />}
-    </button>
-  );
-});
