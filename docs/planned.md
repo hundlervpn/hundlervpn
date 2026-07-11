@@ -1,6 +1,11 @@
 ## Planned: Multi-Region Web Hosting (idea, not implemented yet)
 Goal: serve hundlervpn.xyz fast and reliably both for RU users and for users outside Russia.
-- Current state: site hosted only on Timeweb (RU datacenter). RU users are fine; non-RU users may see slower loads / regional blocks of RU IPs.
+> **Note (2026-07):** since this was written, the origin moved off Hostman/Timeweb
+> onto our own single VPS (`159.195.58.174`) with Postgres running as a container
+> there. Update the plan below accordingly — "origin on Timeweb" and "DB in
+> Hostman managed PG" now mean "origin + DB on our VPS". Multi-region is still
+> not implemented.
+- Current state: site + DB self-hosted on one VPS (`159.195.58.174`). Non-RU users may see slower loads / regional blocks of RU IPs.
 - Plan (staged rollout):
   1. **Stage 1 — Cloudflare Free in front of hundlervpn.xyz.** Proxy A-record (orange cloud), origin stays on Timeweb. Static assets cached at edge POPs (Moscow, Amsterdam, Frankfurt, etc.). Hides origin IP. Zero cost, ~15 min to set up.
   2. **Stage 2 — NL web mirror + geo-routing.** Deploy the Next.js app on a separate NL VPS (NOT the NL Xray node — use a dedicated NL web VPS). Use Cloudflare Load Balancer ($5/mo) with Geo Steering: country=RU → Timeweb origin, else → NL mirror. Alternative: Cloudflare Worker that routes by `req.cf.country` (free up to 100k req/day).

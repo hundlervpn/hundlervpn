@@ -171,7 +171,7 @@ Translations: `accountDangerTitle`, `accountDeleteTitle`,
 `accountDeleteCancelled`, `accountDeleteSuccess`, `accountDeleteError`.
 
 ### Important env vars
-- `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` — set in Timeweb; Google Console redirect URI
+- `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` — set in the server `.env`; Google Console redirect URI
   must include `https://hundlervpn.xyz/api/auth/google/callback`.
 - `NEXT_PUBLIC_TELEGRAM_BOT_USERNAME` — used to build the `t.me/<bot>/app?startapp=...`
   deep-link for returning Telegram users to the Mini App after OAuth.

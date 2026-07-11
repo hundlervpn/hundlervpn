@@ -426,7 +426,7 @@ targeted unkicks.
   created_at }], maxDevices }`.
 
 ### Deploying v41+ (post-deploy migration):
-After pushing to main + Timeweb deploy (wait ~2-3 min for build):
+After pushing to main + deploying on the VPS (`docker compose ... up -d --build app`, wait for the build):
 1. `POST /api/admin/migrate` with `{ telegramId: <admin_id> }` applies any pending
    `ALTER TABLE` / `CREATE INDEX` migrations (idempotent — safe to re-run).
 2. Verify `curl -I https://hundlervpn.xyz/api/sub/TOKEN` shows the latest

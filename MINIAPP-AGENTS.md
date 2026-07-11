@@ -13,7 +13,7 @@
 - `docs/bot.md` — Telegram-боты (основной Mini App бот и chat-only бот).
 - `docs/frontend.md` — Структура интерфейса, авторизация (Google, Email, Telegram).
 - `docs/database.md` — Подключение к базе данных.
-- `docs/deployment.md` — Деплой, переменные окружения (Hostman).
+- `docs/deployment.md` — Деплой на собственный VPS через Docker Compose, переменные окружения.
 - `docs/planned.md` — Запланированные фичи, TODO, оптимизация.
 
 ## Структура проекта
@@ -32,9 +32,12 @@ hundlerminiapp/
 ```
 
 ## Критичные ограничения (MUST READ)
-1. **Docker / Деплой Hostman:** Поля Build и Start в Hostman **должны быть пустыми** (Hostman сам подхватывает `Dockerfile`). 
-   ⚠️ Базовый образ строго зафиксирован на `node:20.18-alpine3.20` (в новых версиях баг экспорта). Не менять без проверки деплоя.
-2. **База данных:** Переехали на Hostman Managed PG (`<DB_HOST>`). Старый Timeweb IP мертв. **НИКОГДА не коммитить пароли от БД** в исходники. Используйте переменные окружения.
+1. **Docker / Деплой на свой VPS (2026-07):** Проект переехал с Hostman на
+   собственный сервер `159.195.58.174`. Автодеплоя по git push **больше нет** —
+   деплой это ручной `docker compose -f docker-compose.yml -f docker-compose.selfhosted.yml up -d --build`
+   на сервере (подробно в `docs/deployment.md`).
+   ⚠️ Базовый образ строго зафиксирован на `node:20.18-alpine3.20` (в новых версиях баг экспорта BuildKit). Не менять без проверки полной сборки и деплоя.
+2. **База данных:** Postgres теперь **контейнер на том же VPS** (`hundler-postgres`, из `docker-compose.selfhosted.yml`, том `pgdata`, автоприменение схемы). Приложение ходит по внутренней Docker-сети (`POSTGRESQL_HOST=postgres`, `sslmode=disable`). Старые Timeweb и Hostman Managed PG мертвы — не подключаться. **НИКОГДА не коммитить пароли от БД** — только `.env` (в .gitignore).
 3. **Обновление UUID (Instant Connect):** VPN клиенты не ждут рестарта Xray. Мы используем предзаполненный `uuid_pool` в Xray. `api/sub/[token]` просто переименовывает уже существующий UUID. Не ломать этот механизм синхронизации.
 4. **v2rayTun Совместимость:** Клиент v2rayTun падает от обычного Xray JSON. Для него API (`api/sub/[token]`) отдает только `base64 VLESS URIs`.
 5. **UDP Роутинг (Discord Voice / Звонки):** VLESS (vision) работает только по TCP. Чтобы звонки работали, в конфигах клиентов используется правило `network: udp → direct` (обход VPN для UDP-трафика).
@@ -55,4 +58,6 @@ hundlerminiapp/
 
 ## Git
 - Репозиторий: `https://github.com/hundlervpn/hundlervpn.git` (main).
-- Пуш всегда идет в `origin/main` (запускает автодеплой на Hostman).
+- Пуш идет в `origin/main`. Автодеплоя больше нет — после пуша нужно вручную
+  задеплоить на сервере (`git pull` + `docker compose ... up -d --build app`,
+  см. `docs/deployment.md`).

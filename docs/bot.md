@@ -74,7 +74,9 @@ UI disables the audience buttons in that case.
    ```
    The script drops the old constraint and adds the 4-value one, then
    prints a sanity-check count for `active_no_devices`. Idempotent.
-2. Hostman auto-deploys the web app on push. Verify the deploy completes.
+2. Deploy the web app manually on the VPS (no auto-deploy since the 2026-07
+   self-host migration): `git pull` + `docker compose ... up -d --build app`
+   (see `docs/deployment.md`). Verify the deploy completes.
 3. SSH to HundlerBOT VPS, pull the new bot code and restart:
    ```bash
    cd /root/hundlervpn && git pull
@@ -367,8 +369,8 @@ sister bot). User report 2026-05-07: «оплачивал с чат бота п�
 | `TELEGRAM_BOT_TOKEN` | ✅ | Different from `bot/`, no shared polls |
 | `TELEGRAM_BOT_USERNAME` | ✅ | `hundlervpn_bot` (with underscore) |
 | `APP_URL` | ✅ | `https://hundlervpn.xyz` (no trailing slash) |
-| `POSTGRESQL_*` | ✅ | Use `127.0.0.1:5433` via db-tunnel |
-| `XRAY_SYNC_TOKEN` | ✅ | MUST match Hostman / VPN VPS value |
+| `POSTGRESQL_*` | ✅ | Point at the current DB host — see "self-host migration (CONFIRM)" note below; the old `127.0.0.1:5433` tunnel is gone |
+| `XRAY_SYNC_TOKEN` | ✅ | MUST match the web app + VPN VPS value |
 | `BOT_API_SECRET` | optional | Reserved for future X-Bot-Token auth |
 | `ADMIN_TELEGRAM_IDS` | optional | Comma-separated TG IDs for emoji discovery & future admin tools. Falls back to `ADMIN_TELEGRAM_ID` (singular) for backwards compat |
 
@@ -389,13 +391,19 @@ sister bot). User report 2026-05-07: «оплачивал с чат бота п�
   POSTGRESQL_PASSWORD=...
   POSTGRESQL_DBNAME=<DB_NAME>
   POSTGRESQL_SSLMODE=require
-  XRAY_SYNC_TOKEN=...           # MUST match Hostman / VPN-VPS value
+  XRAY_SYNC_TOKEN=...           # MUST match the web app + VPN-VPS value
   ```
-- ⚠️ **v68 (2026-05-17)**: bot-chat now talks directly to Hostman managed PG
-  at `<DB_HOST>:5432` (`sslmode=require`). The previous tunnel setup
-  through `127.0.0.1:5433` (SSH bridge, removed) is no longer used. The
-  Timeweb GeoIP-filter constraint that forced the tunnel has been retired
-  along with the Timeweb host itself.
+- **DB connection history**: v66 the bots tunneled to Timeweb Postgres over an
+  SSH bridge (`127.0.0.1:5433`); v68 (2026-05-17) they moved to Hostman managed
+  PG at `<DB_HOST>:5432` (`sslmode=require`), tunnel removed.
+- ⚠️ **2026-07 self-host migration (CONFIRM):** the DB is now a Postgres
+  **container on the web VPS** (`159.195.58.174`, `docker-compose.selfhosted.yml`)
+  and is only exposed on the internal Docker network — the compose file does
+  **not** publish `5432` to the host. The bots run on a **separate** VPS, so
+  they cannot reach `POSTGRESQL_HOST=postgres`. Whoever ran the migration must
+  confirm how the bots now connect (e.g. publish/firewall `159.195.58.174:5432`
+  and point the bots at it, or co-locate/tunnel) and update the bot `.env`
+  accordingly. Do not assume the old Hostman/Timeweb hosts — both are dead.
 - Update flow: `git pull && systemctl restart hundlervpn-bot-chat`.
 - Logs: `journalctl -u hundlervpn-bot-chat -f`.
 
