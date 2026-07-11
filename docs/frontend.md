@@ -1,6 +1,32 @@
 ## Frontend Structure:
-- app/page.tsx — main SPA with tabs: HomeView, PaymentView, ProfileView, AccountView, SupportView, PaymentsHistoryView, AdminView, ServersView
-- app/login/page.tsx — login page (Telegram Widget + Email/password)
+- `app/page.tsx` — the main SPA. Historically this one file held everything;
+  since 2026-07 it is being **incrementally split** into smaller modules (one
+  build-verified PR per step). It still hosts the top-level `App` component
+  (routing/tab state, data fetching, shared handlers) plus the views not yet
+  extracted (see below).
+- `app/login/page.tsx` — login page (Telegram Widget + Email/password)
+- `app/_shared/` — code shared between `page.tsx` and extracted components:
+  - `translations.ts` — `translations.ru` / `translations.en`
+  - `types.ts` — shared TS types (`Tab`, `UserIdentifier`, `AuthMode`, …)
+  - `constants.ts` — `pageVariants`, `tabs`, `ADMIN_TELEGRAM_IDS`, animation variants, …
+  - `tickets.ts` — support-ticket types + helpers (`fileToTicketAttachment`, `acceptTicketImages`, …)
+- `components/views/` — full tab views extracted out of `page.tsx` (default
+  exports, `'use client'`). Already extracted: `HomeView`, `PaymentView`,
+  `PaymentsHistoryView`, `SupportView`, `DesktopSidebar`, `AdminFragmentView`,
+  `ServersView`, `EmailAuthView`, `AdminPasswordGate`.
+- `components/ui/` — small reusable leaf components (`NavItem`,
+  `PaymentMethodBtn`, `FeatureItem`, `BoxChestImage`, and the ticket UI
+  pieces `TicketMessageRow` / `TicketAttachmentGrid` / `TicketImageLightbox` /
+  `PendingImagesStrip`).
+- `components/*.tsx` — other standalone components (`LandingPage`, `ReferralModal`,
+  `WithdrawalModal`, `AdminWithdrawalsView`, icons, background effects, …).
+- **Still inline in `page.tsx`** (to be extracted later, they cross-reference
+  each other + shared helpers): `ProfileView`, `AccountView`, `ServicesView`,
+  `AdminTicketsView`, `AdminView` (+ its admin sub-views), `TgStoreView`,
+  `BoxesView`, `BoxesHistoryView`.
+- Extraction convention: moved files use `'use client'`, a `default export`,
+  and absolute imports (`@/app/_shared/...`, `@/components/...`, `@/lib/...`);
+  every step is verified with `tsc --noEmit` + `next build` before merge.
 - Desktop: sidebar (lg:w-72) + main content (lg:max-w-[900px])
 - Mobile: bottom tab bar, full-width content
 

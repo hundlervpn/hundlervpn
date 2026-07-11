@@ -49,11 +49,26 @@ docker compose -f docker-compose.yml -f docker-compose.selfhosted.yml up -d --bu
 
 ## Redeploy after a code change
 
+The production checkout lives at **`/root/hundlervpn`** on the VPS
+(`159.195.58.174`). As of 2026-07 the repo is pullable from the server (read
+access opened), so deploy = pull + rebuild:
+
 ```bash
-cd hundlervpn
+cd /root/hundlervpn
 git pull origin main
 docker compose -f docker-compose.yml -f docker-compose.selfhosted.yml up -d --build app
 ```
+
+Then verify: `curl -s -o /dev/null -w '%{http_code}' https://hundlervpn.xyz/`
+should return `200`.
+
+> **Server-local tweaks (do not clobber):** the server working tree carries a
+> couple of intentional local changes that no commit on `main` touches, so
+> `git pull` leaves them alone — `docker-compose.selfhosted.yml` (adds
+> `env_file: .env`) and a removed `nginx/conf.d/default.conf.nossl`. If a pull
+> ever refuses because of a locally-modified/untracked path that `main` now
+> owns, reset only that specific path (`git checkout -- <file>` / `rm`) — never
+> blow away these two infra tweaks.
 
 The `pgdata` volume persists across rebuilds — the schema init scripts only run
 on a **fresh/empty** volume, so app rebuilds never touch existing data. Apply
