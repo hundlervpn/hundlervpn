@@ -113,7 +113,8 @@ accept and break until the next poll).
    `scripts/patch-reality-sni-pool.sh` (auto-detects pool).
 2. Verify with `jq '.inbounds[] | select(.tag=="vless-in") | .streamSettings.realitySettings.serverNames' /usr/local/etc/xray/config.json`
 3. Push the matching `lib/sub-token.ts` + `app/api/sub/[token]/route.ts`
-   change to Hostman (auto-deploys).
+   change, then deploy manually on the web VPS (`git pull` +
+   `docker compose ... up -d --build app`; no auto-deploy since 2026-07).
 4. Existing users keep working with their cached SNI (still in the array);
    their next subscription poll re-keys them onto a new pool entry.
 
@@ -406,8 +407,10 @@ Pick the one closer to the new node's role and copy/adapt.
      `scripts/setup-germany-server.sh`
    - For RU-style (direct exit, AdGuard DNS ad-blocking, no WARP):
      `scripts/setup-rf-server.sh`
-2. Run the printed `INSERT INTO servers (…)` on the Hostman Postgres DB
-   (host `<DB_HOST>` — was Timeweb `5.42.118.215` until v68).
+2. Run the printed `INSERT INTO servers (…)` on the current prod DB — the
+   `hundler-postgres` container on the web VPS (`docker exec -i hundler-postgres
+   psql -U <user> -d <db>`). (DB history: Timeweb `5.42.118.215` → Hostman
+   managed PG → self-hosted container as of 2026-07; the first two are dead.)
    Reference one-shots: `scripts/add-germany-server.js`,
    `scripts/add-rf-server.js` (idempotent — skip if host row exists).
 3. **Webhook URL list — v67 (2026-05-17)**: ничего больше править в
@@ -421,6 +424,12 @@ Pick the one closer to the new node's role and copy/adapt.
    N/A минут 5 после promo apply».
 
 ### v68 (2026-05-17) — DB migration Timeweb → Hostman managed PG
+
+> **SUPERSEDED (2026-07):** the DB has since moved AGAIN, off Hostman managed
+> PG onto a self-hosted Postgres **container** on the web VPS
+> (`159.195.58.174`, `docker-compose.selfhosted.yml`). The section below is kept
+> as history — the Hostman host it describes is now dead. Current DB setup:
+> `docs/database.md` / `docs/deployment.md`.
 
 **Reason**: Timeweb-hosted Postgres at `5.42.118.215` had been unreliable
 for weeks: GeoIP filter that silently drops non-RU SSLRequest (forced the
@@ -1364,7 +1373,7 @@ ssh root@<vps>
 curl -fsSL https://raw.githubusercontent.com/hundlervpn/hundlervpn/main/scripts/update-xray-webhook.sh | bash
 ```
 
-**Env vars (Hostman / .env.local)**:
+**Env vars (server `.env` / `.env.local`)**:
 - `XRAY_WEBHOOK_URL` — comma-separated `/sync` URLs всех VPN-серверов:
   `http://nl-host:9999/sync,http://de-host:9999/sync,http://ru-host:9999/sync`
   (helper сам заменяет `/sync` → `/traffic` для refresh fan-out).
