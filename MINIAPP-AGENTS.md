@@ -21,8 +21,15 @@
 hundlerminiapp/
 ├── app/                  ← Next.js App Router (pages, api)
 │   ├── api/              ← Бэкенд API (auth, sub, payments, xray)
-│   └── page.tsx          ← Главная SPA-страница (Mini App + Web)
+│   ├── _shared/          ← Общий код page.tsx ↔ компонентов (translations,
+│   │                        types, constants, tickets)
+│   ├── login/            ← Страница входа (Telegram Widget + Email/пароль)
+│   └── page.tsx          ← Главная SPA-страница (Mini App + Web). Постепенно
+│                            дробится на модули (см. docs/frontend.md)
 ├── components/           ← React-компоненты
+│   ├── views/            ← Вынесенные из page.tsx вкладки-вьюхи
+│   ├── ui/               ← Мелкие переиспользуемые leaf-компоненты
+│   └── *.tsx             ← Прочие самостоятельные компоненты
 ├── lib/                  ← Бизнес-логика, утилиты, генерация подписок
 ├── db/                   ← Схема БД (schema.sql)
 ├── bot/                  ← Основной Telegram-бот
@@ -30,6 +37,10 @@ hundlerminiapp/
 ├── scripts/              ← Скрипты настройки серверов (bash) и миграций (js)
 └── docs/                 ← Подробная документация проекта
 ```
+
+> **Где лежит проект в проде:** на VPS `159.195.58.174` рабочая копия репозитория
+> находится в **`/root/hundlervpn`** (деплой = `git pull` там + пересборка, см.
+> `docs/deployment.md`).
 
 ## Критичные ограничения (MUST READ)
 1. **Docker / Деплой на свой VPS (2026-07):** Проект переехал с Hostman на
@@ -43,7 +54,7 @@ hundlerminiapp/
 5. **UDP Роутинг (Discord Voice / Звонки):** VLESS (vision) работает только по TCP. Чтобы звонки работали, в конфигах клиентов используется правило `network: udp → direct` (обход VPN для UDP-трафика).
 
 ## Правила Кодстайла
-- Используем React 18 / Next.js 14+ (App Router). Фронт и API в одном приложении.
+- Используем React 19 / Next.js 15 (App Router). Фронт и API в одном приложении.
 - Стили: TailwindCSS. Мобильная верстка первостепенна (`viewport-fit=cover`, padding-ы для челок).
 - Темная тема — основная (`bg-zinc-950`).
 - Локализация: интерфейс пишется в первую очередь на русском языке, переводы хранятся в коде (`translations.ru`, `translations.en`).
@@ -54,7 +65,7 @@ hundlerminiapp/
 - `npm run dev` — запуск локально на `http://localhost:3000`.
 - `npm run build` — продакшен сборка Next.js.
 - `npm start` — запуск продакшен билда.
-- `docker build -t hundler-app .` — сборка образа для проверки перед пушем в Hostman.
+- `docker build -t hundler-app .` — локальная сборка образа для проверки перед деплоем.
 
 ## Git
 - Репозиторий: `https://github.com/hundlervpn/hundlervpn.git` (main).
