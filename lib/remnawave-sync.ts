@@ -1,15 +1,23 @@
 /**
- * Remnawave <-> local DB bridge.
+ * VPN backend <-> local DB bridge.
  *
  * Single source of truth for keeping a local business user (users.id) in sync
- * with its Remnawave VPN identity. Call ensureRemnawaveUser() at every point
- * the user's access should change: signup, payment, renewal, expiry, ban.
+ * with its VPN identity. Call ensureRemnawaveUser() at every point the user's
+ * access should change: signup, payment, renewal, expiry, ban.
  *
- * Invariants:
- *  - panel username = 'u' + users.id   (stable, unique, reversible)
- *  - expireAt       = active subscription end_date (or ~now if none/expired)
- *  - status         = ACTIVE while paid+unbanned, DISABLED otherwise
- *  - users.remnawave_uuid / remnawave_short_uuid cache the mapping
+ * VPN_BACKEND (env) selects the panel implementation:
+ *  - 'remnawave' (default) — original behaviour, untouched (instant rollback)
+ *  - '3xui'                — delegates to lib/threexui-sync.ts, same semantics
+ *
+ * Function names keep the historical `Remnawave` prefix so the ~11 call sites
+ * stay unchanged; the EnsureResult shape is preserved for both backends.
+ *
+ * Invariants (both backends):
+ *  - panel identity derives from users.id (stable, unique, reversible)
+ *  - expireAt = active subscription end_date (or ~now if none/expired)
+ *  - ACTIVE while paid+unbanned, DISABLED otherwise
+ *  - users.remnawave_uuid caches the VLESS UUID (reused across backends so
+ *    saved client configs keep working)
  */
 
 import { dbQuery } from '@/lib/db';
@@ -22,65 +30,11 @@ import {
   type RwUser,
   type RwUserStatus,
 } from '@/lib/remnawave';
+import { vpnBackend, loadLocalUserAccess, type LocalUserAccess } from '@/lib/vpn-access';
+import { ensure3xuiClient } from '@/lib/threexui-sync';
+import { getSubscriptionUrlForUser } from '@/lib/sub-token';
 
-export interface LocalUserAccess {
-  id: number;
-  telegramId: number | null;
-  email: string | null;
-  banned: boolean;
-  expiresAt: Date | null;
-  trafficLimitBytes: number;
-}
-
-type AccessRow = {
-  id: string | number;
-  telegram_id: string | number | null;
-  email: string | null;
-  status: string | null;
-  ban_reason: string | null;
-  remnawave_uuid: string | null;
-  remnawave_short_uuid: string | null;
-  end_date: Date | string | null;
-  sub_status: string | null;
-  traffic_limit: string | number | null;
-};
-
-const ACCESS_SQL = [
-  'SELECT u.id, u.telegram_id, u.email, u.status, u.ban_reason,',
-  '       u.remnawave_uuid, u.remnawave_short_uuid,',
-  '       s.end_date, s.status AS sub_status, p.traffic_limit',
-  '  FROM users u',
-  '  LEFT JOIN LATERAL (',
-  '    SELECT end_date, status, plan_id',
-  '      FROM subscriptions',
-  '     WHERE user_id = u.id',
-  '     ORDER BY end_date DESC NULLS LAST',
-  '     LIMIT 1',
-  '  ) s ON TRUE',
-  '  LEFT JOIN plans p ON p.id = s.plan_id',
-  ' WHERE u.id = $1',
-].join('\n');
-
-/** Load the access-relevant view of a local user (joins newest subscription). */
-export async function loadLocalUserAccess(userId: number): Promise<LocalUserAccess | null> {
-  const res = await dbQuery<AccessRow>(ACCESS_SQL, [userId]);
-  const row = res.rows[0];
-  if (!row) return null;
-
-  const end = row.end_date ? new Date(row.end_date) : null;
-  const subActive = row.sub_status === 'active' && end !== null && end.getTime() > Date.now();
-  const banned = row.status === 'banned' || Boolean(row.ban_reason);
-  const traffic = row.traffic_limit != null ? Number(row.traffic_limit) : 0;
-
-  return {
-    id: Number(row.id),
-    telegramId: row.telegram_id != null ? Number(row.telegram_id) : null,
-    email: row.email ?? null,
-    banned,
-    expiresAt: subActive ? end : null,
-    trafficLimitBytes: Number.isFinite(traffic) ? traffic : 0,
-  };
-}
+export { loadLocalUserAccess, type LocalUserAccess } from '@/lib/vpn-access';
 
 function desiredStatus(access: LocalUserAccess): RwUserStatus {
   if (access.banned) return 'DISABLED';
@@ -108,10 +62,36 @@ export interface EnsureResult {
 }
 
 /**
- * Find-or-create the Remnawave user for a local user, then reconcile
+ * Find-or-create the panel user for a local user, then reconcile
  * expiry/status/traffic to match local business state. Idempotent.
+ * Dispatches on VPN_BACKEND.
  */
 export async function ensureRemnawaveUser(userId: number): Promise<EnsureResult> {
+  if (vpnBackend() === '3xui') return ensureVia3xui(userId);
+  return ensureViaRemnawave(userId);
+}
+
+/** 3x-ui path: same semantics, EnsureResult synthesized for compatibility. */
+async function ensureVia3xui(userId: number): Promise<EnsureResult> {
+  const ensured = await ensure3xuiClient(userId);
+  const access = await loadLocalUserAccess(userId);
+  const subscriptionUrl = getSubscriptionUrlForUser(userId) || '';
+  const rwUser: RwUser = {
+    uuid: ensured.uuid,
+    shortUuid: '',
+    username: ensured.email,
+    status: ensured.status,
+    expireAt: ensured.expireAt.toISOString(),
+    telegramId: access?.telegramId ?? null,
+    email: access?.email ?? null,
+    subscriptionUrl,
+    trafficLimitBytes: access?.trafficLimitBytes ?? 0,
+  };
+  return { rwUser, created: ensured.created, subscriptionUrl, shortUuid: '' };
+}
+
+/** Original Remnawave path — unchanged. */
+async function ensureViaRemnawave(userId: number): Promise<EnsureResult> {
   if (!remnawaveConfigured()) {
     throw new Error('Remnawave is not configured (REMNAWAVE_API_URL / REMNAWAVE_API_TOKEN missing)');
   }
@@ -168,7 +148,7 @@ export async function getRemnawaveSubscriptionUrl(userId: number): Promise<strin
 /**
  * Best-effort wrapper around ensureRemnawaveUser() for call sites that must
  * not fail their primary operation (payment, promo, box reward, referral
- * bonus, ban/unban, ...) if the Remnawave panel is momentarily unreachable.
+ * bonus, ban/unban, ...) if the VPN panel is momentarily unreachable.
  *
  * MUST be called AFTER the local DB transaction has COMMITed: ensureRemnawaveUser
  * reconciles on its own connection and needs to see the persisted access state.
@@ -181,7 +161,7 @@ export async function syncRemnawaveUser(
     await ensureRemnawaveUser(userId);
   } catch (err) {
     console.error(
-      '[remnawave-sync] ensureRemnawaveUser failed for user=' + userId +
+      '[vpn-sync:' + vpnBackend() + '] ensure failed for user=' + userId +
         (context ? ' (' + context + ')' : '') + ':',
       err,
     );

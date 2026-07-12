@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { dbQuery } from '@/lib/db';
 import { getUserHwidDevices, deleteUserHwidDevice, remnawaveConfigured } from '@/lib/remnawave';
 import { ensureRemnawaveUser } from '@/lib/remnawave-sync';
+import { vpnBackend } from '@/lib/vpn-access';
 
 /**
  * Personal-cabinet device list.
@@ -78,8 +79,10 @@ export async function GET(req: Request) {
     );
     const maxDevices = limitResult.rows[0]?.max_devices ?? 3;
 
-    if (!remnawaveConfigured()) {
-      // Panel not configured — no device source; keep the UI functional.
+    if (vpnBackend() === '3xui' || !remnawaveConfigured()) {
+      // 3x-ui has no HWID registry (device limiting via limitIp happens on the
+      // panel, not per-device here) — return an empty list to keep the UI
+      // functional. Also the fallback when no panel is configured at all.
       return NextResponse.json({ ok: true, devices: [], maxDevices });
     }
 
@@ -119,6 +122,10 @@ export async function DELETE(req: Request) {
       return NextResponse.json({ error: 'User identifier and deviceId are required' }, { status: 400 });
     }
 
+    if (vpnBackend() === '3xui') {
+      // No HWID devices to delete on 3x-ui; report success so the UI clears.
+      return NextResponse.json({ ok: true, deletedId: hwid });
+    }
     if (!remnawaveConfigured()) {
       return NextResponse.json({ error: 'Remnawave not configured' }, { status: 503 });
     }

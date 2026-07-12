@@ -35,6 +35,7 @@
 
 import { dbQuery } from '@/lib/db';
 import { remnawaveConfigured } from '@/lib/remnawave';
+import { threexuiConfigured } from '@/lib/threexui';
 
 const WEBHOOK_URL_RAW = process.env.XRAY_WEBHOOK_URL;
 const WEBHOOK_TOKEN = process.env.XRAY_WEBHOOK_TOKEN || process.env.XRAY_SYNC_TOKEN;
@@ -130,7 +131,7 @@ export type TriggerMode = 'wait' | 'fire-and-forget';
  */
 function legacyXraySyncEnabled(): boolean {
   if (process.env.XRAY_SYNC_FORCE_LEGACY === '1') return true;
-  return !remnawaveConfigured();
+  return !remnawaveConfigured() && !threexuiConfigured();
 }
 
 export async function triggerXraySync(mode: TriggerMode = 'wait'): Promise<boolean> {
