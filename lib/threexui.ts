@@ -22,7 +22,7 @@
 
 import { request as httpsRequest, type RequestOptions } from 'node:https';
 import { request as httpRequest } from 'node:http';
-import type { TLSSocket } from 'node:tls';
+import type { PeerCertificate } from 'node:tls';
 
 const API_URL = (process.env.THREEXUI_API_URL || '').replace(/\/+$/, '');
 const API_TOKEN = process.env.THREEXUI_API_TOKEN || '';
@@ -75,22 +75,21 @@ function panelRequest<T>(method: 'GET' | 'POST', path: string, body?: unknown): 
     },
   };
   if (isHttps && PIN_SHA256) {
-    // Self-signed panel cert: replace CA validation with exact pinning below.
+    // Self-signed panel cert: replace CA validation with exact fingerprint
+    // pinning, enforced during the TLS handshake.
     options.rejectUnauthorized = false;
+    (options as RequestOptions & { checkServerIdentity: (host: string, cert: PeerCertificate) => Error | undefined })
+      .checkServerIdentity = (_host, cert) => {
+        const fp = (cert?.fingerprint256 || '').replace(/:/g, '').toLowerCase();
+        if (fp !== PIN_SHA256) {
+          return new Error('3x-ui panel TLS fingerprint mismatch (got ' + (fp || 'none') + ')');
+        }
+        return undefined;
+      };
   }
 
   return new Promise<PanelResponse<T>>((resolve, reject) => {
     const req = (isHttps ? httpsRequest : httpRequest)(options, (res) => {
-      if (isHttps && PIN_SHA256) {
-        const fp = ((res.socket as TLSSocket).getPeerCertificate()?.fingerprint256 || '')
-          .replace(/:/g, '')
-          .toLowerCase();
-        if (fp !== PIN_SHA256) {
-          res.destroy();
-          reject(new ThreeXuiError('3x-ui panel TLS fingerprint mismatch (got ' + fp + ')', 495));
-          return;
-        }
-      }
       const chunks: Buffer[] = [];
       res.on('data', (c: Buffer) => chunks.push(c));
       res.on('end', () => {
