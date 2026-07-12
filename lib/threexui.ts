@@ -141,12 +141,40 @@ export interface XuiClientTraffic {
   enable: boolean;
 }
 
+/**
+ * Raw record shape returned by GET /panel/api/clients/get/:email — note that
+ * `id` there is the panel's numeric row id and the VLESS UUID lives in `uuid`.
+ */
+interface XuiClientRecord {
+  id: number;
+  uuid: string;
+  email: string;
+  flow?: string;
+  limitIp?: number;
+  totalGB?: number;
+  expiryTime?: number;
+  enable?: boolean;
+  subId?: string;
+  comment?: string;
+}
+
 /** Look up a client by email. Returns null when the panel has no such client. */
 export async function getClientByEmail(email: string): Promise<XuiClient | null> {
   try {
-    const obj = await api<{ client?: XuiClient } | XuiClient>('GET', '/panel/api/clients/get/' + encodeURIComponent(email));
-    const client = (obj as { client?: XuiClient })?.client ?? (obj as XuiClient);
-    return client && (client as XuiClient).email ? (client as XuiClient) : null;
+    const obj = await api<{ client?: XuiClientRecord } | XuiClientRecord>('GET', '/panel/api/clients/get/' + encodeURIComponent(email));
+    const rec = (obj as { client?: XuiClientRecord })?.client ?? (obj as XuiClientRecord);
+    if (!rec || !rec.email) return null;
+    return {
+      id: rec.uuid || '',
+      email: rec.email,
+      flow: rec.flow ?? '',
+      limitIp: rec.limitIp ?? 0,
+      totalGB: rec.totalGB ?? 0,
+      expiryTime: rec.expiryTime ?? 0,
+      enable: rec.enable ?? true,
+      subId: rec.subId ?? '',
+      comment: rec.comment ?? '',
+    };
   } catch (e) {
     if (e instanceof ThreeXuiError && (e.status === 404 || e.status === 400)) return null;
     throw e;

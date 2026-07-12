@@ -101,7 +101,10 @@ export async function ensure3xuiClient(userId: number): Promise<Ensure3xuiResult
     created = true;
   }
 
-  if (uuid !== cachedUuid) {
+  // Persist only well-formed UUIDs — protects users.remnawave_uuid (uuid
+  // column) from ever caching a malformed panel value.
+  const looksLikeUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uuid);
+  if (looksLikeUuid && uuid !== cachedUuid) {
     await dbQuery(PERSIST_SQL, [access.id, uuid]);
   }
 
