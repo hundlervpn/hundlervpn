@@ -28,7 +28,19 @@ const API_URL = (process.env.THREEXUI_API_URL || '').replace(/\/+$/, '');
 const API_TOKEN = process.env.THREEXUI_API_TOKEN || '';
 const PIN_SHA256 = (process.env.THREEXUI_TLS_PIN_SHA256 || '').replace(/:/g, '').toLowerCase();
 
-export const THREEXUI_INBOUND_ID = Number(process.env.THREEXUI_INBOUND_ID || '0');
+/**
+ * Production inbound ids. Multi-node: one inbound per exit node, every client
+ * is attached to all of them so users can pick a country in their app.
+ * THREEXUI_INBOUND_IDS="2,3" (preferred) or legacy THREEXUI_INBOUND_ID="2".
+ */
+export const THREEXUI_INBOUND_IDS: number[] = (
+  process.env.THREEXUI_INBOUND_IDS || process.env.THREEXUI_INBOUND_ID || ''
+)
+  .split(',')
+  .map((s) => Number(s.trim()))
+  .filter((n) => Number.isInteger(n) && n > 0);
+
+export const THREEXUI_INBOUND_ID = THREEXUI_INBOUND_IDS[0] ?? 0;
 
 export class ThreeXuiError extends Error {
   constructor(message: string, readonly status: number, readonly body?: unknown) {
@@ -207,7 +219,7 @@ export async function createClient(input: CreateClientInput): Promise<void> {
       comment: input.comment ?? '',
       reset: 0,
     },
-    inboundIds: [THREEXUI_INBOUND_ID],
+    inboundIds: THREEXUI_INBOUND_IDS,
   });
 }
 
