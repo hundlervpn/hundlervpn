@@ -45,23 +45,63 @@ const VLESS = {
   remark: process.env.THREEXUI_VLESS_REMARK || '🇵🇱 Hundler VPN | Польша',
 };
 
+type VlessEndpoint = typeof VLESS;
+
+/**
+ * Multi-node: THREEXUI_NODES is a JSON array of endpoints; each entry needs
+ * at least {"address","remark"} — everything else falls back to the defaults
+ * above (all nodes share the XHTTP path/TLS shape by design).
+ * Example:
+ *   THREEXUI_NODES='[{"address":"pl.hundlervpn.xyz","remark":"🇵🇱 Hundler VPN | Польша"},
+ *                    {"address":"nl.hundlervpn.xyz","remark":"🇳🇱 Hundler VPN | Нидерланды"}]'
+ * Unset / invalid → single default endpoint (pre-multi-node behaviour).
+ */
+function vlessEndpoints(): VlessEndpoint[] {
+  const raw = process.env.THREEXUI_NODES;
+  if (raw) {
+    try {
+      const arr: unknown = JSON.parse(raw);
+      if (Array.isArray(arr)) {
+        const nodes = arr
+          .filter((n): n is Record<string, unknown> => !!n && typeof n === 'object')
+          .map((n) => ({
+            address: String(n.address || ''),
+            port: Number(n.port || VLESS.port),
+            path: String(n.path || VLESS.path),
+            sni: String(n.sni || n.address || ''),
+            host: String(n.host || n.address || ''),
+            alpn: String(n.alpn || VLESS.alpn),
+            fingerprint: String(n.fp || n.fingerprint || VLESS.fingerprint),
+            remark: String(n.remark || n.address || ''),
+          }))
+          .filter((n) => n.address);
+        if (nodes.length > 0) return nodes;
+      }
+      console.error('[sub] THREEXUI_NODES is set but yielded no valid nodes; using default endpoint');
+    } catch (err) {
+      console.error('[sub] THREEXUI_NODES JSON parse failed; using default endpoint:', err);
+    }
+  }
+  return [VLESS];
+}
+
 const PROFILE_TITLE = process.env.SUB_PROFILE_TITLE || 'Hundler VPN';
 const FAKE_UUID = '00000000-0000-0000-0000-000000000000';
 
-function buildVlessUri(uuid: string): string {
+function buildVlessUri(node: VlessEndpoint, uuid: string): string {
   const q = new URLSearchParams({
     security: 'tls',
     type: 'xhttp',
-    path: VLESS.path,
-    host: VLESS.host,
-    sni: VLESS.sni,
-    alpn: VLESS.alpn,
-    fp: VLESS.fingerprint,
+    path: node.path,
+    host: node.host,
+    sni: node.sni,
+    alpn: node.alpn,
+    fp: node.fingerprint,
     mode: 'auto',
     encryption: 'none',
   });
-  return 'vless://' + uuid + '@' + VLESS.address + ':' + VLESS.port + '?' + q.toString()
-    + '#' + encodeURIComponent(VLESS.remark);
+  return 'vless://' + uuid + '@' + node.address + ':' + node.port + '?' + q.toString()
+    + '#' + encodeURIComponent(node.remark);
 }
 
 /** Informational "rows" clients render when there is no active subscription. */
@@ -75,7 +115,9 @@ function inactiveLines(): string[] {
 
 async function serve3xuiSub(localUserId: number, ensured: Awaited<ReturnType<typeof ensureRemnawaveUser>>): Promise<Response> {
   const active = ensured.rwUser.status === 'ACTIVE';
-  const lines = active ? [buildVlessUri(ensured.rwUser.uuid)] : inactiveLines();
+  const lines = active
+    ? vlessEndpoints().map((node) => buildVlessUri(node, ensured.rwUser.uuid))
+    : inactiveLines();
   const body = Buffer.from(lines.join('\n'), 'utf8').toString('base64');
 
   const headers = new Headers({
