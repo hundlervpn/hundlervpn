@@ -43,6 +43,12 @@ const VLESS = {
   alpn: process.env.THREEXUI_VLESS_ALPN || 'h2,http/1.1',
   fingerprint: process.env.THREEXUI_VLESS_FP || 'chrome',
   remark: process.env.THREEXUI_VLESS_REMARK || '🇵🇱 Hundler VPN | Польша',
+  // Transport security: 'tls' (default) or 'reality'. Reality nodes also need
+  // pbk/sid (public key + shortId); `sni` is used as the Reality serverName.
+  security: process.env.THREEXUI_VLESS_SECURITY || 'tls',
+  pbk: process.env.THREEXUI_VLESS_PBK || '',
+  sid: process.env.THREEXUI_VLESS_SID || '',
+  spx: process.env.THREEXUI_VLESS_SPX || '/',
 };
 
 type VlessEndpoint = typeof VLESS;
@@ -73,6 +79,10 @@ function vlessEndpoints(): VlessEndpoint[] {
             alpn: String(n.alpn || VLESS.alpn),
             fingerprint: String(n.fp || n.fingerprint || VLESS.fingerprint),
             remark: String(n.remark || n.address || ''),
+            security: String(n.security || VLESS.security),
+            pbk: String(n.pbk || VLESS.pbk),
+            sid: String(n.sid || VLESS.sid),
+            spx: String(n.spx || VLESS.spx),
           }))
           .filter((n) => n.address);
         if (nodes.length > 0) return nodes;
@@ -89,17 +99,21 @@ const PROFILE_TITLE = process.env.SUB_PROFILE_TITLE || 'Hundler VPN';
 const FAKE_UUID = '00000000-0000-0000-0000-000000000000';
 
 function buildVlessUri(node: VlessEndpoint, uuid: string): string {
-  const q = new URLSearchParams({
-    security: 'tls',
+  const base: Record<string, string> = {
     type: 'xhttp',
     path: node.path,
-    host: node.host,
     sni: node.sni,
-    alpn: node.alpn,
     fp: node.fingerprint,
     mode: 'auto',
     encryption: 'none',
-  });
+  };
+  // Reality nodes carry pbk/sid/spx and drop the TLS-only host/alpn fields;
+  // TLS nodes keep the original shape (host + alpn) for 1-in-1 compatibility.
+  const params: Record<string, string> =
+    node.security === 'reality'
+      ? { ...base, security: 'reality', pbk: node.pbk, sid: node.sid, spx: node.spx }
+      : { ...base, security: 'tls', host: node.host, alpn: node.alpn };
+  const q = new URLSearchParams(params);
   return 'vless://' + uuid + '@' + node.address + ':' + node.port + '?' + q.toString()
     + '#' + encodeURIComponent(node.remark);
 }
