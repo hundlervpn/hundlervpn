@@ -4,7 +4,7 @@ import { useState, memo, useEffect, useCallback, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Shield, CreditCard, User, Zap, Check, ChevronRight, ChevronLeft, ChevronDown, HelpCircle, Star, Bitcoin, Wallet, Calendar, Smartphone, Settings, Gift, MonitorSmartphone, Globe, X, Monitor, FileText, Lock, Download, ArrowRight, ArrowUp, CheckCircle2, Laptop, Smartphone as SmartphoneIcon, ShieldAlert, Users, Ban, Tag, Search, Plus, Trash2, Copy, ClipboardCheck, Key, Mail, Send, Pencil, LogOut, RefreshCw, AlertCircle, Link2, Home, Crown, MessageCircle, Server, Package, Sparkles, Flame, Trophy, Clock, Paperclip, Image as ImageIcon, Reply, MoreHorizontal, Smile } from 'lucide-react';
+import { Shield, CreditCard, User, Zap, Check, ChevronRight, ChevronLeft, ChevronDown, HelpCircle, Star, Bitcoin, Wallet, Calendar, Smartphone, Settings, Gift, MonitorSmartphone, Globe, X, Monitor, FileText, Lock, Download, ArrowRight, ArrowUp, CheckCircle2, Laptop, Smartphone as SmartphoneIcon, ShieldAlert, Users, Ban, Tag, Search, Plus, Trash2, Copy, ClipboardCheck, Key, Mail, Send, Pencil, LogOut, RefreshCw, AlertCircle, Link2, Home, Crown, MessageCircle, Package, Sparkles, Flame, Trophy, Clock, Paperclip, Image as ImageIcon, Reply, MoreHorizontal, Smile } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import ParticlesBackground from '@/components/ParticlesBackground';
 import SparkEffect from '@/components/SparkEffect';
@@ -41,7 +41,6 @@ import FeatureItem from '@/components/ui/FeatureItem';
 import TicketImageLightbox from '@/components/ui/TicketImageLightbox';
 import BoxChestImage from '@/components/ui/BoxChestImage';
 import AdminPasswordGate from '@/components/views/AdminPasswordGate';
-import ServersView from '@/components/views/ServersView';
 import EmailAuthView from '@/components/views/EmailAuthView';
 
 import { ADMIN_TELEGRAM_IDS, tabs, pageVariants, listVariants, itemVariants } from './_shared/constants';
@@ -587,7 +586,6 @@ export default function App() {
                   ? <AdminView key="admin" t={t} direction={direction} tgUser={tgUser} navigate={navigate} lang={lang} onHideNav={setHideNav} onLockAdmin={lockAdmin} />
                   : <AdminPasswordGate key="admin-gate" lang={lang} expected={ADMIN_UI_PASSWORD} onUnlock={unlockAdmin} onCancel={() => navigate('profile')} />
               )}
-              {activeTab === 'servers' && <ServersView key="servers" t={t} direction={direction} navigate={navigate} />}
               {activeTab === 'tgstore' && <TgStoreView key="tgstore" t={t} direction={direction} tgUser={tgUser} navigate={navigate} lang={lang} />}
               {activeTab === 'services' && <ServicesView key="services" t={t} direction={direction} tgUser={tgUser} navigate={navigate} lang={lang} onHideNav={setHideNav} />}
               {activeTab === 'boxes' && (
@@ -873,24 +871,6 @@ function ProfileView({ t, lang, setLang, direction, tgUser, subscriptionDaysLabe
                 </div>
                 <ChevronRight size={14} strokeWidth={1.5} className="text-zinc-600" />
               </Link>
-            </div>
-          </motion.div>
-
-          {/* Servers — same column, just below App group */}
-          <motion.div initial={{ y: 10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: 0.18, duration: 0.25 }}>
-            <h3 className={groupHeader}>{t.serversTitle}</h3>
-            <div className={groupCard}>
-              <button onClick={() => navigate('servers')} className={rowBase}>
-                <div className="flex items-center gap-2 lg:gap-3">
-                  <div className={iconChip('neutral')}>
-                    {/* 2026-05-13: Server (rack icon) replaces Globe — matches
-                        the section's semantic better than a generic globe. */}
-                    <Server size={18} strokeWidth={1.5} className="text-zinc-400 lg:text-zinc-300" />
-                  </div>
-                  <span className="text-zinc-200 font-medium text-sm lg:text-[15px]">{t.serversTitle}</span>
-                </div>
-                <ChevronRight size={14} strokeWidth={1.5} className="text-zinc-600" />
-              </button>
             </div>
           </motion.div>
 
