@@ -39,6 +39,59 @@ services:
     networks:
       - web
 
+  # --- HundlerVPN Telegram launcher + broadcast bot -----------------------
+  # Replaces the host systemd unit hundlervpn-bot.service (bot/main.py).
+  # Uses the SAME token as the Next.js app (TELEGRAM_BOT_TOKEN) because this
+  # is the single long-polling consumer for the main Mini App bot; the app
+  # only sends via the Bot API, it does not poll.
+  bot:
+    build:
+      context: ./bot
+      dockerfile: Dockerfile
+    container_name: hundler-bot
+    restart: unless-stopped
+    environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-hundlervpnbot}
+      CHAT_BOT_USERNAME: ${CHAT_BOT_USERNAME:-hundlervpn_bot}
+      APP_URL: ${APP_URL:-https://hundlervpn.xyz}
+      BROADCASTS_ENABLED: ${BROADCASTS_ENABLED:-1}
+      POSTGRESQL_HOST: ${POSTGRESQL_HOST}
+      POSTGRESQL_PORT: ${POSTGRESQL_PORT:-5432}
+      POSTGRESQL_USER: ${POSTGRESQL_USER}
+      POSTGRESQL_PASSWORD: ${POSTGRESQL_PASSWORD}
+      POSTGRESQL_DBNAME: ${POSTGRESQL_DBNAME}
+      POSTGRESQL_SSLMODE: ${POSTGRESQL_SSLMODE:-require}
+    networks:
+      - web
+
+  # --- HundlerVPN chat-only bot -------------------------------------------
+  # Replaces the host systemd unit hundlervpn-bot-chat.service (bot-chat/).
+  # MUST use a DIFFERENT Telegram token than `bot` (mapped from CHAT_BOT_TOKEN
+  # in the root .env into the container's TELEGRAM_BOT_TOKEN var).
+  bot-chat:
+    build:
+      context: ./bot-chat
+      dockerfile: Dockerfile
+    container_name: hundler-bot-chat
+    restart: unless-stopped
+    environment:
+      TELEGRAM_BOT_TOKEN: ${CHAT_BOT_TOKEN}
+      TELEGRAM_BOT_USERNAME: ${CHAT_BOT_USERNAME:-hundlervpn_bot}
+      MAIN_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-hundlervpnbot}
+      APP_URL: ${APP_URL:-https://hundlervpn.xyz}
+      XRAY_SYNC_TOKEN: ${XRAY_SYNC_TOKEN:-}
+      BOT_API_SECRET: ${BOT_API_SECRET:-}
+      ADMIN_TELEGRAM_IDS: ${ADMIN_TELEGRAM_IDS:-}
+      POSTGRESQL_HOST: ${POSTGRESQL_HOST}
+      POSTGRESQL_PORT: ${POSTGRESQL_PORT:-5432}
+      POSTGRESQL_USER: ${POSTGRESQL_USER}
+      POSTGRESQL_PASSWORD: ${POSTGRESQL_PASSWORD}
+      POSTGRESQL_DBNAME: ${POSTGRESQL_DBNAME}
+      POSTGRESQL_SSLMODE: ${POSTGRESQL_SSLMODE:-require}
+    networks:
+      - web
+
   nginx:
     image: nginx:alpine
     container_name: hundler-nginx
