@@ -1,6 +1,6 @@
 # Self-hosted single-VPS overlay for Hundler VPN.
 # Adds a containerized Postgres (with volume + schema auto-init) and points
-# the app at it. Use ALONGSIDE the base compose file:
+# the app AND the bots at it. Use ALONGSIDE the base compose file:
 #
 #   docker compose -f docker-compose.yml -f docker-compose.selfhosted.yml up -d --build
 #
@@ -36,6 +36,27 @@ services:
       POSTGRESQL_HOST: postgres
       POSTGRESQL_PORT: "5432"
       POSTGRESQL_SSL_MODE: disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # Point the launcher/broadcast bot at the in-network Postgres. The bots
+  # read POSTGRESQL_SSLMODE (no underscore); the container-local Postgres
+  # speaks plain TCP, so force sslmode=disable (bot default is `require`).
+  bot:
+    environment:
+      POSTGRESQL_HOST: postgres
+      POSTGRESQL_PORT: "5432"
+      POSTGRESQL_SSLMODE: disable
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  bot-chat:
+    environment:
+      POSTGRESQL_HOST: postgres
+      POSTGRESQL_PORT: "5432"
+      POSTGRESQL_SSLMODE: disable
     depends_on:
       postgres:
         condition: service_healthy
