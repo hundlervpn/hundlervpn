@@ -4,6 +4,7 @@ import { isAdmin } from '@/lib/admin';
 import {
   getSubscriptionUrl,
   getSubscriptionUrlForUser,
+  getRemnawaveDirectSubscriptionUrl,
   generateSubToken,
   generateSubTokenForUser,
 } from '@/lib/sub-token';
@@ -56,11 +57,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       first_name: string | null; last_name: string | null;
       created_at: string; is_banned: boolean; ban_reason: string | null;
       sub_status: string | null; sub_end: string | null; max_devices: number | null;
+      remnawave_short_uuid: string | null;
     }>(
       `
       SELECT u.id::text AS id, u.telegram_id::text AS telegram_id,
              u.username, u.first_name, u.last_name, u.created_at,
              u.is_banned, u.ban_reason,
+             u.remnawave_short_uuid,
              s.status AS sub_status, s.end_date AS sub_end,
              p.max_devices
       FROM users u
@@ -129,9 +132,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     // XRAY_SYNC_TOKEN (needed to sign the token) — without it we return null.
     const row = userResult.rows[0];
     const tgNum = row.telegram_id ? Number(row.telegram_id) : NaN;
-    let subscriptionUrl: string | null = Number.isFinite(tgNum) && tgNum > 0
-      ? getSubscriptionUrl(tgNum)
-      : getSubscriptionUrlForUser(Number(row.id));
+    // Prefer direct Remnawave panel URL when we have a shortUuid.
+    let subscriptionUrl: string | null = getRemnawaveDirectSubscriptionUrl(row.remnawave_short_uuid);
+    if (!subscriptionUrl) {
+      subscriptionUrl = Number.isFinite(tgNum) && tgNum > 0
+        ? getSubscriptionUrl(tgNum)
+        : getSubscriptionUrlForUser(Number(row.id));
+    }
     if (!subscriptionUrl && process.env.XRAY_SYNC_TOKEN) {
       const origin = `${url.protocol}//${url.host}`;
       const token = Number.isFinite(tgNum) && tgNum > 0

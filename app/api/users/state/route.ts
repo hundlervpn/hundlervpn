@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { dbQuery } from '@/lib/db';
-import { getSubscriptionUrl, getSubscriptionUrlForUser } from '@/lib/sub-token';
+import { getSubscriptionUrl, getSubscriptionUrlForUser, getRemnawaveDirectSubscriptionUrl } from '@/lib/sub-token';
 import { ensureRemnawaveUser } from '@/lib/remnawave-sync';
 
 type UserState = {
@@ -16,6 +16,7 @@ type UserState = {
   unreadSupportCount: number;
   referralCode: string | null;
   remnawaveSyncedAt: string | null;
+  remnawaveShortUuid?: string | null;
   subscriptionUrl?: string | null;
 };
 
@@ -116,6 +117,7 @@ export async function GET(req: Request) {
         u.ban_type AS "banType",
         u.referral_code AS "referralCode",
         u.remnawave_synced_at AS "remnawaveSyncedAt",
+        u.remnawave_short_uuid AS "remnawaveShortUuid",
         CASE
           WHEN s.status = 'active' AND s.end_date > NOW() THEN 'active'
           WHEN s.status IS NULL THEN 'none'
@@ -179,23 +181,41 @@ export async function GET(req: Request) {
     // subscription is provisioned DISABLED and receives an empty config. So it is
     // safe (and intended) to always issue the link instead of falling back to a
     // legacy per-device VLESS key.
-    let subscriptionUrl: string | null = tgId
-      ? getSubscriptionUrl(Number(tgId))
-      : getSubscriptionUrlForUser(result.rows[0].userId);
-    console.log('Subscription URL:', subscriptionUrl);
+    // Prefer the panel's direct subscription URL (sub.hundlervpn.xyz/<shortUuid>)
+    // so VPN clients hit Remnawave directly — real client IPs in HWID list,
+    // no Mini App proxy hop. Fall back to the legacy Mini App proxy URL only
+    // when the panel mapping is not yet available.
+    let subscriptionUrl: string | null = null;
 
     // Best-effort: provision the user into the Remnawave panel on first app
-    // open, so they show up in the panel immediately (not only when their VPN
-    // client first fetches the config). Fires once per user (gated by
-    // remnawaveSyncedAt). ensureRemnawaveUser is idempotent and reuses any
-    // existing panel record, so the user's subscription LINK never changes.
-    if (!result.rows[0].remnawaveSyncedAt) {
+    // open (or whenever we still lack a shortUuid), so they show up in the
+    // panel immediately and we can hand out the direct sub URL. ensureRemnawaveUser
+    // is idempotent and reuses any existing panel record.
+    let shortUuid: string | null = (result.rows[0] as { remnawaveShortUuid?: string | null }).remnawaveShortUuid ?? null;
+    if (!result.rows[0].remnawaveSyncedAt || !shortUuid) {
       try {
-        await ensureRemnawaveUser(result.rows[0].userId);
+        const ensured = await ensureRemnawaveUser(result.rows[0].userId);
+        shortUuid = ensured.shortUuid || shortUuid;
+        // Panel itself returns the canonical subscriptionUrl — prefer it.
+        if (ensured.subscriptionUrl) {
+          subscriptionUrl = ensured.subscriptionUrl;
+        }
       } catch (err) {
         console.error('[users/state] ensureRemnawaveUser failed (best-effort):', err);
       }
     }
+
+    if (!subscriptionUrl) {
+      subscriptionUrl = getRemnawaveDirectSubscriptionUrl(shortUuid);
+    }
+    if (!subscriptionUrl) {
+      // Legacy Mini App proxy — keeps old clients working if panel is down
+      // or the user has not been provisioned yet.
+      subscriptionUrl = tgId
+        ? getSubscriptionUrl(Number(tgId))
+        : getSubscriptionUrlForUser(result.rows[0].userId);
+    }
+    console.log('Subscription URL:', subscriptionUrl);
 
     return NextResponse.json({
       ok: true,

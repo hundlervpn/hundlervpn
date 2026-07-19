@@ -482,6 +482,50 @@ export function getSubscriptionUrlForUser(userId: number): string | null {
 }
 
 /**
+ * Public subscription URL served directly by the Remnawave panel
+ * (e.g. https://sub.hundlervpn.xyz/<shortUuid>).
+ *
+ * Prefer this over the Mini App proxy (`${APP_URL}/api/sub/...`) so that:
+ *   - clients talk to Remnawave directly (real client IPs in HWID list),
+ *   - HWID headers are not mediated by our proxy,
+ *   - the link matches what the panel itself shows for the user.
+ *
+ * Host comes from REMNAWAVE_SUB_DOMAIN (preferred) or is derived from the
+ * panel's REMNAWAVE_API_URL by swapping the `panel.` subdomain for `sub.`.
+ * Returns null when shortUuid is missing or no host can be resolved.
+ */
+export function getRemnawaveDirectSubscriptionUrl(shortUuid: string | null | undefined): string | null {
+  const short = (shortUuid ?? '').trim();
+  if (!short) return null;
+
+  const raw =
+    (process.env.REMNAWAVE_SUB_DOMAIN || '').trim() ||
+    deriveSubDomainFromApiUrl(process.env.REMNAWAVE_API_URL || '');
+  if (!raw) return null;
+
+  // Accept either a full URL or a bare host.
+  const base = raw.includes('://') ? raw.replace(/\/+$/, '') : `https://${raw.replace(/\/+$/, '')}`;
+  return `${base}/${encodeURIComponent(short)}`;
+}
+
+function deriveSubDomainFromApiUrl(apiUrl: string): string {
+  const trimmed = (apiUrl || '').trim();
+  if (!trimmed) return '';
+  try {
+    const u = new URL(trimmed.includes('://') ? trimmed : `https://${trimmed}`);
+    // panel.hundlervpn.xyz → sub.hundlervpn.xyz
+    u.hostname = u.hostname.replace(/^panel\./i, 'sub.');
+    u.pathname = '';
+    u.search = '';
+    u.hash = '';
+    return u.toString().replace(/\/+$/, '');
+  } catch {
+    return '';
+  }
+}
+
+
+/**
  * Per-session Hy2 password (v48, 2026-05-17).
  *
  * Format: `s<sessionId>.<sig12>` where `<sig12>` is the first 12 chars of
