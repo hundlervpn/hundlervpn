@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { haptic } from '@/lib/haptic';
 import HappIcon from '@/components/HappIcon';
 import V2RayTunIcon from '@/components/V2RayTunIcon';
+import IncyIcon from '@/components/IncyIcon';
 import TigerNetworkLogo from '@/components/TigerNetworkLogo';
 import ReferralModal from '@/components/ReferralModal';
 import MatrixRain from '@/components/MatrixRain';
@@ -28,7 +29,7 @@ export default function HomeView({ t, direction, subscriptionEndDateLabel, subsc
   const [setupStep, setSetupStep] = useState<1 | 2 | 3>(1);
   const [showDevicePicker, setShowDevicePicker] = useState(false);
   const [setupRegion, setSetupRegion] = useState<'global' | 'russia'>('russia');
-  const [setupClient, setSetupClient] = useState<'hundler' | 'happ' | 'v2raytun'>('happ');
+  const [setupClient, setSetupClient] = useState<'hundler' | 'happ' | 'v2raytun' | 'incy'>('happ');
   const [vpnKey, setVpnKey] = useState<string | null>(null);
   const [vpnKeyLoading, setVpnKeyLoading] = useState(false);
   const [keyCopied, setKeyCopied] = useState(false);
@@ -118,7 +119,7 @@ export default function HomeView({ t, direction, subscriptionEndDateLabel, subsc
     setDeviceOS(os);
     setSetupStep(1);
     setShowDevicePicker(false);
-    setSetupClient('happ');
+    setSetupClient(clientsForOS(os)[0]);
     setShowSetupModal(true);
   };
 
@@ -233,12 +234,15 @@ export default function HomeView({ t, direction, subscriptionEndDateLabel, subsc
   };
 
   // Which clients we offer per platform, in display order. The FIRST entry is
-  // the recommended one (gets the badge) and the default selection. We only
-  // offer Happ on Windows now — the native HundlerVPN PC client was removed
-  // from the setup flow. Everywhere else (incl. Android, where our native app
-  // is still store-only / too raw to push): Happ + v2rayTun.
-  const clientsForOS = (os: typeof deviceOS): Array<'hundler' | 'happ' | 'v2raytun'> =>
-    os === 'windows' ? ['happ'] : ['happ', 'v2raytun'];
+  // the recommended one (gets the badge) and the default selection.
+  //   • Windows        → only Happ (native HundlerVPN PC client was removed).
+  //   • Android / iOS   → INCY (recommended) + Happ. v2rayTun dropped here.
+  //   • macOS / Linux / unknown → Happ + v2rayTun.
+  const clientsForOS = (os: typeof deviceOS): Array<'hundler' | 'happ' | 'v2raytun' | 'incy'> => {
+    if (os === 'windows') return ['happ'];
+    if (os === 'android' || os === 'ios') return ['incy', 'happ'];
+    return ['happ', 'v2raytun'];
+  };
   const availableClients = clientsForOS(deviceOS);
   // Switching device in the picker also resets to that platform's recommended
   // client so we never end up with an option that doesn't apply (e.g. 'hundler'
@@ -249,6 +253,16 @@ export default function HomeView({ t, direction, subscriptionEndDateLabel, subsc
   };
 
   const getStoreLink = () => {
+    if (setupClient === 'incy') {
+      // INCY — offered on Android / iOS only.
+      if (deviceOS === 'android') {
+        return 'https://play.google.com/store/apps/details?id=llc.itdev.incy';
+      }
+      if (deviceOS === 'ios') {
+        return 'https://apps.apple.com/us/app/incy/id6756943388';
+      }
+      return '';
+    }
     if (setupClient === 'v2raytun') {
       // v2rayTun — https://v2raytun.com
       if (deviceOS === 'windows') {
@@ -499,6 +513,7 @@ export default function HomeView({ t, direction, subscriptionEndDateLabel, subsc
                           hundler: { title: t.setupClientHundlerTitle, subtitle: t.setupClientHundlerSubtitle, icon: <Shield size={20} strokeWidth={1.8} className={selected ? 'text-white' : 'text-zinc-400'} /> },
                           happ: { title: t.setupClientHappTitle, subtitle: t.setupClientHappSubtitle, icon: <HappIcon size={20} className={selected ? 'text-white' : 'text-zinc-400'} /> },
                           v2raytun: { title: t.setupClientV2RayTunTitle, subtitle: t.setupClientV2RayTunSubtitle, icon: <V2RayTunIcon size={20} className={selected ? 'text-white' : 'text-zinc-400'} /> },
+                          incy: { title: t.setupClientIncyTitle, subtitle: t.setupClientIncySubtitle, icon: <IncyIcon size={20} className={selected ? '' : 'opacity-70'} /> },
                         }[client];
                         // The FIRST client for the platform is the recommended one.
                         const recommended = idx === 0;
