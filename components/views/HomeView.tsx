@@ -118,7 +118,7 @@ export default function HomeView({ t, direction, subscriptionEndDateLabel, subsc
     setDeviceOS(os);
     setSetupStep(1);
     setShowDevicePicker(false);
-    setSetupClient(os === 'windows' ? 'hundler' : 'happ');
+    setSetupClient('happ');
     setShowSetupModal(true);
   };
 
@@ -232,17 +232,13 @@ export default function HomeView({ t, direction, subscriptionEndDateLabel, subsc
     }
   };
 
-  // Public pretty link to our native Windows installer. Backend `/download`
-  // (app/download/route.ts) 302-redirects to the proxy that streams the latest
-  // HundlerVPN-Setup-*.exe from the (now private) Hundler-App repo via token.
-  const HUNDLER_WINDOWS_DOWNLOAD = 'https://hundlervpn.xyz/download';
-
   // Which clients we offer per platform, in display order. The FIRST entry is
-  // the recommended one (gets the badge) and the default selection. Windows:
-  // our native HundlerVPN app first, then Happ. Everywhere else (incl. Android,
-  // where our native app is still store-only / too raw to push): Happ + v2rayTun.
+  // the recommended one (gets the badge) and the default selection. We only
+  // offer Happ on Windows now — the native HundlerVPN PC client was removed
+  // from the setup flow. Everywhere else (incl. Android, where our native app
+  // is still store-only / too raw to push): Happ + v2rayTun.
   const clientsForOS = (os: typeof deviceOS): Array<'hundler' | 'happ' | 'v2raytun'> =>
-    os === 'windows' ? ['hundler', 'happ'] : ['happ', 'v2raytun'];
+    os === 'windows' ? ['happ'] : ['happ', 'v2raytun'];
   const availableClients = clientsForOS(deviceOS);
   // Switching device in the picker also resets to that platform's recommended
   // client so we never end up with an option that doesn't apply (e.g. 'hundler'
@@ -593,23 +589,6 @@ export default function HomeView({ t, direction, subscriptionEndDateLabel, subsc
                     <h3 className="text-xl sm:text-2xl font-bold text-center text-white mb-2">{t.setupInstallTitle}</h3>
                     <p className="text-zinc-400 text-center text-sm mb-5 sm:mb-7">{t.setupInstallDesc}</p>
 
-                    {/* Native HundlerVPN Windows client — recommended for Windows.
-                        Downloads via our domain (hundlervpn.xyz/download), which
-                        proxies the installer from the private Hundler-App repo. */}
-                    {setupClient === 'hundler' && deviceOS === 'windows' && (
-                      <div className="mb-5 rounded-2xl border border-white/15 bg-white/[0.04] p-4">
-                        <p className="text-white font-semibold text-sm mb-1">{t.setupHundlerWinTitle}</p>
-                        <p className="text-zinc-400 text-xs mb-3 leading-relaxed">{t.setupHundlerWinDesc}</p>
-                        <button
-                          onClick={() => openStoreLink(HUNDLER_WINDOWS_DOWNLOAD)}
-                          className="w-full bg-gradient-to-r from-red-500 to-red-600 border border-red-400/30 text-white font-semibold py-3.5 rounded-full flex items-center justify-center gap-2 active:scale-95 text-sm shadow-lg shadow-red-500/25 hover:shadow-red-500/40 transition-shadow"
-                        >
-                          <Download size={16} /> {t.setupHundlerWinTitle}
-                        </button>
-                      </div>
-                    )}
-
-
                     {setupClient === 'happ' && (deviceOS === 'ios' || deviceOS === 'macos') && (
                       <div className="mb-5">
                         <p className="text-zinc-500 text-xs uppercase tracking-wider mb-2">{t.setupRegion}</p>
@@ -620,10 +599,10 @@ export default function HomeView({ t, direction, subscriptionEndDateLabel, subsc
                       </div>
                     )}
 
-                    {setupClient !== 'hundler' && !getStoreLink() && !(deviceOS === 'linux' && setupClient === 'happ') && <p className="text-amber-300 text-xs mb-4">{t.setupNoStore}</p>}
+                    {!getStoreLink() && !(deviceOS === 'linux' && setupClient === 'happ') && <p className="text-amber-300 text-xs mb-4">{t.setupNoStore}</p>}
 
                     <div className="space-y-2.5">
-                      {setupClient === 'hundler' ? null : deviceOS === 'linux' && setupClient === 'happ' ? (
+                      {deviceOS === 'linux' && setupClient === 'happ' ? (
                         <>
                           <p className="text-zinc-500 text-xs uppercase tracking-wider mb-1">{t.setupChooseFormat || 'Выберите формат'}</p>
                           <button
