@@ -25,6 +25,9 @@
   2026-04-28, but it's a base-image bug, not host-specific). Pin to
   `node:20.18-alpine3.20` fixes it. Do NOT change the base image without
   verifying a full build + deploy works.
-- Telegram Bot: separate VPS
-- VPN servers: separate VPS instances
+- Telegram bots: **containers on the same VPS** (`159.195.58.174`) — `hundler-bot`
+  (launcher/broadcast, `bot/`) and `hundler-bot-chat` (chat-only, `bot-chat/`),
+  both built by `docker-compose.yml` and deployed by the same `docker compose`
+  as the app. They replaced the old separate "HundlerBOT" VPS + systemd units.
+- VPN servers: separate VPS instances (unchanged — the exit nodes stay abroad)
 

@@ -1,134 +1,101 @@
-# Deploying `bot-chat` on the Telegram Bot VPS
+# Deploying `bot-chat` (Docker container on the main VPS)
 
-The chat-only bot runs alongside the existing Mini-App-launcher bot on
-the same VPS. They use different tokens so they can long-poll Telegram
-in parallel without conflict.
+The chat-only bot runs as the `hundler-bot-chat` **container**, built from
+`./bot-chat` by the root `docker-compose.yml`, on the SAME VPS as the web app,
+Postgres and the main launcher bot (`159.195.58.174`). It replaced the old host
+`systemd` unit that used to live on a separate "HundlerBOT" VPS (retired).
 
-## One-time setup
+Because it shares the compose `web` network with everything else, it reaches
+Postgres directly at `postgres:5432` — no SSH tunnel, no Timeweb/Hostman, no
+host-published DB port.
 
-1. SSH to the bot VPS as `root`.
+> Both bots long-poll Telegram, so each MUST use a DIFFERENT bot token
+> (`TELEGRAM_BOT_TOKEN` for `bot`, `TELEGRAM_BOT_CHAT_TOKEN` for `bot-chat`).
 
-2. Pull the latest code:
+## Environment (root `/root/hundlervpn/.env`, gitignored, chmod 600)
 
-   ```bash
-   cd /root/hundlervpn
-   git pull origin main
-   ```
+Compose feeds env into the containers from the SINGLE root `.env` — there is no
+`bot-chat/.env` anymore. Keys the chat bot needs:
 
-3. Create the venv and install deps:
+```
+TELEGRAM_BOT_CHAT_TOKEN=<chat bot token from BotFather — NOT the Mini-App bot's>
+CHAT_BOT_USERNAME=hundlervpn_bot
+APP_URL=https://hundlervpn.xyz
+XRAY_SYNC_TOKEN=...            # MUST match the web app + VPN-node value
+ADMIN_TELEGRAM_IDS=           # optional — TG IDs allowed to run admin handlers
+# DB creds are shared with the app:
+POSTGRESQL_USER=...
+POSTGRESQL_PASSWORD=...
+POSTGRESQL_DBNAME=...
+# POSTGRESQL_HOST / PORT / SSLMODE are forced to postgres / 5432 / disable
+# for the bots by docker-compose.selfhosted.yml — do NOT override them per-bot.
+```
 
-   ```bash
-   cd /root/hundlervpn/bot-chat
-   python3 -m venv venv
-   ./venv/bin/pip install --upgrade pip
-   ./venv/bin/pip install -r requirements.txt
-   ```
+Never commit real secrets — they live only in the server's `.env`.
 
-4. Create `/root/hundlervpn/bot-chat/.env` (chmod 600). Use the same
-   secrets the Next.js side has — `XRAY_SYNC_TOKEN` MUST match the value
-   in Hostman or subscription URLs will be rejected by `/api/sub/[token]`.
+## Deploy / update
 
-   ON THE BOT VPS use the local SSH tunnel for Postgres (host
-   `127.0.0.1` port `5433`) — see the `db-tunnel.service` notes in
-   `MINIAPP-AGENTS.md`. Direct Timeweb access from the Amsterdam IP is
-   silently blocked.
-
-   ```
-   TELEGRAM_BOT_TOKEN=<TELEGRAM_BOT_TOKEN>
-   TELEGRAM_BOT_USERNAME=hundlervpn_bot
-   APP_URL=https://hundlervpn.xyz
-   POSTGRESQL_HOST=127.0.0.1
-   POSTGRESQL_PORT=5433
-   POSTGRESQL_USER=<DB_USER>
-   POSTGRESQL_PASSWORD=...
-   POSTGRESQL_DBNAME=<DB_NAME>
-   POSTGRESQL_SSLMODE=require
-   XRAY_SYNC_TOKEN=...
-   # Optional — comma-separated TG IDs that can run admin handlers
-   # (currently: emoji-id discovery, see "Custom emoji icons" below).
-   ADMIN_TELEGRAM_IDS=
-   ```
-
-   Then:
-
-   ```bash
-   chmod 600 /root/hundlervpn/bot-chat/.env
-   ```
-
-5. Install the systemd unit:
-
-   ```bash
-   cp /root/hundlervpn/bot-chat/hundlervpn-bot-chat.service \
-      /etc/systemd/system/
-   systemctl daemon-reload
-   systemctl enable hundlervpn-bot-chat
-   systemctl start hundlervpn-bot-chat
-   ```
-
-6. Verify it's polling:
-
-   ```bash
-   journalctl -u hundlervpn-bot-chat -f
-   ```
-
-   You should see:
-   ```
-   bot-chat: Bot identity: @hundlervpn_bot (id=…, name='Hundler VPN')
-   bot-chat: Starting long-polling…
-   ```
-
-## Updating after a code change
+From the repo root on the VPS (same command that deploys the app):
 
 ```bash
 cd /root/hundlervpn
 git pull origin main
-# Re-install deps only if requirements.txt changed:
-# /root/hundlervpn/bot-chat/venv/bin/pip install -r /root/hundlervpn/bot-chat/requirements.txt
-systemctl restart hundlervpn-bot-chat
+docker compose -f docker-compose.yml -f docker-compose.selfhosted.yml up -d --build bot-chat
+```
+
+Deploying the whole stack (omit the trailing `bot-chat`) rebuilds it too.
+
+Verify it's polling:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.selfhosted.yml logs -f bot-chat
+```
+
+You should see:
+```
+bot-chat: Bot identity: @hundlervpn_bot (id=…, name='Hundler VPN')
+bot-chat: Starting long-polling…
 ```
 
 ## Custom emoji icons (Bot API 9.4)
 
-The bot pre-declares slots for animated/styled custom emojis on every
-important button (`bot-chat/emoji_icons.py`). Default state is empty,
-so buttons render their plain Unicode emoji. To upgrade to animated
-Premium emojis on Premium clients (non-Premium silently keep the
-Unicode fallback):
+The bot pre-declares slots for animated/styled custom emojis on every important
+button (`bot-chat/emoji_icons.py`). Default state is empty, so buttons render
+their plain Unicode emoji. To upgrade to animated Premium emojis on Premium
+clients (non-Premium silently keep the Unicode fallback):
 
-1. Set `ADMIN_TELEGRAM_IDS=<your_tg_id>` in `.env` and
-   `systemctl restart hundlervpn-bot-chat`.
-2. From your Telegram client (Premium required for inserting custom
-   emojis), send the bot **any** message that contains the animated
-   emojis you want. iOS / Android: long-press the emoji picker tab
-   to switch to the animated set. Desktop: click the smiley icon →
-   “Premium” tab.
+1. Set `ADMIN_TELEGRAM_IDS=<your_tg_id>` in the root `.env` and redeploy
+   `bot-chat` (see above).
+2. From your Telegram client (Premium required for inserting custom emojis),
+   send the bot **any** message that contains the animated emojis you want.
+   iOS / Android: long-press the emoji picker tab to switch to the animated
+   set. Desktop: click the smiley icon → “Premium” tab.
 3. The bot replies with one line per emoji:
    `🔑  →  5170734948596768593`.
-4. Edit `bot-chat/emoji_icons.py` and paste the IDs into the slots
-   you care about (each slot has a comment showing where it appears).
-5. `git add bot-chat/emoji_icons.py && git commit -m "chore: enable
-   custom emoji on N buttons" && git push`, then on the VPS:
-   `cd /root/hundlervpn && git pull && systemctl restart hundlervpn-bot-chat`.
+4. Edit `bot-chat/emoji_icons.py` and paste the IDs into the slots you care
+   about (each slot has a comment showing where it appears).
+5. `git add bot-chat/emoji_icons.py && git commit && git push`, then on the
+   VPS `git pull origin main` and redeploy `bot-chat` (see above).
 
-Empty IDs are safe — the bot just keeps the static Unicode emoji.
-Nothing breaks if you populate only some keys.
+Empty IDs are safe — the bot keeps the static Unicode emoji. Nothing breaks if
+you populate only some keys.
 
 ## Bot token
 
-⚠️ **The chat bot uses a SEPARATE Telegram bot token from the Mini App
-bot.** Each Telegram bot can only be polled by one process at a time —
-two bots on the same token would race on getUpdates and lose messages.
+⚠️ **The chat bot uses a SEPARATE Telegram bot token from the Mini App bot.**
+Each Telegram bot can only be polled by one process at a time — two bots on the
+same token would race on `getUpdates` and lose messages.
 
-Current tokens (as of 2026-05-06):
-- `bot/` (Mini App launcher): see `bot/hundlervpn-bot.service` env
-- `bot-chat/` (chat-only, this one): set in `bot-chat/.env`
+- `bot/` (Mini App launcher): container `hundler-bot`, token `TELEGRAM_BOT_TOKEN`.
+- `bot-chat/` (chat-only, this one): container `hundler-bot-chat`, token
+  `TELEGRAM_BOT_CHAT_TOKEN`. Both come from the root `.env`.
 
 ## Troubleshooting
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| `TELEGRAM_BOT_TOKEN env var is required` | `.env` missing or has BOM | Recreate without BOM (see `_set_token.py` for example) |
-| `column "language_code" does not exist` | Bot pulled before commit X | `git pull && systemctl restart` |
-| Sub URL shows but client errors "user not found" | `XRAY_SYNC_TOKEN` mismatch | Copy the value from Hostman exactly |
+| `TELEGRAM_BOT_TOKEN env var is required` | `TELEGRAM_BOT_CHAT_TOKEN` missing/empty in root `.env` | Set it, then redeploy `bot-chat` |
+| Sub URL shows but client errors "user not found" | `XRAY_SYNC_TOKEN` mismatch | Copy the exact value the web app + VPN nodes use |
+| DB connection hangs / refused | Wrong `POSTGRESQL_SSLMODE` | Must be `disable` for the in-network container (set by the overlay) |
 | Buttons appear but stay grey | Old Telegram client | Telegram v11.7+ required for Bot API 9.4 colour buttons |
-| Bot doesn't respond at all | Polling collision (token shared with Mini App bot) | Use a separate token from BotFather |
+| Bot doesn't respond at all | Polling collision (token shared with the main bot) | Give `bot-chat` its own BotFather token |

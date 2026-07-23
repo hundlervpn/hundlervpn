@@ -44,8 +44,10 @@ hundlerminiapp/
 
 ## Критичные ограничения (MUST READ)
 1. **Docker / Деплой на свой VPS (2026-07):** Проект переехал с Hostman на
-   собственный сервер `159.195.58.174`. Автодеплоя по git push **больше нет** —
-   деплой это ручной `docker compose -f docker-compose.yml -f docker-compose.selfhosted.yml up -d --build`
+   собственный сервер `159.195.58.174`. **Боты тоже здесь** — `hundler-bot` и
+   `hundler-bot-chat` собираются тем же compose (не отдельный VPS и не systemd);
+   в БД ходят по внутренней Docker-сети (`POSTGRESQL_HOST=postgres`, `sslmode=disable`).
+   Автодеплоя по git push **больше нет** — деплой это ручной `docker compose -f docker-compose.yml -f docker-compose.selfhosted.yml up -d --build`
    на сервере (подробно в `docs/deployment.md`).
    ⚠️ Базовый образ строго зафиксирован на `node:20.18-alpine3.20` (в новых версиях баг экспорта BuildKit). Не менять без проверки полной сборки и деплоя.
 2. **База данных:** Postgres теперь **контейнер на том же VPS** (`hundler-postgres`, из `docker-compose.selfhosted.yml`, том `pgdata`, автоприменение схемы). Приложение ходит по внутренней Docker-сети (`POSTGRESQL_HOST=postgres`, `sslmode=disable`). Старые Timeweb и Hostman Managed PG мертвы — не подключаться. **НИКОГДА не коммитить пароли от БД** — только `.env` (в .gitignore).

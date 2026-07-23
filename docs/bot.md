@@ -1,23 +1,29 @@
-## Telegram Bot (separate VPS):
-- VPS hostname: HundlerBOT (Amsterdam, public IP 132.243.242.124)
-- Bot code: bot/main.py (aiogram, Python)
-- Service: /etc/systemd/system/hundlervpn-bot.service
-- Working dir: /root/hundlervpn/bot
-- Env vars: defined inline as `Environment=...` in the systemd unit file (NOT in
-  a `.env` file — `/root/hundlervpn/bot/.env` does NOT exist on the bot VPS).
-  `bot/main.py` calls `load_dotenv()` which silently no-ops, then falls back to
-  `os.getenv('POSTGRESQL_*', '<default>')`. To change DB creds / host / port,
-  edit the systemd unit and run `systemctl daemon-reload && systemctl restart
-  hundlervpn-bot`.
-- Manage: `systemctl restart hundlervpn-bot`, `systemctl status hundlervpn-bot`
-- IMPORTANT: always check `ps aux | grep main.py` — kill stale processes before restart
-- Bot features: /start command (welcome + open Mini App button), broadcast scheduler (checks DB every 10s)
-- **psycopg2 requires `sslmode=require`** (v66, 2026-04-28). Default is set in
-  `DB_CONFIG` via `os.getenv('POSTGRESQL_SSLMODE', 'require')`. Without it,
-  psycopg2 hangs for 10s on every poll because Timeweb hosted Postgres expects
-  an `SSLRequest` packet first and silently drops plain-TCP startup payloads.
-  The Node `pg` driver auto-negotiates SSL so the web app side never noticed,
-  but psycopg2 needs the explicit flag.
+## Telegram bots (containers on the main VPS `159.195.58.174`):
+Both bots now run as Docker containers in the SAME compose stack as the web app
++ Postgres. They replaced the old host systemd units that lived on a separate
+"HundlerBOT" VPS (that VPS is retired).
+- Services (built by `docker-compose.yml`): `hundler-bot` (launcher/broadcast,
+  `bot/main.py`) and `hundler-bot-chat` (chat-only, `bot-chat/`). Both are
+  aiogram / Python.
+- Env: injected by compose from the server's root `.env` (no per-bot `.env`
+  file and no systemd `Environment=` anymore). `docker-compose.selfhosted.yml`
+  overrides both bots' DB coordinates to the in-network container:
+  `POSTGRESQL_HOST=postgres`, `POSTGRESQL_PORT=5432`, `POSTGRESQL_SSLMODE=disable`.
+- Tokens: the main bot uses `TELEGRAM_BOT_TOKEN` (the same token the app sends
+  with); the chat bot uses `TELEGRAM_BOT_CHAT_TOKEN` (mapped into its container's
+  `TELEGRAM_BOT_TOKEN`). A token can only be long-polled by one process, so the
+  two MUST differ.
+- Deploy / manage (same `docker compose` as the app, from `/root/hundlervpn`):
+  `docker compose -f docker-compose.yml -f docker-compose.selfhosted.yml up -d --build bot bot-chat`
+  to (re)build, `... logs -f bot` / `... logs -f bot-chat` to tail,
+  `... restart bot-chat` to bounce. No more `systemctl` / `ps aux | grep main.py`.
+- Bot features: /start command (welcome + open Mini App button), broadcast
+  scheduler (checks DB every 10s).
+- **psycopg2 sslmode**: the bots read `POSTGRESQL_SSLMODE` (no underscore) and
+  need it set explicitly (unlike the Node `pg` driver, which auto-negotiates).
+  Against the in-network Postgres container (plain TCP) it MUST be `disable` —
+  the self-hosted overlay sets this. (`require` was only needed for the old
+  managed Postgres, which expected an `SSLRequest` packet first.)
 
 ### DB Tunnel (v66, 2026-04-28) — REMOVED in v68
 
@@ -77,10 +83,11 @@ UI disables the audience buttons in that case.
 2. Deploy the web app manually on the VPS (no auto-deploy since the 2026-07
    self-host migration): `git pull` + `docker compose ... up -d --build app`
    (see `docs/deployment.md`). Verify the deploy completes.
-3. SSH to HundlerBOT VPS, pull the new bot code and restart:
+3. Rebuild the bot container on the VPS (same host as the app):
    ```bash
-   cd /root/hundlervpn && git pull
-   systemctl restart hundlervpn-bot && systemctl status hundlervpn-bot
+   cd /root/hundlervpn && git pull origin main
+   docker compose -f docker-compose.yml -f docker-compose.selfhosted.yml up -d --build bot
+   docker compose -f docker-compose.yml -f docker-compose.selfhosted.yml logs -f bot
    ```
 4. Open Admin → Broadcasts in the Mini App. The new "Не настроил VPN"
    button should appear in the audience grid.
@@ -131,8 +138,8 @@ bad button never ships.
   always editable with kind-aware placeholders. Helper text under the
   promo input reminds admin to create the promo first.
 
-**Bot env var** (HundlerBOT VPS `/etc/systemd/system/hundlervpn-bot.service`
-or `.env`):
+**Bot env var** (root `.env` on the VPS, read by the `hundler-bot` container
+via compose):
 ```
 TELEGRAM_BOT_USERNAME=hundlervpnbot
 ```
@@ -275,8 +282,8 @@ an entry upgrades the button to an animated/Premium emoji on
 Premium clients (non-Premium auto-falls back).
 
 **Discovery flow** (admin only, gated by `ADMIN_TELEGRAM_IDS` env):
-1. Set `ADMIN_TELEGRAM_IDS=<tg_id_1>,<tg_id_2>` in `.env`,
-   `systemctl restart hundlervpn-bot-chat`.
+1. Set `ADMIN_TELEGRAM_IDS=<tg_id_1>,<tg_id_2>` in the root `.env`, then
+   redeploy: `docker compose -f docker-compose.yml -f docker-compose.selfhosted.yml up -d --build bot-chat`.
 2. Send the bot any message containing animated custom emojis
    (Premium client required to insert them — long-press the
    emoji pad on iOS/Android, or click the smiley → Premium tab
@@ -355,7 +362,7 @@ sister bot). User report 2026-05-07: «оплачивал с чат бота п�
 5. **Migration**
    No DB migration needed — `metadata` is JSONB, both new keys default
    to `'main'` / `hundlervpnbot` if absent, so old rows continue to
-   notify through the main bot. Required Timeweb env addition:
+   notify through the main bot. Required env addition (root `.env`):
    ```
    TELEGRAM_BOT_CHAT_TOKEN=<chat-bot's BotFather token>
    ```
@@ -369,43 +376,31 @@ sister bot). User report 2026-05-07: «оплачивал с чат бота п�
 | `TELEGRAM_BOT_TOKEN` | ✅ | Different from `bot/`, no shared polls |
 | `TELEGRAM_BOT_USERNAME` | ✅ | `hundlervpn_bot` (with underscore) |
 | `APP_URL` | ✅ | `https://hundlervpn.xyz` (no trailing slash) |
-| `POSTGRESQL_*` | ✅ | Point at the current DB host — see "self-host migration (CONFIRM)" note below; the old `127.0.0.1:5433` tunnel is gone |
+| `POSTGRESQL_*` | ✅ | Set by the compose overlay to the in-network container: `HOST=postgres`, `PORT=5432`, `SSLMODE=disable`. The old Timeweb/Hostman hosts and the `127.0.0.1:5433` tunnel are dead. |
 | `XRAY_SYNC_TOKEN` | ✅ | MUST match the web app + VPN VPS value |
 | `BOT_API_SECRET` | optional | Reserved for future X-Bot-Token auth |
 | `ADMIN_TELEGRAM_IDS` | optional | Comma-separated TG IDs for emoji discovery & future admin tools. Falls back to `ADMIN_TELEGRAM_ID` (singular) for backwards compat |
 
 ### Deployment (`bot-chat/DEPLOY.md`):
-- Lives at `/root/hundlervpn/bot-chat` on the same Telegram-bot VPS as
-  `bot/`.
-- Systemd unit `bot-chat/hundlervpn-bot-chat.service` (Type=simple,
-  EnvironmentFile=-/root/hundlervpn/bot-chat/.env, Restart=always).
-  Starts AFTER `hundlervpn-bot.service` for log readability.
-- Required env in `.env` (chmod 600):
+- Runs as the `hundler-bot-chat` container (built from `./bot-chat` by
+  `docker-compose.yml`) on the SAME VPS as the app + Postgres. The old host
+  systemd unit `hundlervpn-bot-chat.service` is retired.
+- Env is injected by compose from the server's root `.env` — no per-bot `.env`.
+  The self-hosted overlay wires the DB to the in-network container
+  (`POSTGRESQL_HOST=postgres` / `PORT=5432` / `SSLMODE=disable`), which resolves
+  the old migration CONFIRM question: the bots are co-located and reach Postgres
+  over the Docker `web` network — no host port publish, no tunnel. Root `.env`
+  keys the chat bot uses:
   ```
-  TELEGRAM_BOT_TOKEN=<separate token from BotFather, NOT the Mini-App bot's>
-  TELEGRAM_BOT_USERNAME=hundlervpn_bot
+  TELEGRAM_BOT_CHAT_TOKEN=<separate token from BotFather, NOT the Mini-App bot's>
+  CHAT_BOT_USERNAME=hundlervpn_bot
   APP_URL=https://hundlervpn.xyz
-  POSTGRESQL_HOST=127.0.0.1     # via db-tunnel.service (SAME tunnel as bot/)
-  POSTGRESQL_PORT=5433
-  POSTGRESQL_USER=<DB_USER>
-  POSTGRESQL_PASSWORD=...
-  POSTGRESQL_DBNAME=<DB_NAME>
-  POSTGRESQL_SSLMODE=require
   XRAY_SYNC_TOKEN=...           # MUST match the web app + VPN-VPS value
+  # POSTGRESQL_* come from the compose overlay (host=postgres, 5432, disable)
   ```
-- **DB connection history**: v66 the bots tunneled to Timeweb Postgres over an
-  SSH bridge (`127.0.0.1:5433`); v68 (2026-05-17) they moved to Hostman managed
-  PG at `<DB_HOST>:5432` (`sslmode=require`), tunnel removed.
-- ⚠️ **2026-07 self-host migration (CONFIRM):** the DB is now a Postgres
-  **container on the web VPS** (`159.195.58.174`, `docker-compose.selfhosted.yml`)
-  and is only exposed on the internal Docker network — the compose file does
-  **not** publish `5432` to the host. The bots run on a **separate** VPS, so
-  they cannot reach `POSTGRESQL_HOST=postgres`. Whoever ran the migration must
-  confirm how the bots now connect (e.g. publish/firewall `159.195.58.174:5432`
-  and point the bots at it, or co-locate/tunnel) and update the bot `.env`
-  accordingly. Do not assume the old Hostman/Timeweb hosts — both are dead.
-- Update flow: `git pull && systemctl restart hundlervpn-bot-chat`.
-- Logs: `journalctl -u hundlervpn-bot-chat -f`.
+- Deploy / update: from `/root/hundlervpn`, `git pull origin main` then
+  `docker compose -f docker-compose.yml -f docker-compose.selfhosted.yml up -d --build bot-chat`.
+- Logs: `docker compose -f docker-compose.yml -f docker-compose.selfhosted.yml logs -f bot-chat`.
 
 ### Local dev quirks:
 - `bot-chat/run.bat` — workaround for a Windows shell that strips

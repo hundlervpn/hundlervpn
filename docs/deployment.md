@@ -17,9 +17,15 @@ Everything for the web tier runs as Docker containers on the one VPS:
 - `hundler-certbot` — Let's Encrypt renewals for `hundlervpn.xyz`.
 - `hundler-postgres` — Postgres 18 with a named volume `pgdata` and schema
   auto-init (added by `docker-compose.selfhosted.yml`).
+- `hundler-bot` — main Telegram launcher/broadcast bot (`bot/main.py`).
+- `hundler-bot-chat` — chat-only Telegram bot (`bot-chat/`). Both bots build
+  from the base compose file and join the internal `web` network, reaching
+  Postgres at `postgres:5432` (`sslmode=disable`) via the self-hosted overlay.
+  They replaced the old host systemd units on the now-retired separate bot VPS.
 
-VPN servers and the Telegram bots still run on their own separate VPS instances
-(unchanged) — this doc is only about the web/API/DB tier.
+The **VPN exit servers** still run on their own separate VPS instances abroad
+(unchanged). Everything else — web/API, DB and both Telegram bots — is
+containers on this one VPS.
 
 ## Compose files
 
