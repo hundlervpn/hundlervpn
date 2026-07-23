@@ -5,9 +5,11 @@ either:
     - active panel: plan name, days left, end date, sub URL CTA;
     - empty panel: "у вас нет активной подписки" + buy CTA.
 
-The sub URL is built locally with `sub_token.get_subscription_url` —
-same HMAC as the Next.js API expects. If XRAY_SYNC_TOKEN is not set in
-the bot env we hide the URL button (rare — only on misconfigured deploys).
+The sub URL is the SAME canonical link the Mini App shows — fetched from
+`/api/users/state` (the Remnawave panel-direct URL for the default backend,
+matching what the panel itself serves). We fall back to the locally-built
+`sub_token.get_subscription_url` legacy proxy link only if that call fails,
+and hide the button if neither yields a URL (rare — misconfigured deploy).
 """
 from __future__ import annotations
 
@@ -29,6 +31,7 @@ except Exception:  # pragma: no cover — only if zoneinfo is missing
 
 from aiogram import Router, types
 
+import api_client
 import db
 import sub_token
 import ui
@@ -126,7 +129,7 @@ async def cb_sub_show(callback: types.CallbackQuery) -> None:
         await ui.answer_callback_query(callback.id)
         return
 
-    sub_url = sub_token.get_subscription_url(tid)
+    sub_url = await api_client.fetch_subscription_url(telegram_id=tid) or sub_token.get_subscription_url(tid)
     days_left_text = ui.fmt_days_left(sub["end_date"])
     end_str = _fmt_end_date(sub["end_date"])
     max_devices = sub.get("max_devices") or 3

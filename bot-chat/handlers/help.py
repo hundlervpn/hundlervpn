@@ -25,6 +25,7 @@ import logging
 
 from aiogram import Router, types
 
+import api_client
 import sub_token
 import ui
 
@@ -216,7 +217,7 @@ async def cb_help_client(callback: types.CallbackQuery) -> None:
         return
 
     tid = callback.from_user.id
-    sub_url = sub_token.get_subscription_url(tid)
+    sub_url = await api_client.fetch_subscription_url(telegram_id=tid) or sub_token.get_subscription_url(tid)
 
     if not sub_url:
         await ui.smart_edit(

@@ -175,7 +175,11 @@ async def on_promo_text(message: types.Message, state: FSMContext) -> None:
 
     # type == "days" (or unknown but with days/endDate)
     days = resp.get("days") or 0
-    sub_url = sub_token.get_subscription_url(tid) or resp.get("subscriptionUrl")
+    sub_url = (
+        await api_client.fetch_subscription_url(telegram_id=tid)
+        or resp.get("subscriptionUrl")
+        or sub_token.get_subscription_url(tid)
+    )
 
     text = (
         f"🎉  <b>Промокод {_html_escape(promo_code)} активирован!</b>\n\n"

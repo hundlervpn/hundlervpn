@@ -49,6 +49,20 @@ async def _delete(path: str) -> dict:
             return data or {}
 
 
+async def _get(path: str) -> dict:
+    """GET <APP_URL><path>, return parsed JSON body."""
+    cfg = get_config()
+    url = f"{cfg.app_url}{path}"
+    timeout = aiohttp.ClientTimeout(total=30)
+    async with aiohttp.ClientSession(timeout=timeout) as s:
+        async with s.get(url) as r:
+            data = await r.json(content_type=None)
+            if r.status >= 400:
+                msg = (data or {}).get("error") if isinstance(data, dict) else None
+                raise ApiError(msg or f"HTTP {r.status}", status=r.status, body=data)
+            return data or {}
+
+
 class ApiError(Exception):
     """Raised when the Next.js API returns 4xx/5xx with an error body."""
 
@@ -190,3 +204,27 @@ async def delete_device(*, telegram_id: int, device_id: int) -> dict:
     return await _delete(
         f"/api/users/devices?telegramId={telegram_id}&deviceId={device_id}"
     )
+
+
+async def fetch_subscription_url(*, telegram_id: int) -> str | None:
+    """Canonical subscription URL — the SAME link the Mini App shows.
+
+    GET /api/users/state?telegramId=… and return `profile.subscriptionUrl`.
+    For the Remnawave backend this is the panel-direct URL
+    (sub.hundlervpn.xyz/<shortUuid>), identical to what the panel and the
+    Mini App display — NOT the legacy `/api/sub/<token>` proxy link the bot
+    used to build locally (which rendered an old-style config). The endpoint
+    also provisions the user into the panel on first call (idempotent), same
+    as the Mini App. Returns None on any error so callers can fall back to
+    `sub_token.get_subscription_url`.
+    """
+    try:
+        data = await _get(f"/api/users/state?telegramId={telegram_id}")
+    except Exception as e:  # noqa: BLE001 — best-effort; caller falls back
+        log.warning("fetch_subscription_url failed for tid=%s: %s", telegram_id, e)
+        return None
+    profile = data.get("profile") if isinstance(data, dict) else None
+    if not isinstance(profile, dict):
+        return None
+    url = profile.get("subscriptionUrl")
+    return url or None
