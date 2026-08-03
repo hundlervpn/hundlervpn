@@ -7,17 +7,30 @@ import { getClientByEmail } from '@/lib/threexui';
 import { clientEmailFor } from '@/lib/threexui-sync';
 
 /**
- * The panel's own subscription URL for a local user: `<base>/<subId>`, where
- * `subId` is whatever 3x-ui stores on the client (the same link the panel UI
- * shows). Base comes from THREEXUI_SUB_BASE, e.g.
- *   https://panel.hundlervpn.xyz:2096/sub
+ * The panel's own subscription URL: `<subDomain>/<subId>`.
  *
- * Returns null when the panel is unreachable or the client has no subId, so the
- * caller can fall back to our own signed-token endpoint.
+ * Nothing new to configure — this reuses what is already deployed:
+ *   - REMNAWAVE_SUB_DOMAIN (https://sub.hundlervpn.xyz) is fronted by nginx and
+ *     proxied to the 3x-ui subscription server on :2096, so it serves TLS and
+ *     returns the panel's real config list (VLESS + Hysteria2 per node).
+ *   - users.remnawave_short_uuid holds the panel client's `subId` (the migration
+ *     deliberately reused the Remnawave shortUuid as the 3x-ui subId so links
+ *     saved by users back then keep resolving).
+ * THREEXUI_SUB_BASE can override the host if the subscription ever moves.
+ *
+ * Only when the cached subId is missing do we ask the panel for it. Returns null
+ * if we still can't determine one, so the caller falls back to our own endpoint.
  */
-async function panelSubscriptionUrl(userId: number): Promise<string | null> {
-  const base = (process.env.THREEXUI_SUB_BASE || '').trim().replace(/\/+$/, '');
+async function panelSubscriptionUrl(userId: number, cachedSubId: string | null): Promise<string | null> {
+  const base = (process.env.THREEXUI_SUB_BASE || process.env.REMNAWAVE_SUB_DOMAIN || '')
+    .trim()
+    .replace(/\/+$/, '');
   if (!base) return null;
+
+  // Fast path: subId already known — no panel round-trip, and the link keeps
+  // working even while the panel API is down.
+  const cached = (cachedSubId || '').trim();
+  if (cached) return `${base}/${encodeURIComponent(cached)}`;
 
   // `clientEmailFor` labels panel clients by telegram id / email, so it needs
   // the user's access record rather than a bare id.
@@ -239,7 +252,9 @@ export async function GET(req: Request) {
     if (backend === '3xui') {
       // Panel link first; our signed-token endpoint is only a last-ditch
       // fallback for when the panel is unreachable / the client has no subId.
-      subscriptionUrl = (await panelSubscriptionUrl(result.rows[0].userId)) ?? ownSubUrl();
+      const cachedSubId =
+        (result.rows[0] as { remnawaveShortUuid?: string | null }).remnawaveShortUuid ?? null;
+      subscriptionUrl = (await panelSubscriptionUrl(result.rows[0].userId, cachedSubId)) ?? ownSubUrl();
     } else {
       let shortUuid: string | null = (result.rows[0] as { remnawaveShortUuid?: string | null }).remnawaveShortUuid ?? null;
       if (!result.rows[0].remnawaveSyncedAt || !shortUuid) {
