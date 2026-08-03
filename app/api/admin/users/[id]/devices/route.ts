@@ -148,7 +148,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       const token = Number.isFinite(tgNum) && tgNum > 0
         ? generateSubToken(tgNum)
         : generateSubTokenForUser(Number(row.id));
-      subscriptionUrl = `${origin}/api/sub/${token}`;
+      subscriptionUrl = `${origin}/sub/${token}`;
     }
 
     return NextResponse.json({

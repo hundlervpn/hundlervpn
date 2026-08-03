@@ -470,7 +470,7 @@ export function getSubscriptionUrl(telegramId: number): string | null {
   const secret = process.env.XRAY_SYNC_TOKEN;
   if (!appUrl || !secret) return null;
   const token = generateSubToken(telegramId);
-  return `${httpsAppUrl(appUrl)}/api/sub/${token}`;
+  return `${httpsAppUrl(appUrl)}/sub/${token}`;
 }
 
 export function getSubscriptionUrlForUser(userId: number): string | null {
@@ -478,7 +478,7 @@ export function getSubscriptionUrlForUser(userId: number): string | null {
   const secret = process.env.XRAY_SYNC_TOKEN;
   if (!appUrl || !secret) return null;
   const token = generateSubTokenForUser(userId);
-  return `${httpsAppUrl(appUrl)}/api/sub/${token}`;
+  return `${httpsAppUrl(appUrl)}/sub/${token}`;
 }
 
 /**
