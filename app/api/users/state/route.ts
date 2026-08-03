@@ -3,6 +3,43 @@ import { dbQuery } from '@/lib/db';
 import { getSubscriptionUrl, getSubscriptionUrlForUser, getRemnawaveDirectSubscriptionUrl } from '@/lib/sub-token';
 import { ensureRemnawaveUser } from '@/lib/remnawave-sync';
 import { vpnBackend } from '@/lib/vpn-access';
+import { getClientByEmail } from '@/lib/threexui';
+import { clientEmailFor } from '@/lib/threexui-sync';
+
+/**
+ * The panel's own subscription URL for a local user: `<base>/<subId>`, where
+ * `subId` is whatever 3x-ui stores on the client (the same link the panel UI
+ * shows). Base comes from THREEXUI_SUB_BASE, e.g.
+ *   https://panel.hundlervpn.xyz:2096/sub
+ *
+ * Returns null when the panel is unreachable or the client has no subId, so the
+ * caller can fall back to our own signed-token endpoint.
+ */
+async function panelSubscriptionUrl(userId: number): Promise<string | null> {
+  const base = (process.env.THREEXUI_SUB_BASE || '').trim().replace(/\/+$/, '');
+  if (!base) return null;
+
+  const email = clientEmailFor(userId);
+  let client = await getClientByEmail(email).catch(() => null);
+  if (!client) {
+    // Not provisioned yet — create it, then re-read to pick up the subId the
+    // panel generated. Idempotent.
+    try {
+      await ensureRemnawaveUser(userId);
+    } catch (err) {
+      console.error('[users/state] 3x-ui provisioning failed:', err);
+      return null;
+    }
+    client = await getClientByEmail(email).catch(() => null);
+  }
+
+  const subId = (client?.subId || '').trim();
+  if (!subId) {
+    console.error('[users/state] 3x-ui client has no subId', { userId, email });
+    return null;
+  }
+  return `${base}/${encodeURIComponent(subId)}`;
+}
 
 type UserState = {
   userId: number;
@@ -178,34 +215,26 @@ export async function GET(req: Request) {
     
     // Subscription link handed to the Mini App / bots.
     //
-    // 3x-ui (current backend): ALWAYS our own https://<APP_URL>/api/sub/<token>.
-    // That endpoint builds the config itself, is served over TLS by nginx, and
-    // renders the "subscription expired" placeholder for unpaid users.
-    // Critically we must NOT fall back to getRemnawaveDirectSubscriptionUrl()
-    // here: users migrated off Remnawave still carry a stale
-    // `remnawave_short_uuid`, and handing that out kept pointing live clients at
-    // the retired sub.hundlervpn.xyz panel (they never saw the new config, nor
-    // the expiry notice).
+    // 3x-ui (current backend): hand out the PANEL'S OWN subscription link,
+    // `<THREEXUI_SUB_BASE>/<subId>` — the exact URL 3x-ui shows for that client.
+    // No custom token layer in between: the panel already serves a working
+    // subscription (VLESS + Hysteria2 for every node), so we just point users at
+    // it. `subId` is read straight from the panel client.
     //
-    // Remnawave (rollback path only): keep the original behaviour — prefer the
-    // panel's direct URL so clients hit the panel without a proxy hop.
+    // Never fall back to getRemnawaveDirectSubscriptionUrl() here: users migrated
+    // off Remnawave still carry a stale `remnawave_short_uuid`, and handing that
+    // out kept pointing live clients at the retired sub.hundlervpn.xyz panel.
+    //
+    // Remnawave (rollback path only): keep the original behaviour.
     let subscriptionUrl: string | null = null;
     const backend = vpnBackend();
     const ownSubUrl = () =>
       tgId ? getSubscriptionUrl(Number(tgId)) : getSubscriptionUrlForUser(result.rows[0].userId);
 
     if (backend === '3xui') {
-      // Provision into the panel once. `remnawave_synced_at` gates this so we
-      // don't hammer the panel API on every state poll (3x-ui has no shortUuid,
-      // so the old `!shortUuid` condition would have fired every single time).
-      if (!result.rows[0].remnawaveSyncedAt) {
-        try {
-          await ensureRemnawaveUser(result.rows[0].userId);
-        } catch (err) {
-          console.error('[users/state] ensure3xuiClient failed (best-effort):', err);
-        }
-      }
-      subscriptionUrl = ownSubUrl();
+      // Panel link first; our signed-token endpoint is only a last-ditch
+      // fallback for when the panel is unreachable / the client has no subId.
+      subscriptionUrl = (await panelSubscriptionUrl(result.rows[0].userId)) ?? ownSubUrl();
     } else {
       let shortUuid: string | null = (result.rows[0] as { remnawaveShortUuid?: string | null }).remnawaveShortUuid ?? null;
       if (!result.rows[0].remnawaveSyncedAt || !shortUuid) {
