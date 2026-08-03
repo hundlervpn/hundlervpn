@@ -8,6 +8,7 @@ import {
   generateSubToken,
   generateSubTokenForUser,
 } from '@/lib/sub-token';
+import { vpnBackend } from '@/lib/vpn-access';
 
 /**
  * Admin-only: list ALL device_sessions for a target user (including kicked,
@@ -132,8 +133,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     // XRAY_SYNC_TOKEN (needed to sign the token) — without it we return null.
     const row = userResult.rows[0];
     const tgNum = row.telegram_id ? Number(row.telegram_id) : NaN;
-    // Prefer direct Remnawave panel URL when we have a shortUuid.
-    let subscriptionUrl: string | null = getRemnawaveDirectSubscriptionUrl(row.remnawave_short_uuid);
+    // On 3x-ui the subscription is served by OUR https endpoint, so ignore any
+    // stale `remnawave_short_uuid` left over from the retired panel — otherwise
+    // the admin UI shows a dead sub.hundlervpn.xyz link.
+    let subscriptionUrl: string | null =
+      vpnBackend() === '3xui' ? null : getRemnawaveDirectSubscriptionUrl(row.remnawave_short_uuid);
     if (!subscriptionUrl) {
       subscriptionUrl = Number.isFinite(tgNum) && tgNum > 0
         ? getSubscriptionUrl(tgNum)

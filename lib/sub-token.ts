@@ -470,7 +470,7 @@ export function getSubscriptionUrl(telegramId: number): string | null {
   const secret = process.env.XRAY_SYNC_TOKEN;
   if (!appUrl || !secret) return null;
   const token = generateSubToken(telegramId);
-  return `${appUrl}/api/sub/${token}`;
+  return `${httpsAppUrl(appUrl)}/api/sub/${token}`;
 }
 
 export function getSubscriptionUrlForUser(userId: number): string | null {
@@ -478,7 +478,24 @@ export function getSubscriptionUrlForUser(userId: number): string | null {
   const secret = process.env.XRAY_SYNC_TOKEN;
   if (!appUrl || !secret) return null;
   const token = generateSubTokenForUser(userId);
-  return `${appUrl}/api/sub/${token}`;
+  return `${httpsAppUrl(appUrl)}/api/sub/${token}`;
+}
+
+/**
+ * Subscription links MUST be https.
+ *
+ * Several clients (v2rayTun and some Happ builds among them) silently refuse to
+ * fetch a plain-http subscription — the profile just never updates and the user
+ * sees an empty / stale config. APP_URL is https in production, but this
+ * normalises accidental `http://` (or a bare host) so a misconfigured env can
+ * never ship an unusable link. Localhost is left alone for local dev.
+ */
+function httpsAppUrl(raw: string): string {
+  const trimmed = raw.trim().replace(/\/+$/, '');
+  if (/^https:\/\//i.test(trimmed)) return trimmed;
+  if (/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(trimmed)) return trimmed;
+  if (/^http:\/\//i.test(trimmed)) return trimmed.replace(/^http:\/\//i, 'https://');
+  return `https://${trimmed}`;
 }
 
 /**

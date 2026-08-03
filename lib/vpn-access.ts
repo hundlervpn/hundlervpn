@@ -8,11 +8,17 @@
 
 import { dbQuery } from '@/lib/db';
 
-/** Active VPN backend. Remnawave remains the default until cutover. */
+/**
+ * Active VPN backend.
+ *
+ * 2026-08 cutover: 3x-ui is now the DEFAULT — Remnawave is retired. Rollback is
+ * still one env var away (`VPN_BACKEND=remnawave` + rebuild), but a missing /
+ * empty value must no longer resurrect the dead panel.
+ */
 export type VpnBackend = 'remnawave' | '3xui';
 
 export function vpnBackend(): VpnBackend {
-  return process.env.VPN_BACKEND === '3xui' ? '3xui' : 'remnawave';
+  return process.env.VPN_BACKEND === 'remnawave' ? 'remnawave' : '3xui';
 }
 
 export interface LocalUserAccess {

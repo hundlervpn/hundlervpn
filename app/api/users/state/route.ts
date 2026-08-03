@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { dbQuery } from '@/lib/db';
 import { getSubscriptionUrl, getSubscriptionUrlForUser, getRemnawaveDirectSubscriptionUrl } from '@/lib/sub-token';
 import { ensureRemnawaveUser } from '@/lib/remnawave-sync';
+import { vpnBackend } from '@/lib/vpn-access';
 
 type UserState = {
   userId: number;
@@ -175,45 +176,55 @@ export async function GET(req: Request) {
     const { status, hasActiveKey, telegramId: tgId } = result.rows[0];
     console.log('User state check:', { status, hasActiveKey, telegramId: tgId });
     
-    // Every user is handed a Remnawave subscription link. The /api/sub/[token]
-    // proxy provisions the user into the panel on first poll (idempotent), and
-    // Remnawave gates real access via expireAt/status — a user without an active
-    // subscription is provisioned DISABLED and receives an empty config. So it is
-    // safe (and intended) to always issue the link instead of falling back to a
-    // legacy per-device VLESS key.
-    // Prefer the panel's direct subscription URL (sub.hundlervpn.xyz/<shortUuid>)
-    // so VPN clients hit Remnawave directly — real client IPs in HWID list,
-    // no Mini App proxy hop. Fall back to the legacy Mini App proxy URL only
-    // when the panel mapping is not yet available.
+    // Subscription link handed to the Mini App / bots.
+    //
+    // 3x-ui (current backend): ALWAYS our own https://<APP_URL>/api/sub/<token>.
+    // That endpoint builds the config itself, is served over TLS by nginx, and
+    // renders the "subscription expired" placeholder for unpaid users.
+    // Critically we must NOT fall back to getRemnawaveDirectSubscriptionUrl()
+    // here: users migrated off Remnawave still carry a stale
+    // `remnawave_short_uuid`, and handing that out kept pointing live clients at
+    // the retired sub.hundlervpn.xyz panel (they never saw the new config, nor
+    // the expiry notice).
+    //
+    // Remnawave (rollback path only): keep the original behaviour — prefer the
+    // panel's direct URL so clients hit the panel without a proxy hop.
     let subscriptionUrl: string | null = null;
+    const backend = vpnBackend();
+    const ownSubUrl = () =>
+      tgId ? getSubscriptionUrl(Number(tgId)) : getSubscriptionUrlForUser(result.rows[0].userId);
 
-    // Best-effort: provision the user into the Remnawave panel on first app
-    // open (or whenever we still lack a shortUuid), so they show up in the
-    // panel immediately and we can hand out the direct sub URL. ensureRemnawaveUser
-    // is idempotent and reuses any existing panel record.
-    let shortUuid: string | null = (result.rows[0] as { remnawaveShortUuid?: string | null }).remnawaveShortUuid ?? null;
-    if (!result.rows[0].remnawaveSyncedAt || !shortUuid) {
-      try {
-        const ensured = await ensureRemnawaveUser(result.rows[0].userId);
-        shortUuid = ensured.shortUuid || shortUuid;
-        // Panel itself returns the canonical subscriptionUrl — prefer it.
-        if (ensured.subscriptionUrl) {
-          subscriptionUrl = ensured.subscriptionUrl;
+    if (backend === '3xui') {
+      // Provision into the panel once. `remnawave_synced_at` gates this so we
+      // don't hammer the panel API on every state poll (3x-ui has no shortUuid,
+      // so the old `!shortUuid` condition would have fired every single time).
+      if (!result.rows[0].remnawaveSyncedAt) {
+        try {
+          await ensureRemnawaveUser(result.rows[0].userId);
+        } catch (err) {
+          console.error('[users/state] ensure3xuiClient failed (best-effort):', err);
         }
-      } catch (err) {
-        console.error('[users/state] ensureRemnawaveUser failed (best-effort):', err);
       }
-    }
-
-    if (!subscriptionUrl) {
-      subscriptionUrl = getRemnawaveDirectSubscriptionUrl(shortUuid);
-    }
-    if (!subscriptionUrl) {
-      // Legacy Mini App proxy — keeps old clients working if panel is down
-      // or the user has not been provisioned yet.
-      subscriptionUrl = tgId
-        ? getSubscriptionUrl(Number(tgId))
-        : getSubscriptionUrlForUser(result.rows[0].userId);
+      subscriptionUrl = ownSubUrl();
+    } else {
+      let shortUuid: string | null = (result.rows[0] as { remnawaveShortUuid?: string | null }).remnawaveShortUuid ?? null;
+      if (!result.rows[0].remnawaveSyncedAt || !shortUuid) {
+        try {
+          const ensured = await ensureRemnawaveUser(result.rows[0].userId);
+          shortUuid = ensured.shortUuid || shortUuid;
+          if (ensured.subscriptionUrl) {
+            subscriptionUrl = ensured.subscriptionUrl;
+          }
+        } catch (err) {
+          console.error('[users/state] ensureRemnawaveUser failed (best-effort):', err);
+        }
+      }
+      if (!subscriptionUrl) {
+        subscriptionUrl = getRemnawaveDirectSubscriptionUrl(shortUuid);
+      }
+      if (!subscriptionUrl) {
+        subscriptionUrl = ownSubUrl();
+      }
     }
     console.log('Subscription URL:', subscriptionUrl);
 

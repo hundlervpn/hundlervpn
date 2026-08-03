@@ -118,13 +118,30 @@ function buildVlessUri(node: VlessEndpoint, uuid: string): string {
     + '#' + encodeURIComponent(node.remark);
 }
 
+/** Telegram handle users renew through (chat bot). */
+function renewBotHandle(): string {
+  return (
+    process.env.CHAT_BOT_USERNAME ||
+    process.env.NEXT_PUBLIC_TELEGRAM_BOT_USERNAME ||
+    'hundlervpn_bot'
+  ).replace(/^@/, '');
+}
+
 /** Informational "rows" clients render when there is no active subscription. */
 function inactiveLines(): string[] {
-  const appHost = (process.env.APP_URL || 'https://hundlervpn.xyz').replace(/^https?:\/\//, '');
+  const stub = (label: string) =>
+    'vless://' + FAKE_UUID + '@127.0.0.1:443?security=none&type=tcp#' + encodeURIComponent(label);
+  // A dead config's profile NAME is the only text every client reliably shows,
+  // so the whole call-to-action has to live there.
   return [
-    'vless://' + FAKE_UUID + '@127.0.0.1:443?security=none&type=tcp#' + encodeURIComponent('⚠️ Подписка не активна'),
-    'vless://' + FAKE_UUID + '@127.0.0.1:443?security=none&type=tcp#' + encodeURIComponent('🔄 Оформить: ' + appHost),
+    stub('⛔ Подписка закончилась'),
+    stub('👉 Продлите в боте @' + renewBotHandle()),
   ];
+}
+
+/** Renewal hint surfaced via the `announce` header. */
+function inactiveAnnounce(): string {
+  return 'Подписка закончилась. Продлите её в боте @' + renewBotHandle() + ' — доступ включится сразу.';
 }
 
 async function serve3xuiSub(localUserId: number, ensured: Awaited<ReturnType<typeof ensureRemnawaveUser>>): Promise<Response> {
@@ -141,10 +158,21 @@ async function serve3xuiSub(localUserId: number, ensured: Awaited<ReturnType<typ
     'X-Code-Version': CODE_VERSION,
   });
   if (process.env.APP_URL) headers.set('profile-web-page-url', process.env.APP_URL);
+  if (!active) {
+    // Happ / Hiddify surface `announce` as an in-app banner — the clearest
+    // place to tell the user WHY their config went dead and how to fix it.
+    headers.set('announce', 'base64:' + Buffer.from(inactiveAnnounce(), 'utf8').toString('base64'));
+  }
 
   // subscription-userinfo: best-effort traffic counters from the panel.
   const traffic = await getClientTraffic(clientEmailFor(localUserId));
-  const expireSec = active ? Math.floor(new Date(ensured.rwUser.expireAt).getTime() / 1000) : 0;
+  // IMPORTANT: `expire=0` means "never expires" to most clients (Happ,
+  // v2rayNG, v2rayTun) — emitting it for an expired user is exactly why the
+  // apps showed no expiry notice at all. Send a timestamp in the PAST instead
+  // so the client renders the subscription as expired.
+  const expireSec = active
+    ? Math.floor(new Date(ensured.rwUser.expireAt).getTime() / 1000)
+    : Math.floor(Date.now() / 1000) - 60;
   headers.set('subscription-userinfo',
     'upload=' + (traffic?.up ?? 0) +
     '; download=' + (traffic?.down ?? 0) +
