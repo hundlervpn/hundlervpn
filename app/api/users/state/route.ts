@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { dbQuery } from '@/lib/db';
 import { getSubscriptionUrl, getSubscriptionUrlForUser, getRemnawaveDirectSubscriptionUrl } from '@/lib/sub-token';
 import { ensureRemnawaveUser } from '@/lib/remnawave-sync';
-import { vpnBackend } from '@/lib/vpn-access';
+import { vpnBackend, loadLocalUserAccess } from '@/lib/vpn-access';
 import { getClientByEmail } from '@/lib/threexui';
 import { clientEmailFor } from '@/lib/threexui-sync';
 
@@ -19,7 +19,12 @@ async function panelSubscriptionUrl(userId: number): Promise<string | null> {
   const base = (process.env.THREEXUI_SUB_BASE || '').trim().replace(/\/+$/, '');
   if (!base) return null;
 
-  const email = clientEmailFor(userId);
+  // `clientEmailFor` labels panel clients by telegram id / email, so it needs
+  // the user's access record rather than a bare id.
+  const access = await loadLocalUserAccess(userId);
+  if (!access) return null;
+  const email = clientEmailFor(access);
+
   let client = await getClientByEmail(email).catch(() => null);
   if (!client) {
     // Not provisioned yet — create it, then re-read to pick up the subId the
